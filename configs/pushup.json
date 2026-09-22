@@ -1,0 +1,29 @@
+{
+  "id": "pushup",
+  "name": "俯卧撑",
+  "camera_side": "侧",
+  "counter": {
+    "signal": "angle",
+    "points": [11, 13, 15],
+    "lo": 90,
+    "hi": 160,
+    "first": "lo",
+    "min_interval": 0.35
+  },
+  "quality": [
+    {
+      "name": "塌腰",
+      "check": "collinear",
+      "points": [11, 23, 27],
+      "min_angle": 165,
+      "tip": "身体没绷直，塌腰了"
+    },
+    {
+      "name": "手臂未伸直",
+      "check": "angle_min",
+      "points": [11, 13, 15],
+      "min": 150,
+      "tip": "撑起时手臂没伸直"
+    }
+  ]
+}

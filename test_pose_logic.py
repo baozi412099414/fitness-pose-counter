@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+用合成数据验证动作配置解释器（不依赖摄像头 / MediaPipe）。
+
+跑法：
+    .venv/bin/python test_pose_logic.py
+"""
+
+from pose_logic import RepCounter, QualityChecker, load_action
+
+
+def test_rep_counter():
+    print("=== 测试 1：俯卧撑计数（合成肘角序列） ===")
+    c = RepCounter({"lo": 90, "hi": 160, "first": "lo", "min_interval": 0.3})
+    # 一次完整俯卧撑：165(伸直) -> 90(下压) -> 165(撑起)，下压途中在 90 附近抖两下
+    seq = [165, 165, 150, 130, 110, 95, 92, 90, 92, 90, 100, 120, 140, 155, 160, 165, 165]
+    now = 0.0
+    for s in seq:
+        now += 0.1
+        count, stage = c.update(s, now)
+        print(f"  角度 {s:5.1f}° -> 阶段 {stage:6s} 计数 {count}")
+    assert c.count == 1, f"期望 1 次，实际 {c.count}"
+    print(f"  ✅ 一次完整俯卧撑，计数 = {c.count}\n")
+
+
+def test_hysteresis():
+    print("=== 测试 2：迟滞防抖（阈值边缘抖动不重复计数） ===")
+    c = RepCounter({"lo": 90, "hi": 160, "first": "lo", "min_interval": 0.3})
+    now = 0.0
+    for s in [165, 120, 90, 120, 165]:   # 先完整做一次
+        now += 0.1
+        c.update(s, now)
+    before = c.count
+    for s in [159, 161, 159, 161, 158, 162, 159]:   # 在 hi=160 附近反复抖
+        now += 0.05
+        c.update(s, now)
+    print(f"  抖动前 {before} 次，抖动后 {c.count} 次")
+    assert c.count == before, "边缘抖动不应增加计数"
+    print("  ✅ 迟滞区挡住了抖动\n")
+
+
+def test_quality():
+    print("=== 测试 3：质量判定（塌腰检测） ===")
+    q = QualityChecker([
+        {"name": "塌腰", "check": "collinear", "points": [11, 23, 27],
+         "min_angle": 165, "tip": "身体没绷直，塌腰了"}
+    ])
+    pts = [(0, 0)] * 33
+    pts[11] = (100, 100)   # 肩
+    pts[27] = (200, 200)   # 踝
+    # 标准：肩-髋-踝三点在一条直线上（共线角 180°）
+    pts[23] = (150, 150)
+    print("  标准姿态命中:", q.check(pts) or "(无)")
+    assert not q.check(pts), "标准姿态不应报错"
+    # 塌腰：髋下沉，共线角变小
+    pts[23] = (150, 190)
+    hits = q.check(pts)
+    print("  塌腰姿态命中:", hits)
+    assert hits, "塌腰应该被检出"
+    print("  ✅ 塌腰被正确检出\n")
+
+
+def test_load_and_update():
+    print("=== 测试 4：整条链路（读 JSON → 算角度 → 状态机） ===")
+    action = load_action("configs/pushup.json")
+    print(f"  已加载动作：{action.name}（{action.id}），信号类型 {action.signal_type}")
+    # 构造一个明确姿态：肩(100,100)、肘(100,120)、腕(100,200) 三点竖直共线 => 肘角 180°
+    pts = [(0, 0)] * 33
+    pts[11] = (100, 100)
+    pts[13] = (100, 120)
+    pts[15] = (100, 200)
+    pts[23] = (150, 150)
+    pts[27] = (200, 200)
+    sig = action.signal(pts)
+    print(f"  肘角 = {sig:.1f}°（预期 180°）")
+    assert abs(sig - 180) < 0.5, f"肘角应接近 180，实际 {sig}"
+    count, stage, s, hits = action.update(pts)
+    print(f"  update -> 计数 {count} 阶段 {stage} 质量提示 {hits}")
+    print("  ✅ 读配置 + 算角度 + 状态机联动 跑通\n")
+
+
+if __name__ == "__main__":
+    test_rep_counter()
+    test_hysteresis()
+    test_quality()
+    test_load_and_update()
+    print("全部通过 ✅")

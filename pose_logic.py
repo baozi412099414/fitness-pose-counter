@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+pose_logic.py —— 动作配置的解释器（纯逻辑，不依赖摄像头 / MediaPipe）
+
+这是本题的核心自研模块。读一份 JSON 动作配置，就能：
+  1. 从 33 个关键点算出「判定信号」（关节角度 或 两点距离）
+  2. 用带迟滞的状态机数动作次数（防边缘抖动、防重复计数）
+  3. 按姿态约束判断动作标不标准，给出提示
+
+新增一个动作 = 写一份 JSON 放进 configs/，这里的代码一行都不用改。
+（这正是答辩要演示的「配置 → 状态机 → 计数」链路）
+"""
+
+import json
+import math
+import time
+
+import numpy as np
+
+
+# --------------------------------------------------------------------------
+# 几何计算（输入都是 (x, y) 像素坐标）
+# --------------------------------------------------------------------------
+def angle_between(a, b, c):
+    """以 b 为顶点，返回 a-b-c 的夹角（0~180 度）。180 度 = 三点成直线。"""
+    ba = np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)
+    bc = np.asarray(c, dtype=np.float64) - np.asarray(b, dtype=np.float64)
+    denom = np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-9
+    cos = np.clip(np.dot(ba, bc) / denom, -1.0, 1.0)
+    return math.degrees(math.acos(cos))
+
+
+def distance_between(a, b):
+    """两点欧氏距离（像素）。开合跳用它判断两脚并拢 / 张开。"""
+    return float(np.linalg.norm(np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)))
+
+
+# --------------------------------------------------------------------------
+# 计数状态机（带迟滞）
+# --------------------------------------------------------------------------
+class RepCounter:
+    """
+    两态状态机。配置给 lo / hi 两个阈值 + first 方向：
+      - first="lo"：信号先 < lo（进入动作阶段），再 > hi（还原）→ 计 1 次
+        适用于俯卧撑 / 深蹲 / 二头弯举（角度先变小再变大）
+      - first="hi"：信号先 > hi（进入动作阶段），再 < lo（还原）→ 计 1 次
+        适用于开合跳（两脚距离先变大再变小）
+    lo 和 hi 之间是「迟滞区」，信号在阈值边缘抖动时不会反复翻转。
+    """
+
+    def __init__(self, counter_cfg):
+        self.lo = float(counter_cfg["lo"])
+        self.hi = float(counter_cfg["hi"])
+        self.first = counter_cfg.get("first", "lo")
+        self.min_interval = float(counter_cfg.get("min_interval", 0.35))
+        self.stage = "ready"        # ready=等待开始；active=已进入动作阶段
+        self.count = 0
+        self._last_t = -1e9
+
+    def update(self, signal, now=None):
+        now = time.time() if now is None else now
+        if self.stage == "ready":
+            if self.first == "lo" and signal <= self.lo:
+                self.stage = "active"
+            elif self.first == "hi" and signal >= self.hi:
+                self.stage = "active"
+        else:  # active：等待还原
+            done = (self.first == "lo" and signal >= self.hi) or \
+                   (self.first == "hi" and signal <= self.lo)
+            if done:
+                if now - self._last_t >= self.min_interval:
+                    self.count += 1
+                    self._last_t = now
+                self.stage = "ready"
+        return self.count, self.stage
+
+    def reset(self):
+        self.count = 0
+        self.stage = "ready"
+
+
+# --------------------------------------------------------------------------
+# 质量判定（姿态约束）
+# --------------------------------------------------------------------------
+class QualityChecker:
+    """按配置里的 quality 规则逐条检查，返回命中的提示列表（空列表=标准）。"""
+
+    def __init__(self, quality_cfgs):
+        self.rules = quality_cfgs or []
+
+    def check(self, points):
+        hits = []
+        for rule in self.rules:
+            pts = [points[i] for i in rule["points"]]
+            kind = rule.get("check")
+            ok = True
+            if kind == "collinear":
+                # 三点共线度：算中间点的夹角，180 度为完全直线（塌腰/撅臀时变小）
+                deg = angle_between(pts[0], pts[1], pts[2])
+                ok = deg >= rule.get("min_angle", 160)
+            elif kind == "angle_min":
+                # 某个角要 >= min（例如撑起时肘角 >= 150 才叫伸直）
+                deg = angle_between(pts[0], pts[1], pts[2])
+                ok = deg >= rule.get("min", 0)
+            if not ok:
+                hits.append({"name": rule.get("name", "动作不标准"),
+                             "tip": rule.get("tip", rule.get("name", "动作不标准"))})
+        return hits
+
+
+# --------------------------------------------------------------------------
+# 动作对象：把计数 + 质量 + 信号计算组合起来
+# --------------------------------------------------------------------------
+class Action:
+    """一个动作：从配置加载，持有计数状态机和质量检查器。"""
+
+    def __init__(self, cfg):
+        self.id = cfg["id"]
+        self.name = cfg.get("name", cfg["id"])
+        self.signal_type = cfg["counter"]["signal"]   # "angle" | "distance"
+        self.signal_points = cfg["counter"]["points"]
+        self.counter = RepCounter(cfg["counter"])
+        self.quality = QualityChecker(cfg.get("quality", []))
+
+    def signal(self, points):
+        """从 33 个关键点算出当前判定信号值。"""
+        pts = [points[i] for i in self.signal_points]
+        if self.signal_type == "distance":
+            return distance_between(pts[0], pts[1])
+        return angle_between(pts[0], pts[1], pts[2])
+
+    def update(self, points, now=None):
+        """喂一帧关键点，返回 (count, stage, signal, hits)。"""
+        sig = self.signal(points)
+        count, stage = self.counter.update(sig, now)
+        hits = self.quality.check(points)
+        return count, stage, sig, hits
+
+    def reset(self):
+        self.counter.reset()
+
+
+def load_action(path):
+    """从 JSON 文件加载一个动作。"""
+    with open(path, encoding="utf-8") as f:
+        return Action(json.load(f))
