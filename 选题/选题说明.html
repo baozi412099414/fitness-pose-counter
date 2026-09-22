@@ -1,0 +1,3091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>软件工程基础课程设计 · 选题说明</title>
+<meta name="description" content="《软件工程理论基础》研究生课程设计选题说明：19 个基于现成开源模型的 AI 应用选题，每题的输入来源、功能模块与核心模块、模型下载地址、三人分工参考与验收标准。">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="favicon-180.png" sizes="180x180">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f6f5f2; --bg-soft:#efede8; --surface:#ffffff; --surface-2:#fbfaf8;
+  --ink:#14141b; --ink-soft:#454553; --ink-mute:#8a8a97;
+  --line:#e3e0d9; --line-soft:#eeebe5;
+  --brand:#4b40e0; --brand-deep:#2f27a8; --brand-soft:#ecebff;
+  --teal:#0d9488; --amber:#c2760a; --rose:#c0392b;
+  --radius:16px; --radius-sm:10px;
+  --shadow-sm:0 1px 2px rgba(20,20,27,.05),0 1px 3px rgba(20,20,27,.04);
+  --shadow:0 4px 16px rgba(20,20,27,.07),0 1px 3px rgba(20,20,27,.04);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  --fscale:1.15;
+  --maxw:1180px;
+}
+html{scroll-behavior:smooth;scroll-padding-top:104px}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.8;font-size:calc(16.5px * var(--fscale));-webkit-font-smoothing:antialiased}
+a{color:var(--brand);text-decoration:none;word-break:break-all}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.87em;background:var(--bg-soft);padding:2px 6px;border-radius:5px;color:var(--ink-soft)}
+img{max-width:100%;display:block}
+
+/* ---------- 封面 ---------- */
+.cover{position:relative;background:linear-gradient(142deg,#120e30 0%,#241c86 44%,#0b7d74 100%);color:#fff;overflow:hidden}
+.cover-grid{position:absolute;inset:0;opacity:.14;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.55) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.55) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(130% 96% at 16% -6%,#000 18%,transparent 76%);
+  mask-image:radial-gradient(130% 96% at 16% -6%,#000 18%,transparent 76%)}
+.cover-glow{position:absolute;width:78vw;height:78vw;right:-24vw;top:-40vw;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(13,148,136,.5) 0%,rgba(13,148,136,0) 62%)}
+.cover-in{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:calc(18px * var(--fscale)) 34px calc(26px * var(--fscale))}
+.cover-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:calc(16px * var(--fscale))}
+.cover-top img{width:calc(46px * var(--fscale));height:calc(46px * var(--fscale));border-radius:50%;border:2px solid rgba(255,255,255,.5);object-fit:cover;background:#fff}
+.course{font-size:calc(14.5px * var(--fscale));letter-spacing:.14em;font-weight:600;opacity:.94}
+.course small{display:block;font-size:calc(12px * var(--fscale));font-weight:400;opacity:.72;letter-spacing:.06em;margin-top:2px}
+.cover-term{margin-left:auto;font-size:calc(12.5px * var(--fscale));letter-spacing:.08em;color:rgba(255,255,255,.74);
+  border:1px solid rgba(255,255,255,.26);border-radius:999px;padding:calc(4px * var(--fscale)) calc(14px * var(--fscale));white-space:nowrap}
+.cover-main{display:grid;grid-template-columns:minmax(0,1.14fr) minmax(424px,1fr);gap:calc(30px * var(--fscale));align-items:center}
+.cover-text{min-width:0}
+.cover-kicker{font-family:var(--mono);font-size:calc(11.5px * var(--fscale));letter-spacing:.26em;text-transform:uppercase;color:#7fe3d7;margin-bottom:calc(10px * var(--fscale))}
+.cover h1{font-size:calc(40px * var(--fscale));font-weight:700;line-height:1.13;letter-spacing:-.5px}
+.cover .tagline{margin-top:calc(12px * var(--fscale));font-size:calc(15.5px * var(--fscale));opacity:.86;line-height:1.72}
+.cover-meta{margin-top:calc(16px * var(--fscale));display:grid;grid-template-columns:repeat(2,max-content);gap:calc(6px * var(--fscale)) calc(8px * var(--fscale))}
+.cover-meta span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:calc(4px * var(--fscale)) calc(10px * var(--fscale));font-size:calc(12px * var(--fscale));white-space:nowrap}
+.cover-meta b{font-weight:700;color:#9df0e4}
+
+/* 封面右侧：选题分布速览（两栏排列，压低整块高度） */
+.cover-panel{background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.18);border-radius:var(--radius);
+  padding:calc(14px * var(--fscale)) calc(18px * var(--fscale)) calc(11px * var(--fscale));
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.cp-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  font-size:calc(13px * var(--fscale));letter-spacing:.06em;color:rgba(255,255,255,.72);
+  padding-bottom:calc(8px * var(--fscale));border-bottom:1px solid rgba(255,255,255,.16)}
+.cp-head b{color:#fff;font-weight:700;font-size:calc(14px * var(--fscale));white-space:nowrap}
+.cp-list{list-style:none;display:grid;grid-template-columns:1fr 1fr;column-gap:calc(20px * var(--fscale))}
+.cp-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;
+  gap:calc(10px * var(--fscale));padding:calc(6px * var(--fscale)) 0;
+  border-bottom:1px dashed rgba(255,255,255,.13);font-size:calc(14px * var(--fscale))}
+.cp-list li:last-child{border-bottom:none}
+.cp-name{color:rgba(255,255,255,.95);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-cnt{font-family:var(--mono);font-size:calc(12.5px * var(--fscale));color:rgba(255,255,255,.58)}
+.cp-foot{margin-top:calc(7px * var(--fscale));padding-top:calc(8px * var(--fscale));border-top:1px solid rgba(255,255,255,.16);
+  font-size:calc(12px * var(--fscale));color:rgba(255,255,255,.62);line-height:1.6}
+@media(max-width:1080px){
+  .cover-main{grid-template-columns:1fr;gap:calc(22px * var(--fscale));align-items:start}
+  .cover h1{font-size:calc(33px * var(--fscale))}
+}
+@media(max-width:820px){
+  .cover-term{display:none}
+  .cover h1{font-size:calc(28px * var(--fscale))}
+  .cover-panel{max-width:none}
+  .cp-list{grid-template-columns:1fr}
+}
+
+/* ---------- 导航 ---------- */
+nav{position:sticky;top:0;z-index:30;background:rgba(246,245,242,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.navin{max-width:var(--maxw);margin:0 auto;padding:calc(11px * var(--fscale)) 34px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.navin a{font-size:calc(14.5px * var(--fscale));color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:calc(5px * var(--fscale)) calc(14px * var(--fscale));background:var(--surface);transition:.15s}
+.navin a:hover{color:#fff;background:var(--brand);border-color:var(--brand);text-decoration:none}
+main{max-width:var(--maxw);margin:0 auto;padding:0 34px calc(80px * var(--fscale))}
+
+/* ---------- 小节 ---------- */
+.sec{margin-top:calc(56px * var(--fscale))}
+.sec-head{border-bottom:2px solid var(--ink);padding-bottom:calc(12px * var(--fscale));margin-bottom:calc(26px * var(--fscale));display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.sec-head .idx{font-family:var(--mono);font-size:calc(14px * var(--fscale));font-weight:700;color:var(--brand);letter-spacing:.08em}
+.sec-head h2{font-size:calc(27px * var(--fscale));font-weight:700;letter-spacing:-.3px}
+.sec-head p{font-size:calc(15.5px * var(--fscale));color:var(--ink-mute);margin-left:auto}
+.lead{font-size:calc(18px * var(--fscale));color:var(--ink);line-height:1.8;margin-bottom:calc(18px * var(--fscale))}
+.lead b{font-weight:600}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:calc(28px * var(--fscale)) calc(32px * var(--fscale));margin-bottom:calc(22px * var(--fscale));box-shadow:var(--shadow-sm)}
+.card-hero{display:flex;gap:calc(26px * var(--fscale));align-items:flex-start}
+.card-hero .txt{flex:1;min-width:0}
+.card-hero .thumb{width:calc(232px * var(--fscale));flex-shrink:0;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line);background:var(--bg-soft)}
+.card-hero .thumb img{width:100%;height:calc(152px * var(--fscale));object-fit:cover}
+.card-hero .thumb figcaption{font-size:calc(12.5px * var(--fscale));color:var(--ink-mute);padding:calc(7px * var(--fscale)) calc(11px * var(--fscale));line-height:1.55;background:var(--surface-2)}
+.card-hero .thumb figcaption .capsrc{display:block;margin-top:calc(4px * var(--fscale));font-size:calc(11px * var(--fscale));opacity:.85;line-height:1.5}
+@media(max-width:820px){.card-hero{flex-direction:column-reverse}.card-hero .thumb{width:100%}.card-hero .thumb img{height:180px}}
+.chead{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:calc(13px * var(--fscale))}
+.cid{font-family:var(--mono);font-size:calc(13.5px * var(--fscale));font-weight:700;letter-spacing:.06em;color:#fff;background:var(--brand);border-radius:calc(7px * var(--fscale));padding:calc(3px * var(--fscale)) calc(10px * var(--fscale))}
+.chead h3{font-size:calc(21px * var(--fscale));font-weight:700;letter-spacing:-.2px}
+.lv{font-size:calc(13.5px * var(--fscale));border-radius:999px;padding:calc(3px * var(--fscale)) calc(12px * var(--fscale));font-weight:600;white-space:nowrap;background:#ecebff;color:var(--brand-deep)}
+.card .lead{margin-bottom:calc(10px * var(--fscale));font-size:calc(17px * var(--fscale))}
+.need{font-size:calc(15.5px * var(--fscale));color:var(--ink-soft);margin-bottom:calc(18px * var(--fscale))}
+.need b{color:var(--ink);font-weight:600}
+
+.src{font-size:calc(15.5px * var(--fscale));color:#24544e;background:#eef8f6;border-left:4px solid var(--teal);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:calc(12px * var(--fscale)) calc(18px * var(--fscale));margin-bottom:calc(20px * var(--fscale));line-height:1.75}
+.src b{color:#0d6b60;font-weight:700}
+
+.mods{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:calc(18px * var(--fscale)) calc(22px * var(--fscale));margin-bottom:calc(20px * var(--fscale))}
+.mods h4{font-size:calc(14.5px * var(--fscale));font-weight:700;color:var(--brand-deep);letter-spacing:.05em;margin-bottom:calc(12px * var(--fscale));display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.mods h4 em{font-style:normal;font-size:calc(13px * var(--fscale));font-weight:600;color:var(--ink-mute);background:var(--bg-soft);border-radius:999px;padding:1px 10px}
+.mods ul{list-style:none;display:grid;gap:calc(9px * var(--fscale));counter-reset:m}
+.mods li{counter-increment:m;position:relative;padding-left:calc(38px * var(--fscale));font-size:calc(15.5px * var(--fscale));color:var(--ink-soft);line-height:1.7}
+.mods li:before{content:counter(m);position:absolute;left:0;top:calc(2px * var(--fscale));width:calc(24px * var(--fscale));height:calc(24px * var(--fscale));border-radius:50%;border:1px solid var(--line-soft);background:var(--bg-soft);color:var(--ink-mute);font-family:var(--mono);font-size:calc(12.5px * var(--fscale));font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1}
+.mods li.core:before{background:var(--rose);border-color:var(--rose);color:#fff}
+.mods li b{color:var(--ink);font-weight:600}
+.mods li .tagx{font-size:calc(12px * var(--fscale));font-weight:700;color:var(--rose);border:1px solid #f0cdc8;background:#fdf1ef;border-radius:999px;padding:0 8px;margin-left:6px;white-space:nowrap}
+
+.block{margin-bottom:calc(18px * var(--fscale))}
+.block h4{font-size:calc(14.5px * var(--fscale));font-weight:700;color:var(--ink-mute);letter-spacing:.05em;margin-bottom:calc(10px * var(--fscale))}
+table.tbl{width:100%;border-collapse:collapse;font-size:calc(15px * var(--fscale))}
+table.tbl th{text-align:left;font-weight:600;color:var(--ink-mute);font-size:calc(13.5px * var(--fscale));padding:0 12px calc(8px * var(--fscale)) 0;border-bottom:1px solid var(--line)}
+table.tbl td{padding:calc(9px * var(--fscale)) 12px calc(9px * var(--fscale)) 0;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink-soft)}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl td:first-child{color:var(--ink);white-space:nowrap}
+table.tbl td:last-child{color:var(--ink-mute);white-space:nowrap;text-align:right;font-size:calc(14px * var(--fscale))}
+ol.steps{list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;position:relative;padding-left:calc(32px * var(--fscale));margin-bottom:calc(9px * var(--fscale));font-size:calc(15.5px * var(--fscale));color:var(--ink-soft)}
+ol.steps li:before{content:counter(s);position:absolute;left:0;top:calc(3px * var(--fscale));width:calc(21px * var(--fscale));height:calc(21px * var(--fscale));border-radius:50%;background:var(--brand-soft);color:var(--brand-deep);font-size:calc(12.5px * var(--fscale));font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+ol.steps li b{color:var(--ink);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:calc(24px * var(--fscale))}
+.grid2 p{font-size:calc(15.5px * var(--fscale));color:var(--ink-soft)}
+.grid2 p b{color:var(--ink);font-weight:600}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(14px * var(--fscale));background:var(--bg-soft);border-radius:var(--radius-sm);padding:calc(15px * var(--fscale)) calc(20px * var(--fscale));margin-top:calc(16px * var(--fscale))}
+.facts span{display:block;font-size:calc(13px * var(--fscale));color:var(--ink-mute);margin-bottom:2px}
+.facts strong{font-weight:600;color:var(--ink);font-size:calc(15px * var(--fscale))}
+.note{font-size:calc(15.5px * var(--fscale));color:var(--ink-soft);background:#fdf8ee;border-left:4px solid var(--amber);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:calc(12px * var(--fscale)) calc(18px * var(--fscale));margin-top:calc(16px * var(--fscale));line-height:1.75}
+.note b{color:#8a5306;font-weight:700}
+
+.rules{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:calc(30px * var(--fscale)) calc(34px * var(--fscale));box-shadow:var(--shadow-sm)}
+.rules .rule{display:grid;grid-template-columns:calc(46px * var(--fscale)) 1fr;gap:calc(18px * var(--fscale));padding:calc(20px * var(--fscale)) 0;border-bottom:1px dashed var(--line)}
+.rules .rule:last-child{border-bottom:none;padding-bottom:0}
+.rules .rule:first-child{padding-top:0}
+.rules .rn{font-family:var(--mono);font-size:calc(19px * var(--fscale));font-weight:700;color:var(--brand);opacity:.55}
+.rules h4{font-size:calc(17.5px * var(--fscale));font-weight:700;margin-bottom:calc(7px * var(--fscale))}
+.rules p{font-size:calc(15.5px * var(--fscale));color:var(--ink-soft)}
+.rules p+p{margin-top:calc(7px * var(--fscale))}
+.rules b{color:var(--ink);font-weight:600}
+
+.sum{width:100%;border-collapse:collapse;font-size:calc(15px * var(--fscale));background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.sum th{background:var(--bg-soft);text-align:left;font-size:calc(13.5px * var(--fscale));color:var(--ink-mute);font-weight:600;padding:calc(12px * var(--fscale)) 14px;border-bottom:1px solid var(--line)}
+.sum td{padding:calc(11px * var(--fscale)) 14px;border-bottom:1px solid var(--line-soft);color:var(--ink-soft)}
+.sum tr:last-child td{border-bottom:none}
+.sum td:first-child{font-family:var(--mono);color:var(--brand);font-weight:700;white-space:nowrap}
+.sum td:nth-child(2){color:var(--ink);font-weight:500}
+.sum tbody tr:hover{background:var(--surface-2)}
+.sum a{font-weight:600}
+/* 一览表是 8 列：表头与数值都不折行，靠压缩内距给"选题名称"腾地方 */
+.sum th{white-space:nowrap;padding-left:11px;padding-right:11px}
+.sum td{padding-left:11px;padding-right:11px}
+.sum td:nth-child(3),.sum td:nth-child(4),.sum td:nth-last-child(-n+4){white-space:nowrap}
+.sum td:nth-last-child(-n+4){font-family:var(--mono);font-size:calc(13.5px * var(--fscale));color:var(--ink);font-weight:600}
+
+footer{max-width:var(--maxw);margin:0 auto;padding:calc(40px * var(--fscale)) 34px max(calc(90px * var(--fscale)),100px);font-size:calc(15px * var(--fscale));color:var(--ink-mute);line-height:1.95;border-top:1px solid var(--line)}
+footer b{color:var(--ink-soft)}
+
+/* ---------- 字号控件 ---------- */
+.fsctrl{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 12px;box-shadow:var(--shadow);font-size:14px;color:var(--ink-soft);font-family:var(--sans)}
+.fsctrl .lbl{font-size:13px;color:var(--ink-mute);margin-right:2px}
+.fsctrl button{font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;min-width:38px;height:32px;padding:0 8px;cursor:pointer;line-height:1}
+.fsctrl button:hover{background:#e6e4de}
+.fsctrl #fsVal{font-size:13.5px;font-weight:600;color:var(--ink);min-width:46px;text-align:center;font-variant-numeric:tabular-nums}
+.fsctrl .reset{font-size:13px;font-weight:500;min-width:auto;padding:0 10px}
+.fsctrl .hint{font-size:12px;color:var(--ink-mute);margin-left:2px}
+@media(max-width:820px){
+  .fsctrl{right:10px;bottom:10px;padding:6px 9px;gap:5px}
+  .fsctrl .lbl,.fsctrl .hint{display:none}
+  .fsctrl button{min-width:34px;height:30px;font-size:14px}
+}
+@media(max-width:820px){
+  body{font-size:calc(16px * var(--fscale))}
+  .cover-in{padding:calc(24px * var(--fscale)) 20px calc(38px * var(--fscale))}
+  .cover h1{font-size:calc(29px * var(--fscale))}
+  .cover .tagline{font-size:calc(16px * var(--fscale))}
+  .navin{padding:calc(10px * var(--fscale)) 16px}
+  main{padding:0 18px calc(50px * var(--fscale))}
+  .sec-head h2{font-size:calc(22px * var(--fscale))}
+  .sec-head p{margin-left:0}
+  .card{padding:calc(22px * var(--fscale)) calc(19px * var(--fscale))}
+  .chead h3{font-size:calc(18.5px * var(--fscale))}
+  .facts{grid-template-columns:1fr;gap:calc(10px * var(--fscale))}
+  .grid2{grid-template-columns:1fr;gap:calc(18px * var(--fscale))}
+  .rules{padding:calc(22px * var(--fscale)) calc(20px * var(--fscale))}
+  .rules .rule{grid-template-columns:1fr;gap:calc(6px * var(--fscale))}
+  table.tbl td:last-child,table.tbl th:last-child{display:none}
+  .sum td:last-child,.sum th:last-child{display:none}
+  .sum th{white-space:normal}
+  .sum td{white-space:normal;padding-left:9px;padding-right:9px;font-size:calc(13.5px * var(--fscale))}
+  .sum th{padding-left:9px;padding-right:9px}
+}
+
+/* 卡片内编号与难度标签（Part4-7 用 .code/.diff，对齐 .cid/.lv） */
+.chead .code{font-family:var(--mono);font-size:calc(13.5px * var(--fscale));font-weight:700;letter-spacing:.06em;color:#fff;
+  background:var(--brand);border-radius:calc(7px * var(--fscale));padding:calc(3px * var(--fscale)) calc(10px * var(--fscale))}
+.chead .diff{font-size:calc(13.5px * var(--fscale));border-radius:999px;padding:calc(3px * var(--fscale)) calc(12px * var(--fscale));
+  font-weight:600;white-space:nowrap;background:#ecebff;color:var(--brand-deep)}
+.card-hero .need h4{font-size:calc(15px * var(--fscale));font-weight:700;color:var(--ink);margin-bottom:calc(6px * var(--fscale))}
+
+/* 模型表 / 自主开发模块两栏（Part4-7 用 .box/.mtab/.devs，对齐 .block/.tbl） */
+.grid2 .box h4{font-size:calc(14.5px * var(--fscale));font-weight:700;color:var(--ink-mute);letter-spacing:.05em;margin-bottom:calc(10px * var(--fscale))}
+table.mtab{width:100%;border-collapse:collapse;font-size:calc(15px * var(--fscale))}
+table.mtab th{text-align:left;font-weight:600;color:var(--ink-mute);font-size:calc(13.5px * var(--fscale));
+  padding:0 12px calc(8px * var(--fscale)) 0;border-bottom:1px solid var(--line)}
+table.mtab td{padding:calc(9px * var(--fscale)) 12px calc(9px * var(--fscale)) 0;border-bottom:1px solid var(--line-soft);
+  vertical-align:top;color:var(--ink-soft)}
+table.mtab tr:last-child td{border-bottom:none}
+table.mtab td:first-child{color:var(--ink);white-space:nowrap}
+
+/* 模型下载表：末列是较长的说明文字，需要换行（窄屏仍按既有规则隐藏末列） */
+table.tbl.mdl td:last-child{white-space:normal;text-align:left}
+ul.devs{list-style:none;display:grid;gap:calc(10px * var(--fscale))}
+ul.devs li{position:relative;padding-left:calc(18px * var(--fscale));font-size:calc(15.5px * var(--fscale));
+  color:var(--ink-soft);line-height:1.7}
+ul.devs li:before{content:"";position:absolute;left:0;top:calc(11px * var(--fscale));width:calc(7px * var(--fscale));
+  height:calc(7px * var(--fscale));border-radius:50%;background:var(--teal);opacity:.6}
+ul.devs li b{color:var(--ink);font-weight:600}
+
+/* 三人分工参考（.div3） */
+.div3{margin-top:calc(18px * var(--fscale));border:1px solid var(--line-soft);border-radius:var(--radius-sm);background:var(--surface-2)}
+.div3 h5{font-size:calc(13px * var(--fscale));font-weight:700;letter-spacing:.06em;color:var(--ink-mute);
+  padding:calc(9px * var(--fscale)) calc(18px * var(--fscale));border-bottom:1px solid var(--line-soft)}
+.div3 .row{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(16px * var(--fscale));
+  padding:calc(14px * var(--fscale)) calc(18px * var(--fscale)) calc(16px * var(--fscale))}
+.div3 .col b{display:block;font-size:calc(13.5px * var(--fscale));font-weight:700;color:var(--brand-deep);margin-bottom:calc(4px * var(--fscale))}
+.div3 .col p{font-size:calc(14.5px * var(--fscale));color:var(--ink-soft);line-height:1.7}
+@media(max-width:820px){.div3 .row{grid-template-columns:1fr;gap:calc(11px * var(--fscale))}}
+.tagx.tagx-warn{color:var(--amber);border-color:#f0dcb8;background:#fdf6e8}
+
+/* 要点三栏（Part4-7 用 .fact，对齐 .facts span/strong） */
+.facts .fact{font-size:calc(14px * var(--fscale));color:var(--ink-soft);line-height:1.7}
+.facts .fact b{display:block;font-size:calc(13px * var(--fscale));font-weight:700;color:var(--ink-mute);margin-bottom:3px}
+.note.note-wide{margin-top:calc(22px * var(--fscale))}
+/* 选题登记表（在线表格入口） */
+.note.reg{background:#eef4ff;border-left-color:var(--brand)}
+.note.reg b{color:var(--brand-deep)}
+.note.reg .reglink{display:inline-block;margin:0 4px;padding:calc(3px * var(--fscale)) calc(13px * var(--fscale));
+  border-radius:999px;background:var(--brand);color:#fff;font-weight:700;text-decoration:none;transition:background .16s}
+.note.reg .reglink:hover{background:var(--brand-deep)}
+.note.reg .reghint{display:block;margin-top:calc(7px * var(--fscale));font-size:calc(13.5px * var(--fscale));color:var(--ink-mute)}
+.note.reg .regrow{display:flex;flex-wrap:wrap;align-items:center;gap:calc(8px * var(--fscale));margin-top:calc(9px * var(--fscale))}
+.rbtn{font-family:inherit;font-size:calc(13.5px * var(--fscale));font-weight:650;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);
+  border-radius:999px;padding:calc(5px * var(--fscale)) calc(15px * var(--fscale));transition:all .16s}
+.rbtn:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.rbtn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.rbtn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
+.rbtn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* 弹层（设置网址 / 随机抽签） */
+.sheet{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px}
+.sheet[hidden]{display:none}
+.sheet-mask{position:absolute;inset:0;background:rgba(18,16,40,.42);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.sheet-box{position:relative;width:min(560px,100%);max-height:86vh;overflow:auto;background:var(--surface);
+  border-radius:var(--radius);box-shadow:0 24px 60px rgba(16,14,40,.28);padding:calc(24px * var(--fscale)) calc(26px * var(--fscale))}
+.sheet-box.wide{width:min(760px,100%)}
+.sheet-box h4{font-size:calc(18px * var(--fscale));font-weight:700;color:var(--ink);margin-bottom:calc(10px * var(--fscale))}
+.sheet-box p{font-size:calc(14.5px * var(--fscale));color:var(--ink-soft);line-height:1.75}
+.sheet-act{display:flex;flex-wrap:wrap;gap:calc(8px * var(--fscale));margin-top:calc(14px * var(--fscale))}
+.sheet-box input[type=url],.sheet-box textarea{width:100%;font-family:var(--mono);font-size:calc(13.5px * var(--fscale));
+  color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:calc(10px * var(--fscale)) calc(13px * var(--fscale));margin-top:calc(12px * var(--fscale));outline:none}
+.sheet-box input[type=url]:focus,.sheet-box textarea:focus{border-color:var(--brand);background:#fff}
+.sheet-box textarea{resize:vertical;line-height:1.6}
+.drawstep{margin:calc(4px * var(--fscale)) 0 calc(2px * var(--fscale)) calc(20px * var(--fscale));
+  font-size:calc(14px * var(--fscale));color:var(--ink-soft);line-height:1.9}
+.picked{display:flex;flex-wrap:wrap;gap:calc(7px * var(--fscale));margin-top:calc(14px * var(--fscale))}
+.pchip{display:inline-flex;align-items:baseline;gap:6px;font-size:calc(13.5px * var(--fscale));
+  background:var(--brand-soft);border:1px solid #d6d3ff;color:var(--brand-deep);
+  border-radius:999px;padding:calc(3px * var(--fscale)) calc(12px * var(--fscale))}
+.pchip b{font-family:var(--mono);font-weight:700}
+.picked .empty{font-size:calc(13.5px * var(--fscale));color:var(--ink-mute)}
+.drawresult{margin-top:calc(14px * var(--fscale))}
+.drawresult ol{list-style:none;display:grid;gap:calc(6px * var(--fscale))}
+.drawresult li{display:grid;grid-template-columns:calc(76px * var(--fscale)) 1fr;gap:calc(10px * var(--fscale));
+  align-items:baseline;font-size:calc(14.5px * var(--fscale));background:var(--surface-2);
+  border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:calc(7px * var(--fscale)) calc(13px * var(--fscale))}
+.drawresult li b{font-family:var(--mono);font-weight:700;color:var(--brand-deep)}
+.drawresult li em{font-style:normal;font-family:var(--mono);color:var(--ink-mute);margin-right:7px}
+.drawresult li.reveal{animation:drawin .28s ease both}
+@keyframes drawin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.dnote{margin-top:calc(12px * var(--fscale));font-size:calc(13.5px * var(--fscale));color:var(--ink-mute);line-height:1.7}
+
+/* 验收条目（.gate/.gitem/.gn） */
+.gate{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:calc(30px * var(--fscale)) calc(34px * var(--fscale));box-shadow:var(--shadow-sm)}
+.gate .gitem{display:grid;grid-template-columns:calc(46px * var(--fscale)) 1fr;gap:calc(18px * var(--fscale));
+  padding:calc(20px * var(--fscale)) 0;border-bottom:1px dashed var(--line)}
+.gate .gitem:last-child{border-bottom:none;padding-bottom:0}
+.gate .gitem:first-child{padding-top:0}
+.gate .gn{font-family:var(--mono);font-size:calc(19px * var(--fscale));font-weight:700;color:var(--brand);opacity:.55}
+.gate h4{font-size:calc(17.5px * var(--fscale));font-weight:700;margin-bottom:calc(7px * var(--fscale))}
+.gate p{font-size:calc(15.5px * var(--fscale));color:var(--ink-soft)}
+.gate b{color:var(--ink);font-weight:600}
+
+/* 交付物网格（.deliver/.dgrid/.dcard） */
+.deliver{margin-top:calc(34px * var(--fscale))}
+.deliver h3{font-size:calc(20px * var(--fscale));font-weight:700;margin-bottom:calc(16px * var(--fscale))}
+.dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:calc(14px * var(--fscale))}
+.dcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:calc(16px * var(--fscale)) calc(18px * var(--fscale));box-shadow:var(--shadow-sm)}
+.dcard b{display:block;font-size:calc(15.5px * var(--fscale));font-weight:700;color:var(--ink);margin-bottom:calc(5px * var(--fscale))}
+.dcard p{font-size:calc(14.5px * var(--fscale));color:var(--ink-mute);line-height:1.7}
+
+/* 页脚（.fin/.fl/.fr） */
+footer .fin{display:flex;justify-content:space-between;align-items:flex-start;gap:calc(24px * var(--fscale));flex-wrap:wrap}
+footer .fl b{font-size:calc(16px * var(--fscale));color:var(--ink)}
+footer .fl p{margin-top:calc(6px * var(--fscale));font-size:calc(14.5px * var(--fscale));color:var(--ink-mute);max-width:44em}
+footer .fr{display:flex;flex-wrap:wrap;gap:calc(9px * var(--fscale))}
+footer .fr span{background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:calc(5px * var(--fscale)) calc(14px * var(--fscale));font-size:calc(13.5px * var(--fscale));color:var(--ink-soft)}
+footer .fr b{color:var(--ink);font-weight:700}
+footer .credits{margin-top:calc(26px * var(--fscale));padding-top:calc(18px * var(--fscale));border-top:1px solid var(--line-soft)}
+footer .credits b{display:block;font-size:calc(14.5px * var(--fscale));color:var(--ink-soft);margin-bottom:calc(7px * var(--fscale))}
+footer .credits p{font-size:calc(12.5px * var(--fscale));line-height:1.85;color:var(--ink-mute)}
+
+/* 导航当前项高亮 */
+.navin a.on{color:#fff;background:var(--brand);border-color:var(--brand)}
+
+@media(max-width:820px){
+  .gate{padding:calc(22px * var(--fscale)) calc(20px * var(--fscale))}
+  .gate .gitem{grid-template-columns:1fr;gap:calc(6px * var(--fscale))}
+  .dgrid{grid-template-columns:1fr}
+  footer .fr{width:100%}
+}
+
+/* ============================================================
+   左侧树状目录（篇 → 选题 → 小节），与《绪论》《AI 智能体工程化》同一套做法
+   ============================================================ */
+#treeTab{position:fixed;left:0;top:148px;z-index:130;writing-mode:vertical-rl;letter-spacing:.3em;
+  padding:15px 8px 17px;border:1px solid var(--line);border-left:none;border-radius:0 14px 14px 0;
+  background:var(--surface);color:var(--ink-soft);font-family:var(--sans);font-size:12.5px;font-weight:650;
+  box-shadow:var(--shadow-sm);display:none;cursor:pointer;
+  transition:color .16s,opacity .2s,transform .2s,box-shadow .2s}
+#treeTab:before{content:"";position:absolute;right:-1px;top:14px;bottom:14px;width:3px;border-radius:3px;
+  background:linear-gradient(180deg,var(--brand),var(--teal));opacity:.85}
+#treeTab:hover{color:var(--brand);transform:translateX(2px);box-shadow:var(--shadow)}
+html[data-tree="on"] #treeTab{opacity:0;pointer-events:none}
+@media(min-width:1200px){#treeTab{display:block}}
+/* 窄屏整体隐藏：面板只在宽屏参与布局，避免盖住正文 */
+@media(max-width:1199.98px){#treeTab,#treeNav{display:none!important}}
+
+#treeNav{position:fixed;left:0;top:0;bottom:0;z-index:160;width:288px;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface-2) 100%);border-right:1px solid var(--line);
+  box-shadow:18px 0 44px rgba(20,20,27,.10);transform:translateX(-102%);visibility:hidden;
+  transition:transform .26s ease,visibility 0s linear .26s}
+html[data-tree="on"] #treeNav{transform:none;visibility:visible;transition:transform .26s ease,visibility 0s}
+@media(min-width:1200px){
+  body{transition:padding-left .26s ease}
+  html[data-tree="on"] body{padding-left:288px}
+}
+.tn-head{position:relative;display:flex;align-items:center;gap:9px;padding:13px 14px 12px}
+.tn-head:before{content:"";width:10px;height:10px;border-radius:3px;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--brand),var(--teal));box-shadow:0 0 0 4px rgba(75,64,224,.12)}
+.tn-head b{font-size:15px;letter-spacing:.06em;color:var(--ink)}
+.tn-head:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--brand),var(--teal));opacity:.4}
+.tn-tools{margin-left:auto;display:flex;gap:4px}
+.tn-tools button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--ink-soft);font-family:var(--sans);font-size:13px;line-height:1;display:grid;place-items:center;
+  cursor:pointer;transition:color .16s,border-color .16s,transform .12s}
+.tn-tools button:hover{color:var(--brand);border-color:var(--brand);background:var(--brand-soft)}
+.tn-tools button:active{transform:scale(.9)}
+.tn-list{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:8px 8px 18px;position:relative}
+.tn-list::-webkit-scrollbar{width:8px}
+.tn-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid var(--surface)}
+
+.tn-part{margin:2px 0 4px}
+.tn-row{display:flex;align-items:center;border-radius:10px}
+.tn-row:hover{background:var(--bg-soft)}
+.tn-part-row.active-part{background:linear-gradient(90deg,var(--brand-soft) 0%,transparent 72%)}
+.tn-part-go{flex:1 1 auto;display:flex;align-items:baseline;gap:8px;text-align:left;font-family:inherit;
+  padding:8px 6px 8px 11px;background:none;border:none;cursor:pointer;min-width:0;transition:padding-left .16s}
+.tn-part-row:hover .tn-part-go{padding-left:13px}
+.tn-part-go .pn{font-size:13.5px;font-weight:750;letter-spacing:.05em;color:var(--ink)}
+.tn-part-row.active-part .tn-part-go .pn{color:var(--brand)}
+.tn-part-go .pc{font-family:var(--mono);font-size:11.5px;color:var(--ink-mute)}
+.tn-chaps{display:none;padding-left:6px}
+.tn-part.open>.tn-chaps{display:block}
+
+.tn-group{margin:1px 0}
+.tn-row.active{background:linear-gradient(90deg,var(--brand-soft) 0%,transparent 78%);position:relative}
+.tn-row.active:before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:3px;
+  background:linear-gradient(180deg,var(--brand),var(--teal))}
+.tn-go{flex:1 1 auto;display:flex;align-items:center;gap:8px;text-align:left;font-family:inherit;font-size:13.5px;
+  color:var(--ink-soft);background:none;border:none;cursor:pointer;padding:7px 6px 7px 9px;min-width:0;
+  transition:padding-left .16s,color .16s}
+.tn-row:hover .tn-go{color:var(--ink);padding-left:12px}
+.tn-row.active .tn-go{color:var(--brand);padding-left:12px}
+.tn-go .n{flex:0 0 auto;min-width:26px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;
+  border-radius:6px;padding:1px 5px;border:1px solid;line-height:1.5}
+.tn-go .n.c0{color:var(--brand);background:var(--brand-soft);border-color:#d6d3ff}
+.tn-go .n.c1{color:#0d6b60;background:#e6f5f2;border-color:#c2e6e0}
+.tn-go .n.c2{color:#8a5306;background:#fdf6e8;border-color:#f0dcb8}
+.tn-go .n.c3{color:#a1321f;background:#fdf1ef;border-color:#f0cdc8}
+.tn-go .n.c4{color:var(--brand-deep);background:#ecebff;border-color:#d6d3ff}
+.tn-row.active .tn-go .n{background:var(--brand);border-color:var(--brand);color:#fff}
+.tn-go .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tn-caret{flex:0 0 auto;width:26px;height:26px;border:none;background:none;color:var(--ink-mute);cursor:pointer;
+  font-size:12px;border-radius:7px;display:grid;place-items:center;
+  transition:transform .18s,background .16s,color .16s}
+.tn-caret:hover{background:var(--brand-soft);color:var(--brand)}
+.tn-group.open>.tn-row .tn-caret,.tn-part.open>.tn-row .tn-caret{transform:rotate(90deg);color:var(--brand)}
+.tn-subs{display:none;padding-left:10px}
+.tn-group.open>.tn-subs{display:block}
+.tn-sub{display:block;width:100%;text-align:left;font-family:inherit;font-size:12.5px;color:var(--ink-mute);
+  background:none;border:none;cursor:pointer;padding:5px 8px 5px 18px;border-radius:7px;position:relative;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tn-sub:before{content:"";position:absolute;left:8px;top:50%;width:5px;height:1px;background:var(--line)}
+.tn-sub:hover{color:var(--ink);background:var(--bg-soft)}
+.tn-sub.active{color:var(--brand-deep);font-weight:600;background:var(--brand-soft)}
+.tn-foot{padding:12px 12px 2px;font-family:var(--mono);font-size:11.5px;color:var(--ink-mute);letter-spacing:.03em}
+
+@media print{#treeTab,#treeNav{display:none!important}}
+</style>
+</head>
+<body>
+
+<button id="treeTab" type="button" aria-label="展开目录">目录</button>
+<aside id="treeNav" aria-label="全文目录">
+  <div class="tn-head"><b>目录</b>
+    <span class="tn-tools">
+      <button id="tnExpand" type="button" title="全部展开" aria-label="全部展开">＋</button>
+      <button id="tnCollapse" type="button" title="全部收起" aria-label="全部收起">－</button>
+      <button id="tnClose" type="button" title="收起目录" aria-label="收起目录">✕</button>
+    </span>
+  </div>
+  <nav class="tn-list" id="tnList"></nav>
+</aside>
+
+<div class="cover">
+  <div class="cover-grid" aria-hidden="true"></div>
+  <div class="cover-glow" aria-hidden="true"></div>
+  <div class="cover-in">
+    <div class="cover-top">
+      <img src="assets/badge.png" alt="校徽">
+      <div class="course">湖南工商大学 · 计算机学院
+        <small>《软件工程理论基础》研究生课程 · 课程设计</small>
+      </div>
+      <span class="cover-term">选题说明 · 2026 秋</span>
+    </div>
+
+    <div class="cover-main">
+      <div class="cover-text">
+        <p class="cover-kicker">Course Design · Topic Brief</p>
+        <h1>课程设计选题说明</h1>
+        <p class="tagline">基于现成开源模型的 AI 应用工程实践——<br>不训练、不标注，考的是把模型用起来的那一段工程。</p>
+        <div class="cover-meta">
+          <span>授课教师 <b>潘卓夫</b></span>
+          <span>选题 <b>19</b> 个</span>
+          <span>核心模块 <b>≥ 2 个</b></span>
+          <span>测试用例 <b>≥ 15</b> 条</span>
+        </div>
+      </div>
+
+      <aside class="cover-panel">
+        <div class="cp-head">选题分布<span><b>19</b> 个 · <b>5</b> 类</span></div>
+        <ul class="cp-list">
+          <li><span class="cp-name">视觉识别与图像处理</span><span class="cp-cnt">5</span></li>
+          <li><span class="cp-name">三维重建与仿真</span><span class="cp-cnt">5</span></li>
+          <li><span class="cp-name">动作计数与目标跟踪</span><span class="cp-cnt">4</span></li>
+          <li><span class="cp-name">互动演示</span><span class="cp-cnt">3</span></li>
+          <li><span class="cp-name">语音与知识记录</span><span class="cp-cnt">2</span></li>
+        </ul>
+        <div class="cp-foot">各选题难度已尽量平衡 · 建议实现 5–6 个模块 · 核心模块不少于 2 个</div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<nav>
+  <div class="navin">
+    <a href="#guide">选题总则</a>
+    <a href="#workload">选题一览</a>
+    <a href="#team">分组与分工</a>
+    <a href="#t-e">互动演示</a>
+    <a href="#t-c">语音与知识</a>
+    <a href="#t-a">视觉识别</a>
+    <a href="#t-b">动作与跟踪</a>
+    <a href="#t-d">三维与仿真</a>
+    <a href="#accept">验收与交付</a>
+  </div>
+</nav>
+
+<main>
+
+<section class="sec" id="guide">
+  <div class="sec-head">
+    <span class="idx">01</span>
+    <h2>选题总则</h2>
+    <p>六条前提，所有选题均按此口径设计</p>
+  </div>
+
+  <p class="lead">本次课程设计以<b>应用开发</b>为主线：不训练模型、不标注数据集，全部建立在现成开源模型的推理能力之上，重点考察把模型用起来的工程能力。</p>
+
+  <div class="rules">
+    <div class="rule">
+      <div class="rn">A</div>
+      <div>
+        <h4>只用现成模型，不做训练</h4>
+        <p>全部选题均不涉及模型训练、微调或数据集标注，也不需要自建数据集。所需模型权重或代码仓库已在每个选题下列出官方下载地址，可直接下载或安装；三维重建类选题同样只调用现成的重建工具，不自行训练模型。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">B</div>
+      <div>
+        <h4>必须有自主开发模块</h4>
+        <p>不接受纯静态网页、纯脚本演示，也不接受对现成服务的简单拼装。每个选题都规定了<b>应由小组自行设计实现</b>的核心模块，这是评分的关键依据。</p>
+        <p>功能模块按序号排列，<b>核心模块用红色编号</b>并加「核心」徽标，涉及该选题的技术难点或自主开发主体。每个选题的建议实现数中，<b>核心模块不少于 2 个</b>。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">C</div>
+      <div>
+        <h4>必须有模型部署实践</h4>
+        <p>至少完成一项模型部署：本地开源模型部署、云端部署，或通过 LangChain / LlamaIndex 等框架接入大模型。设计文档需写明<b>模型来源仓库、部署方式、运行环境、调用方式与关键参数</b>。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">D</div>
+      <div>
+        <h4>课堂演示不需要实物</h4>
+        <p>所有选题的输入均可由小组自行准备：公开样例文件、自绘或自制素材、屏幕截图、现场实时采集，或由软件自行生成。每个选题均标注<b>推荐的输入准备方式</b>，无需采购任何器材。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">E</div>
+      <div>
+        <h4>面向真实场景中的具体问题</h4>
+        <p>选题来源于日常生活中的实际困扰，需在设计文档中说明<b>问题场景、目标用户、现有做法的不足</b>，并阐述本方案如何以工程手段解决。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">F</div>
+      <div>
+        <h4>各选题的难度尽量平衡</h4>
+        <p>各选题的可拆分程度不同，列出的模块总数也不同（9 至 10 个），因此建议实现数并不一致（5 至 6 个）。模块多的选题单个模块较轻，模块少的单个模块较重，<b>预期投入的时间与精力大体相当</b>，不因模块多少而有明显差别。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="workload">
+  <div class="sec-head">
+    <span class="idx">02</span>
+    <h2>选题一览</h2>
+    <p>共 19 个选题 · 点击名称查看详细说明</p>
+  </div>
+
+  <p class="lead">每个选题给出功能模块总数，以及 3 人组、2 人组各自需要完成的核心模块与基础模块。<b>「x / y」＝需完成 x 个、该类模块共 y 个可选</b>；同一组内两项相加即为该组的建议实现数。</p>
+
+  <table class="sum">
+    <thead>
+      <tr><th>编号</th><th>选题名称</th><th>所属类别</th><th>模块总数</th><th>核心模块（3 人）</th><th>基础模块（3 人）</th><th>核心模块（2 人）</th><th>基础模块（2 人）</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td><a href="#t1">人脸配声盲猜互动装置</a></td><td>互动演示</td><td>10 个</td><td>2 / 3</td><td>4 / 7</td><td>2 / 3</td><td>2 / 7</td></tr>
+      <tr><td>2</td><td><a href="#t2">乐器跟弹与键位提示</a></td><td>互动演示</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>3</td><td><a href="#t3">可对话的数字人</a></td><td>互动演示</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>4</td><td><a href="#t4">说话即记的语音速记与知识图谱</a></td><td>语音与知识</td><td>10 个</td><td>2 / 3</td><td>4 / 7</td><td>2 / 3</td><td>2 / 7</td></tr>
+      <tr><td>5</td><td><a href="#t5">多人语音的说话人分离与研讨纪要</a></td><td>语音与知识</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>6</td><td><a href="#t6">物品保质期识别与提醒</a></td><td>视觉识别</td><td>10 个</td><td>2 / 3</td><td>4 / 7</td><td>2 / 3</td><td>2 / 7</td></tr>
+      <tr><td>7</td><td><a href="#t7">错题本自动生成与管理</a></td><td>视觉识别</td><td>9 个</td><td>2 / 3</td><td>3 / 6</td><td>2 / 3</td><td>1 / 6</td></tr>
+      <tr><td>8</td><td><a href="#t8">闲置物品一键上架</a></td><td>视觉识别</td><td>9 个</td><td>2 / 3</td><td>4 / 6</td><td>2 / 3</td><td>2 / 6</td></tr>
+      <tr><td>9</td><td><a href="#t9">图片素材库的以图搜图与去重</a></td><td>视觉识别</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>10</td><td><a href="#t10">论文图文转可编辑矢量图</a></td><td>视觉识别</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>11</td><td><a href="#t11">健身动作计数与姿态纠正</a></td><td>动作与跟踪</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>12</td><td><a href="#t12">人流进出计数与区域热度分析</a></td><td>动作与跟踪</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>13</td><td><a href="#t13">视频目标跟踪与运动轨迹分析</a></td><td>动作与跟踪</td><td>10 个</td><td>2 / 3</td><td>4 / 7</td><td>2 / 3</td><td>2 / 7</td></tr>
+      <tr><td>14</td><td><a href="#t14">路口交通参数提取与信号配时建议</a></td><td>动作与跟踪</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>15</td><td><a href="#t15">2D 户型全覆盖清扫仿真</a></td><td>三维与仿真</td><td>9 个</td><td>2 / 3</td><td>3 / 6</td><td>2 / 3</td><td>1 / 6</td></tr>
+      <tr><td>16</td><td><a href="#t16">真实房间重建与第一人称漫游 Demo</a></td><td>三维与仿真</td><td>9 个</td><td>2 / 3</td><td>3 / 6</td><td>2 / 3</td><td>1 / 6</td></tr>
+      <tr><td>17</td><td><a href="#t17">二手大件三维展示与交易页</a></td><td>三维与仿真</td><td>10 个</td><td>2 / 3</td><td>4 / 7</td><td>2 / 3</td><td>2 / 7</td></tr>
+      <tr><td>18</td><td><a href="#t18">扫描建模与房间布置编辑器</a></td><td>三维与仿真</td><td>10 个</td><td>2 / 4</td><td>4 / 6</td><td>2 / 4</td><td>2 / 6</td></tr>
+      <tr><td>19</td><td><a href="#t19">重建场景的语义标注与文字导航</a></td><td>三维与仿真</td><td>9 个</td><td>2 / 3</td><td>3 / 6</td><td>2 / 3</td><td>1 / 6</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><b>关于建议实现数：</b>实现到该选题的建议数量即视为工作量达标，超出部分不再额外加分；低于建议数量时，需在设计文档中说明理由与实际完成情况。<b>不同选题的建议数不可横向直接比较</b>；此外每个选题还标注了核心模块个数，实现时<b>核心模块不少于 2 个</b>，其余可在该选题列出的模块中自选。<b>2 人组按 3 人组的 2/3 折算</b>：6 个的选题做 4 个，5 个的选题做 3 个。每组<b>核心模块不少于 2 个</b>（表中已按此计入），其余从基础模块中选；若某个基础模块确实难以落地，可在核心模块中多选一个补齐数量。</div>
+
+  <div class="note reg"><b>选题登记表（在线填写）：</b>确定选题与组内分工后，请到腾讯文档在线表格中登记 ——
+    <span class="regrow"><a class="reglink" id="regLink" href="https://docs.qq.com/sheet/DUk1IeW1kTHRMV0hm" target="_blank" rel="noopener">2026 软件工程理论基础 · 课程设计选题登记表</a>
+      <button type="button" class="rbtn" id="btnRegUrl">⚙ 设置网址</button>
+      <button type="button" class="rbtn primary" id="btnDraw">🎲 随机抽签（定汇报顺序）</button></span>
+    <span class="reghint">表内「<b>分工 A / B / C</b>」为下拉选择（2026 软件工程理论基础 102 班花名册 37 人），「<b>所选核心功能编号 / 所选基础功能编号</b>」填模块序号即可（如 <b>1、3、5</b>）。题目编号与题目名已锁定，请勿改动；「花名册」子表可查学号与姓名；最后一列「<b>答辩顺序</b>」由抽签填入。</span>
+  </div>
+</section>
+
+<section class="sec" id="team">
+  <div class="sec-head">
+    <span class="idx">03</span>
+    <h2>分组与分工</h2>
+    <p>三人一组，按任务书要求的三条线分工</p>
+  </div>
+
+  <p class="lead">按任务书要求，组内须明确分工并在开题时填写分工表，分组一经确定不再变更；<b>每位成员的 Git 提交记录作为个人贡献的核定依据</b>，需写入报告。分工的三个方向固定为<b>前端交互 / 后端与模型部署 / 测试与文档</b>，每个人至少对其中一条线负全责。</p>
+
+  <div class="rules">
+    <div class="rule">
+      <div class="rn">A</div>
+      <div>
+        <h4>前端交互</h4>
+        <p><b>做什么：</b>页面结构与视觉、输入流程、结果呈现（表格／图表／图谱／三维查看器）、移动端适配与交互细节。</p>
+        <p><b>交付什么：</b>可操作的界面与交互说明，能现场走完一条完整操作路径。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">B</div>
+      <div>
+        <h4>后端与模型部署</h4>
+        <p><b>做什么：</b>模型选型与下载、本地或云端部署、接口封装、数据存储、任务编排与性能优化。</p>
+        <p><b>交付什么：</b>可复现的部署步骤与模型调用说明、接口文档。</p>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rn">C</div>
+      <div>
+        <h4>测试与文档</h4>
+        <p><b>做什么：</b>测试用例设计与执行、测试数据准备、缺陷记录与回归、需求与设计文档、答辩材料与录屏。</p>
+        <p><b>交付什么：</b>不少于 15 条的测试用例文档（含输入、预期与实际结果）、设计文档与演示材料。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h4>组队人数与需要实现的模块数</h4>
+    <table class="sum">
+      <thead>
+        <tr><th>组队人数</th><th>需要实现的模块数</th><th>每人承担</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3 人</td><td>各选题标注的建议实现数</td><td>约 2 个</td><td>基准工作量，见「选题一览」表</td></tr>
+        <tr><td>2 人</td><td>3 人组的 <b>2/3</b>：6 个的做 4 个，5 个的做 3 个</td><td>约 2 个</td><td>人均工作量与 3 人组大致持平</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note"><b>三类分工不等于三个人各扫门前雪。</b>把每个选题的<b>核心模块按"谁最熟"分给三个人</b>，避免出现"一个人只做界面、核心模块全压在另一个人身上"的情况。每个选题的具体分工建议见该题卡片内的「三人分工参考」；评审时会对照 Git 提交记录与分工表核对每人的实际投入。</div>
+</section>
+
+
+<!-- ==================== E 互动演示 ==================== -->
+<section class="sec" id="t-e">
+  <div class="sec-head">
+    <span class="idx">04</span>
+    <h2>互动演示类</h2>
+    <p>以实时视听交互为核心，现场可参与、演示直观</p>
+  </div>
+
+  <article class="card" id="t1">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">1</span>
+          <h3>人脸配声盲猜互动装置</h3>        </div>
+        <p class="lead">一次性录入多张人脸 → 为每张脸生成一个音色 → 逐个播放语音 → <b>盲猜这句话属于谁</b></p>
+        <p class="need"><b>问题场景：</b>课堂破冰与团队活动缺少可参与性强的互动工具。本选题把"看脸猜声音"做成一个装置：系统观察每一张脸，为其推想一种音色并合成一段问候，然后只播放声音、隐藏画面，由在场同学判断该段声音出自哪一张脸，最后揭晓答案并统计猜中率。</p>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t1.jpg" alt="人脸录入与盲猜流程">
+        <figcaption>批量录入人脸后逐一生成音色，进入盲听猜选环节<br><span class="capsrc">图源：MediaPipe 官方首页</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>无需任何实物。准备 8 至 12 张人脸照片即可——可选用公开人像图片，也可由小组成员各自提供一张，或请在场同学依次站到摄像头前采集。照片之间的差异越大（性别、年龄段、着装风格不同），盲猜环节越有悬念。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>批量人脸录入与人物档案</b><span class="tagx">核心</span>：一次上传或采集多张照片，逐张切分、编号，建立人物档案。</li>
+        <li class="core"><b>人脸特征到音色描述的映射</b><span class="tagx">核心</span>：由视觉语言模型针对每张脸输出可直接使用的音色描述（性别感、年龄感、语速、音色质感、情绪），并固化为可复用的描述模板。</li>
+        <li class="core"><b>文字描述合成语音</b><span class="tagx">核心</span>：将描述文本作为提示输入语音生成模型，为每个人产出独立音色的问候语音。</li>
+        <li><b>盲听出题与答题界面</b>：随机播放某人的语音，同时展示全部人脸，由答题者点选对应的人。</li>
+        <li><b>答案揭晓与猜中率统计</b>：记录系统猜测与真人作答，累积统计猜中率并支持按分组比较。</li>
+        <li><b>问候语库管理</b>：维护一组中英文问候句，支持按场景分组与随机抽取。</li>
+        <li><b>同一句多音色盲听</b>：对同一句问候生成多个不同音色的版本，由听众投票选出最贴合本人的一个。</li>
+        <li><b>性格印象标签</b>：从预设形容词集合中为每个人选取若干标签，以卡片形式呈现。</li>
+        <li><b>音色复现与二次生成</b>：保存已生成的音色描述，可对同一人重新合成新的句子。</li>
+        <li><b>活动记录导出</b>：导出人脸、音色描述与猜中情况，形成一份活动记录。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>人物档案墙、盲听出题与答题界面、答案揭晓与猜中率图表。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>视觉语言模型与语音生成模型的部署、音色描述模板服务化、批量录入接口。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>盲猜轮次的作答记录与统计口径、照片质量影响的对照实验、部署与设计文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>模型与下载地址</h4>
+      <table class="tbl">
+        <thead><tr><th>用途</th><th>模型 / 项目</th><th>地址</th><th>体量</th></tr></thead>
+        <tbody>
+          <tr><td>由文字描述生成语音</td><td>VoxCPM2（Voice Design）</td><td><a href="https://github.com/OpenBMB/VoxCPM" target="_blank">github.com/OpenBMB/VoxCPM</a></td><td>2B，量化后约 6–8GB 显存</td></tr>
+          <tr><td>模型权重</td><td>VoxCPM2</td><td><a href="https://huggingface.co/openbmb/VoxCPM2" target="_blank">huggingface.co/openbmb/VoxCPM2</a></td><td>—</td></tr>
+          <tr><td>图像理解与描述生成</td><td>Qwen3-VL 8B Instruct</td><td><a href="https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct" target="_blank">huggingface.co/Qwen/Qwen3-VL-8B-Instruct</a></td><td>量化后约 6GB 显存</td></tr>
+          <tr><td>图像理解轻量替代</td><td>MiniCPM-V 4.6</td><td><a href="https://huggingface.co/openbmb/MiniCPM-V-4_6" target="_blank">huggingface.co/openbmb/MiniCPM-V-4_6</a></td><td>1.3B</td></tr>
+          <tr><td>低配环境备用</td><td>VoxCPM1.5 / VoxCPM-0.5B</td><td><a href="https://github.com/OpenBMB/VoxCPM" target="_blank">同仓库内附低配版本</a></td><td>0.6B / 0.5B</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>实现思路</h4>
+      <ol class="steps">
+        <li>批量导入人脸照片，逐张切分并编号，建立人物档案</li>
+        <li>由视觉语言模型为每张脸生成<b>音色描述</b>与性格印象标签</li>
+        <li>将描述文本作为提示送入语音生成模型，为每人合成一段问候语音</li>
+        <li>进入盲听环节：隐藏画面、只播放语音，由听众从全部人脸中点选</li>
+        <li>揭晓答案，记录作答结果并统计猜中率</li>
+      </ol>
+    </div>
+
+    <div class="grid2">
+      <div class="block">
+        <h4>自主开发模块</h4>
+        <p><b>人脸特征到音色描述的映射模板与提示词体系</b>（本选题最具设计含量的部分，可作为文档资产沉淀）、批量录入与人物档案管理、盲猜流程设计、猜中率统计口径。</p>
+      </div>
+      <div class="block">
+        <h4>测试要点</h4>
+        <p>以猜中率作为量化指标：组织若干轮盲猜，统计系统判断与真人作答的一致率；按性别、年龄段分组比较差异；测试照片质量对结果的影响；测试批量录入的性能与异常处理（重复照片、无人脸、一图多脸）。</p>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div><span>最低配置</span><strong>16GB 内存 + 6GB 显存</strong></div>
+      <div><span>推荐配置</span><strong>16GB 内存 + 8GB 显存</strong></div>
+      <div><span>演示效果</span><strong>全班参与盲猜，互动性强</strong></div>
+    </div>
+
+    <div class="note"><b>设计说明：</b>由外貌推断音色与性格属于娱乐性联想，不具备心理学效度。建议在设计文档中将其定位为<b>互动娱乐装置</b>，说明输出结果属于基于视觉线索的第一印象推想，并说明照片的采集与销毁方式。</div>
+  </article>
+
+  <article class="card" id="t2">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">2</span>
+          <h3>乐器跟弹与键位提示</h3>        </div>
+        <p class="lead">先做一个<b>能弹的网页乐器</b> → 载入曲谱 → 实时跟随演奏位置 → 高亮下一个待奏的键位或音 → 弹错当场标红 → 生成练习报告</p>
+        <p class="need"><b>问题场景：</b>自学乐器的人常因读谱吃力或跟不上节奏而受挫，弹错时也缺乏即时反馈，练习过程难以量化。本选题做一个跟弹辅助工具，把"弹到哪了、下一个该弹什么、错在哪里"实时呈现。<b>它不限于钢琴</b>：键盘乐器（钢琴、电子琴、MIDI 键盘）提示的是键位，弦乐提示按弦位置，管乐提示音高与指法——跟随内核只有一套，差别通过一层<b>乐器适配描述</b>吸收掉。整条链路的前提是先有一个可弹奏的乐器界面，因此本选题从网页乐器开始。</p>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t2.jpg" alt="乐器演奏与谱面跟随">
+        <figcaption>跟弹的第一步：先把乐器弹起来，谱面与键位（音高）才能同步跟随<br><span class="capsrc">图源：Wikimedia Commons（CC0）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>无需真实乐器。演奏输入用<b>自建的网页乐器</b>即可——鼠标、触屏或电脑键盘都能弹，通过 Web MIDI 协议送入系统；若配有 MIDI 键盘、电子琴、电子鼓或 MIDI 吹管，接入 USB 同样可用，作为第二路输入。原声乐器则改用麦克风采集（作为对比方案）。曲谱选用公开授权的 MusicXML 或六线谱文件，此类资源来源充足。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>可弹奏的网页乐器</b><span class="tagx">核心</span>：基于开源方案在浏览器里搭出一个真正能弹的乐器，多八度琴键、多音色采样、鼠标与触屏弹奏、电脑键盘映射、按下高亮，并对外暴露统一的按键事件接口（键盘先行，接口按乐器无关的方式设计）。这是本选题的前置基础，也是后续所有模块的输入源。</li>
+        <li class="core"><b>乐器适配层</b><span class="tagx">核心</span>：把"判定什么、提示什么"参数化——音域、调式、单音或和弦、指法映射，以及提示目标是键位、按弦位置还是音高。新增一种乐器只需写一份适配描述，不必改跟随内核。（本选题的设计核心）</li>
+        <li class="core"><b>实时跟随演奏位置</b><span class="tagx">核心</span>：将演奏输入与乐谱对齐，逐帧输出当前推进位置。（本选题的技术主体）</li>
+        <li class="core"><b>错音判定与容差规则</b><span class="tagx">核心</span>：区分错音、漏音、多音三类情形，定义容差口径并记录所在小节。</li>
+        <li><b>乐谱载入与绘制</b>：读取 MusicXML 或六线谱并渲染为五线谱、六线谱或卷帘瀑布流视图，与乐器键盘对齐。</li>
+        <li><b>下一键位 / 下一音提示</b>：在谱面与乐器界面上同步高亮下一个待奏目标，支持提前若干音预告。</li>
+        <li><b>三种练习模式</b>：跟弹模式（随演奏推进）、等待模式（弹对才继续）、示范模式（先自动播放一遍）。</li>
+        <li><b>区间循环与速度阶梯</b>：框选小节区间反复练习，并按百分比从慢速逐步过渡到原速。</li>
+        <li><b>练习报告</b>：统计正确率、错音清单、卡顿最频繁的小节、练习时长。</li>
+        <li><b>音频转 MIDI 对比实验</b>：原声乐器改用麦克风采集做转录，与键盘输入方案对比准确率与延迟。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>网页乐器键盘、谱面渲染与光标跟随、键位与音高提示、练习报告页。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>乐谱匹配库服务化、按键事件接口、音频转录模型的部署与延迟测量。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>两份乐器适配描述样例、错误注入测试（错音／漏音／抢拍）、容差规则表与文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>模型与下载地址</h4>
+      <table class="tbl">
+        <thead><tr><th>用途</th><th>模型 / 项目</th><th>地址</th><th>体量</th></tr></thead>
+        <tbody>
+          <tr><td>网页乐器键盘</td><td>web-piano（Web Component）</td><td><a href="https://github.com/japet/webPiano" target="_blank">github.com/japet/webPiano</a></td><td>MIT，无运行时依赖</td></tr>
+          <tr><td>网页乐器备选</td><td>Open-Web-Piano</td><td><a href="https://github.com/Anacrusisllc/Open-Web-Piano" target="_blank">github.com/Anacrusisllc/Open-Web-Piano</a></td><td>MIT，体积很小</td></tr>
+          <tr><td>音频合成与多音色</td><td>Tone.js</td><td><a href="https://github.com/Tonejs/Tone.js" target="_blank">github.com/Tonejs/Tone.js</a></td><td>前端，Web Audio</td></tr>
+          <tr><td>多乐器采样音色</td><td>tonejs-instruments</td><td><a href="https://github.com/nbrosowsky/tonejs-instruments" target="_blank">github.com/nbrosowsky/tonejs-instruments</a></td><td>前端，采样开箱可用</td></tr>
+          <tr><td>五线谱渲染</td><td>OpenSheetMusicDisplay</td><td><a href="https://github.com/opensheetmusicdisplay/opensheetmusicdisplay" target="_blank">github.com/opensheetmusicdisplay/opensheetmusicdisplay</a></td><td>前端，直读 MusicXML</td></tr>
+          <tr><td>五线谱渲染备选</td><td>VexFlow</td><td><a href="https://github.com/vexflow/vexflow" target="_blank">github.com/vexflow/vexflow</a></td><td>前端，体积小</td></tr>
+          <tr><td>吉他六线谱渲染</td><td>alphaTab</td><td><a href="https://github.com/CoderLine/alphaTab" target="_blank">github.com/CoderLine/alphaTab</a></td><td>前端，支持 Guitar Pro 谱</td></tr>
+          <tr><td>实时乐谱跟随</td><td>Matchmaker（JKU 音乐研究所）</td><td><a href="https://github.com/pymatchmaker/matchmaker" target="_blank">github.com/pymatchmaker/matchmaker</a></td><td>纯 Python，体积小</td></tr>
+          <tr><td>示例工程</td><td>matchmaker-demo</td><td><a href="https://github.com/pymatchmaker/matchmaker-demo" target="_blank">github.com/pymatchmaker/matchmaker-demo</a></td><td>—</td></tr>
+          <tr><td>音频转 MIDI</td><td>Basic Pitch（Spotify）</td><td><a href="https://github.com/spotify/basic-pitch" target="_blank">github.com/spotify/basic-pitch</a></td><td>极小，纯 CPU 可运行</td></tr>
+          <tr><td>浏览器端同款模型</td><td>basic-pitch-ts</td><td><a href="https://github.com/spotify/basic-pitch-ts" target="_blank">github.com/spotify/basic-pitch-ts</a></td><td>前端</td></tr>
+          <tr><td>键盘乐器转录（更专精）</td><td>piano_transcription_inference</td><td><a href="https://github.com/qiuqiangkong/piano_transcription_inference" target="_blank">github.com/qiuqiangkong/piano_transcription_inference</a></td><td>需 GPU</td></tr>
+          <tr><td>自动指法生成</td><td>PianoPlayer</td><td><a href="https://github.com/marcomusy/pianoplayer" target="_blank">github.com/marcomusy/pianoplayer</a></td><td>可 pip 安装</td></tr>
+          <tr><td>公开曲谱资源</td><td>OpenScore 公开乐谱库</td><td><a href="https://github.com/OpenScore/Lieder" target="_blank">github.com/OpenScore/Lieder</a></td><td>公开授权乐谱</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>实现思路</h4>
+      <ol class="steps">
+        <li>搭建网页乐器（键盘先行）：选用开源组件接通多音色采样，实现鼠标、触屏、电脑键盘三种弹奏方式，并对外暴露统一的按键事件接口</li>
+        <li>定义<b>乐器适配描述</b>：音域、调式、单音或和弦、指法映射、提示目标（键位 / 按弦位置 / 音高），先写钢琴一份，再补一份弦乐或管乐</li>
+        <li>载入乐谱（MusicXML 或六线谱），渲染为谱面并与乐器界面按适配描述对齐</li>
+        <li>通过按键事件流获取演奏输入（网页乐器与真实 MIDI 设备走同一接口）</li>
+        <li>调用匹配库进行实时对齐，逐帧获取当前演奏位置</li>
+        <li>以位置驱动谱面光标推进，并计算下一个待奏目标进行高亮</li>
+        <li>将实际音高序列与乐谱逐音比对，判定错音、漏音、多音</li>
+        <li>记录全过程数据，生成练习报告</li>
+      </ol>
+    </div>
+
+    <div class="grid2">
+      <div class="block">
+        <h4>自主开发模块</h4>
+        <p><b>乐器适配描述格式与解释器</b>（把音域、调式、指法映射与提示目标抽成一份可配置的描述，换乐器不改内核，这份格式与它的解释执行即为自研资产）、<b>错音判定与容差规则表</b>（偏差多少毫秒算错、和弦漏音如何处理）、<b>乐器界面与跟随模块之间的事件接口</b>（把鼠标、触屏、电脑键盘与真实 MIDI 设备四类输入统一成一种事件，屏蔽设备差异）、跟随失步后的重定位与恢复策略、练习报告统计口径、区间循环与速度阶梯的实现。</p>
+      </div>
+      <div class="block">
+        <h4>测试要点</h4>
+        <p>测试设计清晰：<b>人为注入错误</b>——在指定小节弹错某个音、故意漏音、刻意抢拍或拖拍，验证系统能否准确报出并定位到小节。另需测试失步恢复（中途停顿、连续乱弹）、不同速度下的稳定性、长时间练习的资源占用。</p>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div><span>最低配置</span><strong>8GB 内存 + 核显</strong></div>
+      <div><span>推荐配置</span><strong>16GB 内存，无需独立显卡</strong></div>
+      <div><span>演示效果</span><strong>现场弹一小段，谱面跟随、键位或音高提示</strong></div>
+    </div>
+
+    <div class="note"><b>路线选择：</b>先做一个能弹的网页乐器是本选题的第一步，也是它的输入源——用开源组件即可完成，无需采购任何乐器。若小组另有 MIDI 键盘、电子鼓或吹管，可作为第二路输入接入同一接口。<b>乐器适配层</b>是本题与"只做钢琴"的分界：把音域、指法映射与提示目标参数化之后，换一种乐器只是换一份描述。麦克风采集方案无需硬件，但音频转录在和弦与快速跑动上准确率明显下降，建议作为对比实验，恰好可形成"屏幕点击 / 电脑键盘 / 真实 MIDI 三种输入方式的准确率与延迟对比"这一实验内容。</div>
+  </article>
+
+  <!-- 19 -->
+  <article class="card" id="t3">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">3</span>
+          <h3>可对话的数字人</h3>        </div>
+        <p class="lead">按住说话 → 语音识别 → 大模型应答 → 语音合成 → <b>口型与表情同步播报</b> → 可随时打断、可追问</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>单向的数字人播报已经很常见，但"能对话"是另一回事：用户随时可能插话，系统得<b>立刻住口并接上话</b>；说出去的话要跟嘴型对得上；回答一个字就要开始出声，不能等全部生成完。这些都是一条链路上的工程取舍。本选题做一个可以现场聊两句的数字人——重点不在"生成一段好看的视频"，而在<b>时延、打断与音画同步</b>这三件不成熟的事上。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t3.jpg" alt="与数字人对话">
+        <figcaption>说 / 想 / 说三态流转，口型与表情同步，随时可打断<br><span class="capsrc">图源：video-retalking 项目（OpenTalker/video-retalking）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>自己的麦克风与摄像头即可，现场即席对话；人像素材用小组自己的照片或免费数字人素材。干扰输入（背景噪声、突然插话）由现场制造，正好当压力测试——<b>这类"最坏情况"必须在演示前演练过</b>。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>对话时延预算与分段流水线</b><span class="tagx">核心</span>：把识别、理解、合成、口型四段串成流水线，对每段计时（首字延迟、整句延迟），并做取舍（先出声还是等整句）。（本选题的技术主体之一）</li>
+        <li class="core"><b>打断处理与恢复</b><span class="tagx">核心</span>：检测到用户开口即刻停播、截断正在生成的内容、口型归位；并设计"被打断后怎么把话接回来"的策略。（本选题的技术主体之二）</li>
+        <li class="core"><b>流式口型驱动与音画同步</b><span class="tagx">核心</span>：按音频块驱动口型，处理块边界的跳变；<b>测量并校正音画偏移</b>。</li>
+        <li class="core"><b>表情与手势的语义匹配</b><span class="tagx">核心</span>：按回答内容触点头、抬手、思考等动作，避免面瘫。</li>
+        <li><b>语音识别与断句</b>：带时间戳的转写，配合静音检测判断"用户说完了"。</li>
+        <li><b>人设与多轮记忆</b>：人设提示词、会话状态、追问时的上下文延续。</li>
+        <li><b>对话界面与状态提示</b>：正在听／正在想／正在说三种状态要肉眼可辨。</li>
+        <li><b>对话记录与回放</b>：保存每轮的音频、文本与延迟数据。</li>
+        <li><b>延迟与质量的对照实验</b>：不同配置（半实时与全双工、不同模型）下的延迟与观感对比。</li>
+        <li><b>素材与模型管理</b>：人像素材、音色、人设的切换与保存。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>对话界面与三态提示、打断按钮、对话记录与回放、延迟数据的可视化。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>识别／对话／合成／口型四段模型的部署与流水线调度、打断状态机、音画同步。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>延迟逐段测量与对照实验、打断与背景噪声的边界用例、音画偏移测量、时延预算表。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>语音识别</td><td>SenseVoice</td><td><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">github.com/FunAudioLLM/SenseVoice</a></td><td>很小，纯 CPU 可跑</td></tr>
+          <tr><td>识别备选</td><td>faster-whisper</td><td><a href="https://github.com/SYSTRAN/faster-whisper" target="_blank">github.com/SYSTRAN/faster-whisper</a></td><td>中等体量</td></tr>
+          <tr><td>打断检测（静音识别）</td><td>Silero-VAD</td><td><a href="https://github.com/snakers4/silero-vad" target="_blank">github.com/snakers4/silero-vad</a></td><td>极小，纯 CPU</td></tr>
+          <tr><td>对话模型</td><td>Qwen3-8B</td><td><a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank">huggingface.co/Qwen/Qwen3-8B</a></td><td>4 位量化约 5GB</td></tr>
+          <tr><td>语音合成</td><td>VoxCPM2</td><td><a href="https://github.com/OpenBMB/VoxCPM" target="_blank">github.com/OpenBMB/VoxCPM</a></td><td>量化后约 6–8GB 显存</td></tr>
+          <tr><td>语音合成（轻量）</td><td>MeloTTS</td><td><a href="https://github.com/myshell-ai/MeloTTS" target="_blank">github.com/myshell-ai/MeloTTS</a></td><td>纯 CPU 可跑</td></tr>
+          <tr><td>口型驱动</td><td>SadTalker</td><td><a href="https://github.com/OpenTalker/SadTalker" target="_blank">github.com/OpenTalker/SadTalker</a></td><td>建议有 GPU</td></tr>
+          <tr><td>口型驱动备选</td><td>Wav2Lip</td><td><a href="https://github.com/Rudrabha/Wav2Lip" target="_blank">github.com/Rudrabha/Wav2Lip</a></td><td>显存占用较小</td></tr>
+          <tr><td>人脸关键点（表情基线）</td><td>MediaPipe</td><td><a href="https://github.com/google-ai-edge/mediapipe" target="_blank">github.com/google-ai-edge/mediapipe</a></td><td>极小，纯 CPU 实时</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>时延预算与流水线调度</b>：每段耗时测量、并行与串行的取舍、首字延迟的压缩手段。</li>
+        <li><b>打断状态机</b>：听／想／说三态迁移、打断时的资源回收与内容截断、接话策略。</li>
+        <li><b>音画同步</b>：音频块与口型帧的对应关系、偏移的自动测量与校正方法。</li>
+        <li><b>表情动作的触发规则</b>：语义到动作的映射表，以及随机化（避免每次反应一样）。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>先做"半实时"版本：说完一句再回应，把识别 → 对话 → 合成三段跑通并记录各段耗时。</li>
+      <li>实现口型驱动，测量音画偏移并做校正。</li>
+      <li>加入静音检测与打断状态机，做到随时能打断。</li>
+      <li>压缩延迟：算清预算，找出最慢的一段并优化。</li>
+      <li>加入表情与手势的语义匹配。</li>
+      <li>补上人设记忆、对话记录与对照实验，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场和数字人聊两句，中途打断它，看能不能立刻住口并接上；大屏展示每段的延迟数字。</div>
+      <div class="fact"><b>测试重点</b>首字延迟、打断的响应时间与内容截断是否干净、音画偏移量、背景噪声下的识别表现、多轮追问的上下文延续。</div>
+      <div class="fact"><b>难点提示</b>这是全部选题里<b>算力门槛最高的一个</b>。建议先做半实时版本，把时延与打断做出来，再考虑全双工；口型驱动在长句上容易漂，要给出偏移的实测与校正记录。</div>
+    </div>
+
+    <div class="note">单向口播视频生成已经比较成熟（模型开箱可用，只是长视频会漂），本题的分数在<b>交互</b>这一侧：时延预算、打断与恢复、流式口型同步——这三件事目前都没有"拿来即用"的方案，正好是自研的空间。<b>选之前先确认机器跑得动。</b></div>
+  </article>
+</section>
+
+
+<!-- ==================== C 语音与知识 ==================== -->
+<section class="sec" id="t-c">
+  <div class="sec-head">
+    <span class="idx">05</span>
+    <h2>语音与知识记录类</h2>
+    <p>语音只是入口，重点在转写之后如何把内容整理成可回顾的知识</p>
+  </div>
+
+  <article class="card" id="t4">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">4</span>
+          <h3>说话即记的语音速记与知识图谱</h3>        </div>
+        <p class="lead">说一段话 → 转写成文字 → 提炼要点与知识点 → 抽取实体与关系 → 生成一张可浏览、可检索的<b>知识图谱</b></p>
+        <p class="need"><b>问题场景：</b>课堂、会议、访谈里有大量口头信息，说完就散了。只把语音转成文字，得到的是一份逐字稿——信息都在，但没人愿意重读第二遍。真正有价值的是两件事：<b>把口语整理成要点</b>，以及<b>把内容里的概念和它们之间的关系记下来</b>，形成一张能反复回看、能顺着线索检索的图。本选题要解决的是"说完之后，知识怎么留下来"。</p>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t4.jpg" alt="语音速记与知识图谱">
+        <figcaption>口语转写 → 要点提炼 → 实体关系抽取 → 知识图谱</figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>对着麦克风说即可，一段口语就是一条测试数据。演示时由同学现场即兴讲三五分钟（讲讲上周做的一件事、介绍一个概念），系统当场转写、提炼并画出图谱。也可直接使用公开的讲座或访谈音频作为输入。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>要点提炼与结构化摘要</b><span class="tagx">核心</span>：由大语言模型把口语转写稿整理为要点卡片（主题 / 结论 / 待办 / 待确认），并保留与原文的对应位置以便回溯。（本选题的技术主体之一）</li>
+        <li class="core"><b>实体与关系抽取</b><span class="tagx">核心</span>：从要点中识别人物、组织、概念、事件、时间等实体，并抽取它们之间的关系（属于、导致、参与、先后）。（本选题的技术主体之二）</li>
+        <li class="core"><b>知识图谱可视化与交互</b><span class="tagx">核心</span>：以力导向布局呈现节点与关系，支持拖拽、缩放、点击节点展开其邻域、按类型过滤，并与要点卡片双向联动。</li>
+        <li><b>录音与转写</b>：采集语音并输出带时间戳的文本。</li>
+        <li><b>要点卡片视图</b>：与图谱双视图联动——图上选中一个节点，旁边列出与之相关的卡片。</li>
+        <li><b>主题聚类与话题分组</b>：把一次记录中的内容自动聚成若干主题簇，图谱上按簇着色。</li>
+        <li><b>自然语言检索</b>：用一句话提问，返回相关卡片以及图谱上的一条关系路径。</li>
+        <li><b>关系纠错与人工校正</b>：合并重复节点、拆分错误归并、删除错误关系；模型抽取必然出错，需人工兜底并把修正结果回写。</li>
+        <li><b>时间线与历史记录</b>：按日期回看每次速记，形成一条可翻阅的时间轴。</li>
+        <li><b>图谱导出</b>：导出为标准图数据（JSON / GraphML）或笔记软件可用的链接格式。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>知识图谱力导向视图、要点卡片双视图联动、检索与时间线。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>语音识别与大模型的本地部署、实体关系抽取流水线、向量索引与检索服务。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>10 段口语评测材料与人工标注、关系收敛规则表、抽取准确率与召回率统计。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>模型与下载地址</h4>
+      <table class="tbl">
+        <thead><tr><th>用途</th><th>模型 / 项目</th><th>地址</th><th>体量</th></tr></thead>
+        <tbody>
+          <tr><td>语音识别</td><td>FunASR / Paraformer</td><td><a href="https://github.com/modelscope/FunASR" target="_blank">github.com/modelscope/FunASR</a></td><td>小</td></tr>
+          <tr><td>带时间戳的识别</td><td>SenseVoice</td><td><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">github.com/FunAudioLLM/SenseVoice</a></td><td>很小</td></tr>
+          <tr><td>模型权重（国内源）</td><td>SenseVoiceSmall</td><td><a href="https://www.modelscope.cn/models/iic/SenseVoiceSmall" target="_blank">modelscope.cn/models/iic/SenseVoiceSmall</a></td><td>—</td></tr>
+          <tr><td>识别备选</td><td>faster-whisper</td><td><a href="https://github.com/SYSTRAN/faster-whisper" target="_blank">github.com/SYSTRAN/faster-whisper</a></td><td>中等</td></tr>
+          <tr><td>本地大模型运行环境</td><td>Ollama</td><td><a href="https://ollama.com" target="_blank">ollama.com</a></td><td>按需下载</td></tr>
+          <tr><td>要点提炼与关系抽取</td><td>Qwen3-8B（通用中文大模型）</td><td><a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank">huggingface.co/Qwen/Qwen3-8B</a></td><td>4 位量化约 5GB</td></tr>
+          <tr><td>轻量替代</td><td>MiniCPM5-1B</td><td><a href="https://huggingface.co/openbmb/MiniCPM5-1B" target="_blank">huggingface.co/openbmb/MiniCPM5-1B</a></td><td>4 位量化仅 0.5GB</td></tr>
+          <tr><td>图谱可视化</td><td>ECharts（graph 图类型）</td><td><a href="https://github.com/apache/echarts" target="_blank">github.com/apache/echarts</a></td><td>前端，开箱可用</td></tr>
+          <tr><td>图谱可视化备选</td><td>Cytoscape.js</td><td><a href="https://github.com/cytoscape/cytoscape.js" target="_blank">github.com/cytoscape/cytoscape.js</a></td><td>前端，图算法丰富</td></tr>
+          <tr><td>语义检索</td><td>bge-m3（中文向量模型）</td><td><a href="https://huggingface.co/BAAI/bge-m3" target="_blank">huggingface.co/BAAI/bge-m3</a></td><td>约 2GB</td></tr>
+          <tr><td>向量库</td><td>Chroma / FAISS</td><td><a href="https://github.com/chroma-core/chroma" target="_blank">github.com/chroma-core/chroma</a></td><td>本地可跑</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>实现思路</h4>
+      <ol class="steps">
+        <li>录音 → 语音识别得到带时间戳的转写文本</li>
+        <li>把转写文本按段落切分，逐段交由大语言模型提炼要点卡片，并记录每条要点对应原文的哪一段</li>
+        <li>对要点做实体与关系抽取，输出结构化的节点与边（这一步可先用小模型初筛，再由大模型复核）</li>
+        <li>节点与边写入本地图存储；卡片同时做向量化并建索引，供自然语言检索使用</li>
+        <li>用可视化库渲染力导向图谱，实现节点与卡片的双向联动</li>
+        <li>提供人工校正入口，修正结果回写并参与后续同批数据的收敛</li>
+      </ol>
+    </div>
+
+    <div class="grid2">
+      <div class="block">
+        <h4>自主开发模块</h4>
+        <p><b>要点卡片的字段设计与提示词体系</b>、<b>实体与关系的收敛规则</b>（同名合并、指代消解、关系类型定义——这份规则即自研资产）、图谱与卡片的联动交互、双视图的数据一致性保障。抽取不宜完全交由大模型一次输出，建议采用"<b>模型出候选 + 规则收敛 + 人工校正</b>"的三段式，这一分工本身即是值得论述的设计决策。</p>
+      </div>
+      <div class="block">
+        <h4>测试要点</h4>
+        <p>构造 10 段口语材料（含多人对话、口误、话题跳转），人工标注要点与实体关系作为标准答案，统计要点覆盖率、关系抽取的准确率与召回率。另需专门测试：同一段材料重复处理的稳定性、指代消解（"他""那个方案"）、话题跳转处的聚类边界、节点数量过百后图谱的可读性。</p>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div><span>最低配置</span><strong>8GB 内存，纯 CPU 可运行</strong></div>
+      <div><span>推荐配置</span><strong>16GB 内存 + 6GB 显存</strong></div>
+      <div><span>演示效果</span><strong>现场说一段话，几分钟后看到要点卡片与知识图谱</strong></div>
+    </div>
+
+    <div class="note"><b>重点在哪：</b>语音转写本身已经足够成熟，真正需要设计的是<b>要点怎么提炼、知识怎么组织、图谱怎么让人看得懂</b>。大模型负责摘要与抽取，而节点合并规则、图谱布局与检索排序这些确定性逻辑由自研代码完成。本选题同时满足接入大模型的部署要求。</div>
+  </article>
+
+  <!-- 15 -->
+  <article class="card" id="t5">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">5</span>
+          <h3>多人语音的说话人分离与研讨纪要</h3>        </div>
+        <p class="lead">一段多人录音 → 分离说话人 → 分段转写 → 按人聚合观点 → 统计参与度 → 生成<b>每条都挂到人</b>的研讨纪要</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>课堂小组研讨、用户访谈、团队例会这三类场景都有同一个痛点：录音录下来了，但<b>谁说了什么分不清</b>，整理时只能混成一段流水稿，落地的结论与待办也没法追到人。老师想知道"哪个小组讨论时谁在主导、谁一直没说话"，访谈者想知道"第 3 位受访者对这个问题怎么答"，例会需要"张：下周三前给方案"。本选题要解决的就是<b>把多人语音变成按人组织的、能追责的纪要</b>。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t5.jpg" alt="多人讨论的说话人分离与纪要">
+        <figcaption>分离说话人 → 分段转写 → 按人聚合 → 参与度与纪要<br><span class="capsrc">图源：Wikimedia Commons（Public domain / BLMUtah）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>小组成员自己录一段 3–5 人讨论即可（十分钟左右）。<b>谁在说由自己掌握，标准答案天然干净</b>——这是本题最省事也最可靠的数据准备方式。若需要压力测试，可再用公开的多人会议音频验证在远场、混响条件下的表现。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>说话人分离与编号维护</b><span class="tagx">核心</span>：分离出每段语音属于谁，并处理编号跳变——同一个人被切成两段要并回去，两个人音色接近要分开。（本选题的技术主体之一）</li>
+        <li class="core"><b>按人聚合观点</b><span class="tagx">核心</span>：把转写结果按说话人重组为"某人说了什么"，而不是时间顺序的流水句。（本选题的技术主体之二）</li>
+        <li class="core"><b>参与度指标口径</b><span class="tagx">核心</span>：发言时长占比、发言次数、平均时长、被打断次数、最长沉默——口径自研，报告里要能解释每个数字是怎么算出来的。</li>
+        <li class="core"><b>结论与待办的归属</b><span class="tagx">核心</span>：抽出的结论与待办挂到具体的人（"张：下周三前给方案"），并支持按人检索与一键回听。</li>
+        <li><b>录音与转写</b>：输出带时间戳的转写，并保留每段的说话人标记。</li>
+        <li><b>议题切分与分段纪要</b>：按话题把讨论切成若干段，每段给出小结。</li>
+        <li><b>说话人时间轴</b>：横轴时间、纵向按人排布，一眼看出谁在什么时候说话。</li>
+        <li><b>人工校正</b>：修改说话人归属、合并或拆分说话人，并记录修正结果。</li>
+        <li><b>纪要模板与导出</b>：课堂研讨、访谈、例会三套模板，导出 Word / Markdown。</li>
+        <li><b>回听定位</b>：点任意一条观点，跳回原音频的对应位置。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>说话人时间轴、按人分段的纪要视图、参与度图表、人工校正界面。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>说话人分离与识别模型部署、音视频索引与回听服务、纪要生成流水线。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>人工标注"谁在何时说话"的标准答案、分离正确率统计、打断与同时说话的边界用例、指标口径文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>说话人分离</td><td>pyannote-audio</td><td><a href="https://github.com/pyannote/pyannote-audio" target="_blank">github.com/pyannote/pyannote-audio</a></td><td>约 2GB，需申请模型访问</td></tr>
+          <tr><td>语音识别（带时间戳）</td><td>SenseVoice</td><td><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">github.com/FunAudioLLM/SenseVoice</a></td><td>很小，纯 CPU 可跑</td></tr>
+          <tr><td>识别备选</td><td>faster-whisper</td><td><a href="https://github.com/SYSTRAN/faster-whisper" target="_blank">github.com/SYSTRAN/faster-whisper</a></td><td>中等体量</td></tr>
+          <tr><td>静音与打断检测</td><td>Silero-VAD</td><td><a href="https://github.com/snakers4/silero-vad" target="_blank">github.com/snakers4/silero-vad</a></td><td>极小，纯 CPU</td></tr>
+          <tr><td>纪要生成</td><td>Qwen3-8B</td><td><a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank">huggingface.co/Qwen/Qwen3-8B</a></td><td>4 位量化约 5GB</td></tr>
+          <tr><td>本地大模型运行环境</td><td>Ollama</td><td><a href="https://ollama.com" target="_blank">ollama.com</a></td><td>按需下载</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>说话人编号的稳定性与合并策略</b>：跨段合并的判据、极短语音片段的处理、音色接近时的区分——本题最核心的自研逻辑。</li>
+        <li><b>参与度指标口径</b>：每个指标的定义与算法，以及边界情况（同时说话、长静音、被打断）的处理规则。</li>
+        <li><b>观点归属与检索结构</b>：观点 → 人 → 音频位置的三级索引。</li>
+        <li><b>人工校正的回写机制</b>：改完说话人归属后，参与度统计与纪要必须同步更新。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>录一段 3–5 人讨论，人工标一遍"谁在什么时候说话"作为标准答案。</li>
+      <li>跑通说话人分离与转写，把两路结果按时间对齐。</li>
+      <li>实现按人聚合与编号合并，用标准答案量化分离正确率。</li>
+      <li>实现参与度指标与说话人时间轴。</li>
+      <li>接入大模型做议题切分与纪要，并把结论与待办归到人。</li>
+      <li>补上人工校正、模板导出与回听定位，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>放一段三人讨论录音，屏幕上按人分段、给出参与度条形图，纪要里每条都挂着人名，点一下能回听。</div>
+      <div class="fact"><b>测试重点</b>分离正确率（与人工标注对照）、音色接近时的区分、同时说话与打断的处理、指标口径在边界情况下的表现。</div>
+      <div class="fact"><b>难点提示</b><b>难点在说话人编号而不是转写</b>——转写已经足够成熟，但编号一旦跳变，"某人说了什么"就全错；建议把编号合并策略与判据单独写进设计文档。</div>
+    </div>
+
+    <div class="note">与第 4 题的分工讲清楚就不会重复：第 4 题解决「<b>一个人说的内容怎么变成知识</b>」，本题解决「<b>多个人说的内容怎么分清楚并追到人</b>」。应用场景写实之后，"给谁用"很明确：老师、访谈者、会议主持人。</div>
+  </article>
+</section>
+
+<!-- 视觉识别与图像处理 -->
+<section class="sec" id="t-a">
+  <div class="sec-head">
+    <span class="idx">06</span>
+    <h2>视觉识别与图像处理类</h2>
+    <p>以「拍一张照，系统告诉你这是什么、该怎么办」为主线，覆盖识别、分割、信息抽取与结果归档的完整链路</p>
+  </div>
+
+  <!-- 4 -->
+  <article class="card" id="t6">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">6</span>
+          <h3>物品保质期识别与提醒</h3>        </div>
+        <p class="lead">拍一张储物架或冰箱内部的照片，系统识别出里面的物品并自动归类，再从包装上读出生产日期与保质期，算出临期天数并给出提醒。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>家庭储物与小型便利店都存在同一类问题：物品放进柜子后就被遗忘，等到翻出来已经过期。人工盘点耗时且容易漏，而拍照录入是零门槛的。系统需要解决三件事——<b>认出是什么</b>、<b>归到哪一类</b>、<b>什么时候到期</b>。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t6.jpg" alt="物品识别与临期提醒流程">
+        <figcaption>拍照录入 → 识别归类 → 日期抽取 → 临期看板</figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>物品识别与候选列表</b><span class="tagx">核心</span>：调用现成识别模型对整张照片做多目标检测，输出物品名称与置信度，低置信度时给出候选让用户点选确认。</li>
+        <li><b>物品自动归类</b>：把识别结果映射到自定义类别体系（食品 / 日化 / 药品 / 文具 …），支持用户手动改类并记住修正结果。</li>
+        <li class="core"><b>包装日期文本提取</b><span class="tagx">核心</span>：定位包装上的日期区域并识别文本，处理「生产日期」「保质期 12 个月」「保质期至 2027.03」等多种写法。<span class="tagx tagx-warn">设计为人工复核</span></li>
+        <li><b>保质期天数换算与临期计算</b>：把各类日期写法统一换算为到期日，计算剩余天数并划分「正常 / 临期 / 已过期」三档。</li>
+        <li><b>临期看板与提醒</b>：以列表与色块呈现各物品的剩余天数，临期项置顶，支持按类别筛选。</li>
+        <li><b>储物位置管理</b>：为物品指定存放位置（如「冰箱冷藏层」「阳台柜第二格」），支持按位置查看清单。</li>
+        <li class="core"><b>存放记录与历史查询</b><span class="tagx">核心</span>：保存每次录入的时间、照片与原识别结果，支持按物品名检索历史记录。</li>
+        <li><b>消耗与丢弃登记</b>：记录物品被取用或丢弃的状态，避免已消耗物品继续出现在临期提醒中。</li>
+        <li><b>批量照片导入</b>：一次选择多张照片依次处理，适合集中盘点场景。</li>
+        <li><b>数据导出</b>：把当前清单导出为表格文件，便于线下核对。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>拍照录入与候选点选、临期看板、储物位置视图。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>检测与文字识别模型的部署、日期解析服务、批量导入接口。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>十余种日期写法的覆盖用例、低置信度降级路径、错误兜底策略文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>多目标识别</td><td>YOLOv8 / YOLO11（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>CPU 亦可运行，预训练权重开箱可用</td></tr>
+          <tr><td>零样本识别</td><td>CLIP / Chinese-CLIP</td><td><a href="https://github.com/OFA-Sys/Chinese-CLIP" target="_blank">github.com/OFA-Sys/Chinese-CLIP</a></td><td>无需标注即可扩展自定义类别</td></tr>
+          <tr><td>包装文字识别</td><td>PaddleOCR</td><td><a href="https://github.com/PaddlePaddle/PaddleOCR" target="_blank">github.com/PaddlePaddle/PaddleOCR</a></td><td>中文印刷体识别，可本地部署</td></tr>
+          <tr><td>文字识别轻量替代</td><td>RapidOCR</td><td><a href="https://github.com/RapidAI/RapidOCR" target="_blank">github.com/RapidAI/RapidOCR</a></td><td>体积小，纯 CPU 可跑</td></tr>
+          <tr><td>日期语义解析</td><td>Qwen3-4B（通用大模型）</td><td><a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank">huggingface.co/Qwen/Qwen3-4B</a></td><td>把「保质期 12 个月」等表述归一化为日期</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>日期文本归一化规则引擎</b>：覆盖「YYYY-MM-DD」「YYYY.MM.DD」「保质期 N 个月」「保质期至 …」等十余种写法的解析与换算。</li>
+        <li><b>类别映射与用户修正记忆</b>：模型输出到自定义类别体系的映射表，以及用户点选修正后的持久化。</li>
+        <li><b>临期分档与提醒策略</b>：分档阈值、置顶规则与看板呈现逻辑。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>确定类别体系与录入流程，画出「拍照 → 识别 → 归类 → 日期 → 看板」的数据流。</li>
+      <li>接入识别模型并跑通单张图片的多目标输出，记录真实耗时。</li>
+      <li>接入文字识别，圈定日期区域并把结果交给日期解析模块。</li>
+      <li>实现日期归一化规则引擎，用真实包装照片构造测试用例。</li>
+      <li>实现临期分档与看板，联调整条链路。</li>
+      <li>补充手动改类、消耗登记、批量导入等周边功能，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>拍一张储物架照片，几分钟内看到识别结果与临期清单。</div>
+      <div class="fact"><b>测试重点</b>日期写法的覆盖率、低置信度时的降级路径、识别错误的可纠正性。</div>
+      <div class="fact"><b>难点提示</b>日期识别不可能 100% 准确，<b>必须设计成「机器给建议、用户可修改」的半自动流程</b>，并在文档中说明错误兜底策略。</div>
+    </div>
+
+    <div class="note">本选题的自主开发部分集中在「日期语义归一化」与「临期策略」两处，这两块不依赖任何模型，逻辑可完全自研，也最容易在答辩中讲清设计取舍。</div>
+  </article>
+
+  <!-- 5 -->
+  <article class="card" id="t7">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">7</span>
+          <h3>错题本自动生成与管理</h3>        </div>
+        <p class="lead">拍下作业或试卷上的错题，系统识别题目文字、按知识点归入错题本，并支持后续复习、重做与掌握度追踪。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>整理错题本是有价值但极其繁琐的动作：学生要抄题、剪贴、分类、标注。拍照录入可以把「抄题」这一步省掉，但识别的准确率决定了流程是否需要大量人工修正，因此系统的核心不是「识别得多准」，而是<b>如何把不完美的识别结果组织成一个仍然好用的错题本</b>。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t7.jpg" alt="错题拍照录入与知识点归类">
+        <figcaption>拍照识别 → 人工校对 → 知识点归类 → 复习追踪</figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 9 个 · 核心 3 个 · 建议实现 5 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>题目文字识别与校对界面</b><span class="tagx">核心</span>：识别题目文字后进入可编辑的校对界面，用户直接修改错字，确认后才入库。</li>
+        <li><b>图片裁剪与配图留存</b>：保留题目原图，处理含图形、表格的题目，文字与图片在一条记录中并存。</li>
+        <li class="core"><b>知识点自动归类</b><span class="tagx">核心</span>：依据题干内容匹配学科知识点标签，支持多标签与手动调整。</li>
+        <li><b>错因标注</b>：记录错误类型（计算失误 / 概念不清 / 审题错误 …）与自由文本备注。</li>
+        <li><b>错题检索与筛选</b>：按学科、知识点、错误类型、时间范围组合筛选。</li>
+        <li class="core"><b>复习计划与掌握度追踪</b><span class="tagx">核心</span>：为每道错题记录复习次数与结果，按间隔重复策略生成每日复习队列。</li>
+        <li><b>重做与自我批改</b>：在题目下方作答并标注「做对 / 又错了」，自动更新掌握度。</li>
+        <li><b>错题组卷导出</b>：把选中的错题导出为一份可打印的练习卷。</li>
+        <li><b>统计视图</b>：按知识点呈现错题分布，定位薄弱环节。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>校对界面、错题列表与筛选、复习队列、组卷导出。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>文字与公式识别部署、知识点向量匹配、数据存储与检索。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>知识点标签体系、间隔重复调度的边界用例、识别失败的降级测试。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>印刷体识别</td><td>PaddleOCR</td><td><a href="https://github.com/PaddlePaddle/PaddleOCR" target="_blank">github.com/PaddlePaddle/PaddleOCR</a></td><td>印刷体准确率较高，可本地部署</td></tr>
+          <tr><td>印刷体识别备选</td><td>RapidOCR</td><td><a href="https://github.com/RapidAI/RapidOCR" target="_blank">github.com/RapidAI/RapidOCR</a></td><td>体积小，纯 CPU 可跑</td></tr>
+          <tr><td>手写体识别</td><td>Qwen3-VL-8B-Instruct</td><td><a href="https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct" target="_blank">huggingface.co/Qwen/Qwen3-VL-8B-Instruct</a></td><td>手写体识别率明显低于印刷体，需人工校对</td></tr>
+          <tr><td>公式识别</td><td>LaTeX-OCR / pix2tex</td><td><a href="https://github.com/lukas-blecher/LaTeX-OCR" target="_blank">github.com/lukas-blecher/LaTeX-OCR</a></td><td>把公式图片转为 LaTeX</td></tr>
+          <tr><td>知识点归类</td><td>bge-small-zh-v1.5</td><td><a href="https://huggingface.co/BAAI/bge-small-zh-v1.5" target="_blank">huggingface.co/BAAI/bge-small-zh-v1.5</a></td><td>把题干与知识点描述做语义匹配</td></tr>
+          <tr><td>向量检索</td><td>FAISS</td><td><a href="https://github.com/facebookresearch/faiss" target="_blank">github.com/facebookresearch/faiss</a></td><td>本地可跑，无需 GPU</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>校对工作流</b>：从识别到人工确认的状态机，以及确认前后的数据分支。</li>
+        <li><b>知识点标签体系与匹配策略</b>：标签库设计、匹配阈值与多标签冲突处理。</li>
+        <li><b>间隔重复复习调度</b>：复习队列的生成算法与掌握度更新规则。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>明确学科范围与知识点体系，避免一开始铺得过大。</li>
+      <li>跑通「拍照 → 识别 → 校对 → 入库」的主链路。</li>
+      <li>实现知识点匹配，用真实错题标注一批数据验证效果。</li>
+      <li>实现复习调度与掌握度更新，形成每日复习队列。</li>
+      <li>补充检索、统计与导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场拍一道错题，完成校对与归类，并在复习队列中看到它。</div>
+      <div class="fact"><b>测试重点</b>识别失败时的降级、多标签冲突、复习调度的边界条件（同日重复、长期未复习）。</div>
+      <div class="fact"><b>难点提示</b>学生手写体的识别准确率显著低于印刷体，<b>务必把「人工校对」作为流程的正式环节</b>而不是补救措施。</div>
+    </div>
+
+    <div class="note">这个选题的价值不在识别技术本身，而在于把不确定的模型输出包装成一个可长期使用的管理工具，考查的是流程设计能力。</div>
+  </article>
+
+  <!-- 6 -->
+  <article class="card" id="t8">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">8</span>
+          <h3>闲置物品一键上架</h3>        </div>
+        <p class="lead">拍一张闲置物品的照片，系统自动抠掉背景、生成白底商品图，并给出标题、成色描述与参考定价，直接生成一份可粘贴到二手平台的上架文案。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>闲置物品难卖，往往不是因为没人要，而是因为上架的成本太高——要拍照、修图、想标题、写描述、定价。这一连串动作里，几乎每一步都能被自动化：抠图交给分割模型，标题与描述交给多模态大模型，定价用同类商品的历史价格做参考。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t8.jpg" alt="闲置物品抠图与上架文案生成">
+        <figcaption>拍照 → 抠图 → 文案与定价 → 一键复制上架</figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 9 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>主体分割与背景移除</b><span class="tagx">核心</span>：自动识别画面主体并抠出，输出透明背景图。</li>
+        <li class="core"><b>白底商品图生成</b><span class="tagx">核心</span>：把抠出的主体放到纯白或浅灰背景上，做居中裁切与留白控制，输出符合平台要求的方图。</li>
+        <li><b>物品识别与类目推断</b>：识别物品名称并推断所属类目，用于后续文案与定价。</li>
+        <li class="core"><b>标题与描述文案生成</b><span class="tagx">核心</span>：依据识别结果与用户填写的少量信息，生成结构化标题与卖点描述。</li>
+        <li><b>成色自评引导</b>：以问答形式引导用户选择成色、使用时长、瑕疵情况，作为文案输入。</li>
+        <li><b>参考定价建议</b>：结合类目、成色给出价格区间，支持用户手动覆盖。</li>
+        <li><b>瑕疵标注</b>：在原图上画出瑕疵位置并附文字说明，作为上架图的补充。</li>
+        <li><b>多件批量处理</b>：一次导入多张照片批量生成商品图与文案。</li>
+        <li><b>上架草稿管理</b>：把生成的图文存为草稿，支持编辑、复制与删除。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>上架表单与成色引导、白底图预览、草稿管理与一键复制。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>抠图与识别模型部署、文案生成接口、批量处理队列。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>商品图排版规则的异常用例（主体偏边、极端长宽比）、模型许可说明、定价口径文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>图像分割</td><td>rembg（U2Net 系列）</td><td><a href="https://github.com/danielgatis/rembg" target="_blank">github.com/danielgatis/rembg</a></td><td>使用宽松，开箱即用，CPU 可跑</td></tr>
+          <tr><td>高精度抠图</td><td>RMBG-2.0</td><td><a href="https://huggingface.co/briaai/RMBG-2.0" target="_blank">huggingface.co/briaai/RMBG-2.0</a></td><td>边缘质量更好，<b>非商用许可</b></td></tr>
+          <tr><td>高精度抠图备选</td><td>BiRefNet</td><td><a href="https://github.com/ZhengPeng7/BiRefNet" target="_blank">github.com/ZhengPeng7/BiRefNet</a></td><td>边缘细节好，需 GPU</td></tr>
+          <tr><td>物品识别</td><td>YOLO11（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>识别类目并作为文案输入</td></tr>
+          <tr><td>零样本识别</td><td>Chinese-CLIP</td><td><a href="https://github.com/OFA-Sys/Chinese-CLIP" target="_blank">github.com/OFA-Sys/Chinese-CLIP</a></td><td>按文本描述匹配类目</td></tr>
+          <tr><td>文案生成</td><td>Qwen3-8B（通用大模型）</td><td><a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank">huggingface.co/Qwen/Qwen3-8B</a></td><td>由类目、成色、瑕疵生成标题与描述</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>商品图排版与裁切引擎</b>：主体包围盒计算、居中规则、留白与方图输出的完整处理链。</li>
+        <li><b>文案模板与字段编排</b>：把结构化字段拼装成不同平台风格的标题与描述。</li>
+        <li><b>定价区间推算</b>：基于类目基准价与成色系数的定价模型。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>跑通抠图与白底合成，确认输出的图片规格。</li>
+      <li>实现排版裁切引擎，处理主体偏边、长宽比极端等异常情况。</li>
+      <li>接入识别与文案生成，设计结构化字段的输入表单。</li>
+      <li>实现成色引导与定价推算，形成完整的草稿生成链路。</li>
+      <li>补充批量处理与草稿管理，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场拍一件物品，几十秒内得到白底图与一份完整的上架文案。</div>
+      <div class="fact"><b>测试重点</b>复杂边缘（毛发、透明物体）、多主体干扰、文案字段缺失时的兜底。</div>
+      <div class="fact"><b>许可提示</b>若使用非商用许可的抠图模型，需在部署文档中明确标注，课堂演示不涉及商用分发。</div>
+    </div>
+
+    <div class="note">「商品图排版引擎」是本题最扎实的自主开发部分——它不依赖模型，却直接决定成品是否可用，适合作为答辩时的重点展示。</div>
+  </article>
+
+  <!-- 7 -->
+  <article class="card" id="t9">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">9</span>
+          <h3>图片素材库的以图搜图与去重</h3>        </div>
+        <p class="lead">批量导入图片 → 自动向量化入库 → 上传一张图就找出相似素材 → <b>把重复与近重复的版本归并成组</b> → 支持以文搜图 → 结果可解释</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>做设计、剪视频、写论文的人手里都攒着几千张素材图（截图、参考图、自己拍的），真正要用的时候找不到；而且里面混着大量重复与近重复的版本——连拍、裁剪过、加过水印、转过格式。靠文件名和文件夹管不了，靠人工翻更不行。本选题做一个<b>以图搜图</b>的素材库：上传一张图就能找出相似素材，并把重复版本自动归并到一起。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t9.jpg" alt="图片素材库与以图搜图">
+        <figcaption>批量入库 → 向量检索 → 以图搜图与以文搜图 → 重复版本归并<br><span class="capsrc">图源：Wikimedia Commons（CC BY 2.0 / Infrogmation of New Orleans）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>素材可以完全自造——从公开图片库（Unsplash、Wikimedia Commons、ImageNet／COCO 子集）下载几百到几千张，再用脚本<b>程序化制造重复版本</b>（缩放、裁剪、加边框、加水印、调亮度、转格式、加噪）。这样"哪些图本该是一组"就自带标准答案，去重的准确率与召回率都能量化——比随手拍一个库干净得多，也更有评测价值。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>图像向量化与索引构建</b><span class="tagx">核心</span>：把每张图编码成向量并建立可增量维护的索引，批量入库要能跑几千张而不爆内存。（本选题的技术主体之一）</li>
+        <li class="core"><b>近重复判定与归并</b><span class="tagx">核心</span>：定义「重复 / 近重复 / 相似」三档口径，用相似度阈值加聚类，把连拍、裁剪、加水印、转格式的版本归并成一组。（本选题的技术主体之二）</li>
+        <li class="core"><b>混合检索与重排</b><span class="tagx">核心</span>：以图搜图、以文搜图、元数据过滤（尺寸／时间／来源）三路召回后统一重排，并输出排序依据。</li>
+        <li class="core"><b>命中结果解释</b><span class="tagx">核心</span>：展示相似度、命中的标签与相似区域，让人看得出"系统凭什么认为它像"。这类系统最容易做成黑箱，可解释性是它和"跑个 demo"的分界。</li>
+        <li><b>批量导入与索引增量更新</b>：新增、删除、重新入库都不必全量重建索引，并记录每张图的入库状态。</li>
+        <li><b>阈值调节与效果对比</b>：同一张查询图在不同阈值下的结果并排对比，辅助确定阈值。</li>
+        <li><b>重复组管理</b>：查看某一组的全部版本，自动推荐保留画质最高的一张，支持批量清理多余版本。</li>
+        <li><b>素材标签与人工校正</b>：自动标签加人工补标，标签参与检索过滤。</li>
+        <li><b>规模与性能测试</b>：在 500 / 2000 / 5000 张三档库容量下比较检索延迟与内存占用。</li>
+        <li><b>素材库浏览与导出</b>：网格视图，按重复组合并展示，导出选中的素材清单。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>素材库网格与重复组展示、上传查询与结果页、阈值调节与结果解释界面。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>向量编码模型的部署与批量化、索引构建、检索服务与增量更新。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>程序化重复版本的生成脚本与同组标注、准确率与召回率统计、规模性能测试、指标口径文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>图文向量化（中文）</td><td>Chinese-CLIP</td><td><a href="https://github.com/OFA-Sys/Chinese-CLIP" target="_blank">github.com/OFA-Sys/Chinese-CLIP</a></td><td>中文图文对齐，支持以文搜图</td></tr>
+          <tr><td>图文向量化备选</td><td>OpenCLIP</td><td><a href="https://github.com/mlfoundations/open_clip" target="_blank">github.com/mlfoundations/open_clip</a></td><td>权重选择多，英文场景更成熟</td></tr>
+          <tr><td>快速初筛</td><td>imagehash（感知哈希）</td><td><a href="https://github.com/JohannesBuchner/imagehash" target="_blank">github.com/JohannesBuchner/imagehash</a></td><td>极快，用于大库粗筛</td></tr>
+          <tr><td>向量检索库</td><td>FAISS</td><td><a href="https://github.com/facebookresearch/faiss" target="_blank">github.com/facebookresearch/faiss</a></td><td>大规模近邻检索，纯 CPU 可跑</td></tr>
+          <tr><td>向量库备选</td><td>Chroma</td><td><a href="https://github.com/chroma-core/chroma" target="_blank">github.com/chroma-core/chroma</a></td><td>轻量，自带持久化与元数据过滤</td></tr>
+          <tr><td>自动打标签</td><td>YOLO11-cls（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>预训练分类权重开箱可用</td></tr>
+          <tr><td>相似区域定位（可选）</td><td>Segment Anything</td><td><a href="https://github.com/facebookresearch/segment-anything" target="_blank">github.com/facebookresearch/segment-anything</a></td><td>回答"像的到底是哪一块"</td></tr>
+          <tr><td>去背景后再比对（可选）</td><td>rembg</td><td><a href="https://github.com/danielgatis/rembg" target="_blank">github.com/danielgatis/rembg</a></td><td>抗背景干扰的补充实验</td></tr>
+          <tr><td>图像读写与元数据</td><td>Pillow</td><td><a href="https://github.com/python-pillow/Pillow" target="_blank">github.com/python-pillow/Pillow</a></td><td>批量读取、尺寸与 EXIF</td></tr>
+          <tr><td>页面框架</td><td>Vue 3</td><td><a href="https://github.com/vuejs/core" target="_blank">github.com/vuejs/core</a></td><td>前端，也可用原生实现</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>近重复判定口径与聚类算法</b>：三档阈值、传递性处理（甲像乙、乙像丙并不代表甲像丙）、组内代表图的选取规则。</li>
+        <li><b>增量索引与删除策略</b>：新图入库、删图后的索引处理，避免每次全量重建。</li>
+        <li><b>混合检索与重排策略</b>：三路召回的融合权重、重排规则与排序依据的输出。</li>
+        <li><b>命中结果解释</b>：相似区域定位与判定依据的呈现方式。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>搭建素材库：下载公开图片若干，写脚本程序化生成重复与近重复版本，并记录「同组」标注作为标准答案。</li>
+      <li>跑通单张图的向量化与相似度计算，记录不同尺寸下的编码耗时。</li>
+      <li>建立索引并实现以图搜图，先判断 top-k 结果是否符合直觉。</li>
+      <li>实现近重复判定与聚类，用同组标注算出准确率与召回率。</li>
+      <li>加入以文搜图与元数据过滤，实现三路混合与重排。</li>
+      <li>实现结果解释与阈值调节，联调整条链路。</li>
+      <li>补上重复组管理、标签与导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>库里放几千张图，现场上传一张照片，几秒内找出相似素材，并指出哪些是它的重复版本。</div>
+      <div class="fact"><b>测试重点</b>重复检测的准确率与召回率（用程序化生成的同组标注）、阈值变化对结果的影响、库容量增大后的检索延迟与内存、批量入库中断后的恢复。</div>
+      <div class="fact"><b>难点提示</b>近重复的难点在<b>传递性</b>——甲像乙、乙像丙并不代表甲像丙，简单按阈值分组会把一批不相关的图连成一串；必须设计聚类策略与组内代表图的选取规则。</div>
+    </div>
+
+    <div class="note">本题的模型部分只有"把图编码成向量"这一件事，剩下全是自研：索引怎么建、相似到什么程度算重复、结果怎么排序、为什么返回它。这与"调一个模型看输出"是两回事，也是本题区别于其他视觉题的地方。</div>
+  </article>
+
+  <!-- 14 -->
+  <article class="card" id="t10">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">10</span>
+          <h3>论文图文转可编辑矢量图</h3>        </div>
+        <p class="lead">论文段落或 PNG 示意图 → 抽取节点与关系 → 自动布局与连线路由 → 生成<b>可编辑的矢量图</b>（SVG / Excalidraw / draw.io）→ 按语义配上 icon 与 emoji</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>写论文、做报告时最费时间的往往不是内容而是画图：把方法流程画成一张能放进文档的示意图，要反复调框、调箭头、对齐；手头已有的图又常常是 PNG 截图，想改一个箭头都得重画。模型能"看懂"图和文字，但<b>看懂之后怎么把它变成一张可编辑、能对齐、箭头不乱的矢量图</b>，才是本选题要解决的问题。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t10.jpg" alt="论文图文转可编辑矢量图">
+        <figcaption>文本 / 图片 → 拓扑抽取 → 布局与路由 → 可编辑矢量图<br><span class="capsrc">图源：Excalidraw 项目（excalidraw/excalidraw）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>两类输入都能自备：论文与教材里的示意图（公开论文的图可自用），以及自己写的一段"方法步骤"文字描述。评测标准答案由自己掌握——<b>把原图与生成图并排看，节点数与连线数是否一致、能不能在编辑器里改</b>，这两条都能客观判定，不必依赖主观印象。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>拓扑抽取</b><span class="tagx">核心</span>：从图片中识别文本框、节点形状与箭头，判断箭头方向并绑定到起止节点；从文字段落中抽出步骤、因果、分支与并列关系。（本选题的技术主体之一）</li>
+        <li class="core"><b>自动布局与连线路由</b><span class="tagx">核心</span>：分层布局、正交折线、避开节点与其他连线、减少交叉；节点尺寸随文字自适应。<b>现成的布局库只负责排节点位置，箭头怎么绕、样式怎么统一必须自己写。</b>（本选题的技术主体之二，也是最难的一块）</li>
+        <li class="core"><b>箭头与连接点规范化</b><span class="tagx">核心</span>：把任意贴边的箭头统一成锚点吸附与圆角折线；处理成对箭头、双向箭头与自环。</li>
+        <li class="core"><b>可编辑矢量导出</b><span class="tagx">核心</span>：生成 SVG，并导出 Excalidraw / draw.io 原生文件格式，<b>保证再次导入时仍可逐元素编辑</b>。</li>
+        <li><b>节点样式体系</b>：按语义给节点定形状与配色（开始结束／处理／判断／数据／子流程）。</li>
+        <li><b>icon 与 emoji 匹配</b>：按节点语义从图标库检索并嵌入，支持手动替换。</li>
+        <li><b>文字排版自适应</b>：长文本自动换行、字号分级、节点最小与最大宽度约束。</li>
+        <li><b>人工校对与再导出</b>：布局不满意可手动拖拽微调，再次导出保持修改。</li>
+        <li><b>多格式输出</b>：SVG / PNG / Mermaid 代码，供不同工具链使用。</li>
+        <li><b>批量处理与模板</b>：一次处理多张图，并可把常用样式存为模板复用。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>在线画布与拖拽微调、样式面板、导入导出界面、校对流程。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>版面与形状识别、图结构理解模型部署、布局与路由服务、矢量文件生成。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>测试图集与文本集构建、拓扑还原准确率统计、导出再编辑的往返测试、样式规范文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>图内文字与版面</td><td>PaddleOCR</td><td><a href="https://github.com/PaddlePaddle/PaddleOCR" target="_blank">github.com/PaddlePaddle/PaddleOCR</a></td><td>含版面分析，可本地部署</td></tr>
+          <tr><td>文字识别轻量替代</td><td>RapidOCR</td><td><a href="https://github.com/RapidAI/RapidOCR" target="_blank">github.com/RapidAI/RapidOCR</a></td><td>体积小，纯 CPU 可跑</td></tr>
+          <tr><td>图结构理解 / 文本转结构</td><td>Qwen3-VL-8B-Instruct</td><td><a href="https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct" target="_blank">huggingface.co/Qwen/Qwen3-VL-8B-Instruct</a></td><td>量化后约 6GB 显存</td></tr>
+          <tr><td>分层布局</td><td>dagre</td><td><a href="https://github.com/dagrejs/dagre" target="_blank">github.com/dagrejs/dagre</a></td><td>前端，负责节点排布</td></tr>
+          <tr><td>布局备选（正交与避让更强）</td><td>ELK（elkjs）</td><td><a href="https://github.com/kieler/elkjs" target="_blank">github.com/kieler/elkjs</a></td><td>前端，支持正交路由</td></tr>
+          <tr><td>布局备选（服务端）</td><td>Graphviz</td><td><a href="https://github.com/graphviz/graphviz" target="_blank">github.com/graphviz/graphviz</a></td><td>dot 布局成熟，需安装</td></tr>
+          <tr><td>图标库</td><td>Iconify</td><td><a href="https://github.com/iconify/iconify" target="_blank">github.com/iconify/iconify</a></td><td>十万级开源图标，可按语义检索</td></tr>
+          <tr><td>可编辑矢量编辑器</td><td>Excalidraw</td><td><a href="https://github.com/excalidraw/excalidraw" target="_blank">github.com/excalidraw/excalidraw</a></td><td>文件格式开放，可读写</td></tr>
+          <tr><td>编辑器备选</td><td>draw.io（diagrams.net）</td><td><a href="https://github.com/jgraph/drawio" target="_blank">github.com/jgraph/drawio</a></td><td>可导入 SVG 与自有格式</td></tr>
+          <tr><td>渲染与对照</td><td>Mermaid</td><td><a href="https://github.com/mermaid-js/mermaid" target="_blank">github.com/mermaid-js/mermaid</a></td><td>文本转图，用作对照基线</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>拓扑抽取的规则与收敛</b>：合并模型给出的重复节点、判定无箭头连线的方向、处理跨节点长连线。</li>
+        <li><b>连线路由与避让算法</b>：正交折线路径规划、节点与标签避让、交叉数最小化——现成布局库只管排节点，这一段必须自研。</li>
+        <li><b>箭头与连接点规范化</b>：锚点吸附、成对箭头／双向箭头／自环的处理规则。</li>
+        <li><b>Excalidraw / draw.io 文件格式的生成与往返</b>：保证导出后可再次编辑，这是本题最硬的验收点。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>收集素材：公开论文里的示意图与自己写的"方法步骤"段落各若干，作为测试集。</li>
+      <li>跑通图内文字与形状识别，先把"框"和"文字"对上。</li>
+      <li>实现拓扑抽取（节点＋有向边），用节点数与连线数与原图逐一对照。</li>
+      <li>接入布局库排节点，再自研连线路由与避让——这一步是成品好坏的分水岭。</li>
+      <li>生成 SVG 并实现 Excalidraw / draw.io 导出，验证"能再打开且能改"。</li>
+      <li>加入样式体系、icon 匹配与文字自适应。</li>
+      <li>补上人工微调与模板，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场贴一段论文方法段落和一张 PNG 架构图，几秒后得到两张可编辑矢量图，直接拖进 draw.io 改一个箭头。</div>
+      <div class="fact"><b>测试重点</b>拓扑还原的节点与连线准确率（与原图对照）、箭头方向正确率、<b>导出文件能否被编辑器打开且元素可选中</b>、长文本节点的排版。</div>
+      <div class="fact"><b>难点提示</b>"看懂"与"画好"是两件事——模型能给对节点和关系，但箭头怎么走、怎么不交叉、怎么对齐得靠自己；建议把<b>交叉数与连线总长度</b>当作可量化的优化指标写进文档。</div>
+    </div>
+
+    <div class="note">本题的模型只负责"看懂"（抽节点、抽关系），产出是否可用取决于<b>路由与导出</b>这两块自研代码。验收也很硬：导出的文件必须能被 Excalidraw / draw.io 打开、元素能选中能改——这条比"生成了一张像样的图"可证伪得多。</div>
+  </article>
+</section>
+
+<!-- 动作计数与目标跟踪 -->
+<section class="sec" id="t-b">
+  <div class="sec-head">
+    <span class="idx">07</span>
+    <h2>动作计数与目标跟踪类</h2>
+    <p>以拍摄的视频为输入，围绕「检测跟踪 → 状态判定 → 计数统计 → 轨迹可视化」展开，重点考查轨迹处理与状态机设计</p>
+  </div>
+
+  <!-- 8 -->
+  <article class="card" id="t11">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">11</span>
+          <h3>健身动作计数与姿态纠正</h3>        </div>
+        <p class="lead">用普通摄像头对准训练者，实时识别健身动作并自动计数，同时判断动作是否到位，对塌腰、屈膝不足、手臂未伸直等给出即时提示；<b>动作类型可以自定义</b>，不限于某一种。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>自己在家做动作时，数着数着就乱了；动作是否标准也无从判断，往往练了很久但姿势一直是错的。摄像头的优势在于它「不知疲倦」——每一帧都能给出关键点位置，从而把「计数」和「动作质量评估」这两件事同时做好。而只认一种动作的工具用途有限，本选题要把动作做成<b>可配置的</b>：俯卧撑、深蹲、开合跳、二头弯举、平板支撑都能计数，用户还能自行定义新的动作。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t11.jpg" alt="健身动作实时计数与姿态提示">
+        <figcaption>关键点检测 → 状态机计数 → 动作质量提示</figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>人体关键点实时检测</b><span class="tagx">核心</span>：调用姿态估计模型逐帧输出人体关键点，纯 CPU 即可满足实时性。</li>
+        <li class="core"><b>自定义健身姿势</b><span class="tagx">核心</span>：用配置描述一个动作——参与判定的关键点、判定用的关节角度、上下阈值与迟滞区间、计数方向与循环次数。新增动作只需写一份配置，不必改代码。这是本选题最有设计含量的部分。</li>
+        <li class="core"><b>动作状态机与计数</b><span class="tagx">核心</span>：依据配置中的角度在「准备 / 下压 / 还原」之间迁移，一次完整往返记一次数，并处理防抖与防重复。</li>
+        <li class="core"><b>动作质量判定</b><span class="tagx">核心</span>：按动作类型配置姿态约束（如俯卧撑要求肩髋踝成直线、深蹲要求膝不超过脚尖），识别变形动作并提示。</li>
+        <li><b>内置动作库</b>：随程序提供俯卧撑、深蹲、开合跳、二头弯举、平板支撑等若干动作的配置，开箱即用。</li>
+        <li><b>实时提示与语音播报</b>：在画面上叠加提示文字，并在动作变形时给出语音提醒。</li>
+        <li><b>训练组与间歇管理</b>：支持设定每组次数与组间休息时长，自动记录每组成绩。</li>
+        <li><b>训练历史与目标</b>：按日期记录每日总次数与组数并绘制趋势图，同时显示每日或每周目标的完成进度。</li>
+        <li><b>视频回放与错误片段标记</b>：保存训练录像，自动标记动作变形的时段便于复盘。</li>
+        <li><b>个人档案与多用户切换</b>：区分不同训练者的记录。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>实时叠加显示、动作配置编辑器、训练历史与目标看板。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>姿态模型接入与帧率优化、语音播报、锻炼数据存储。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>内置动作配置库（俯卧撑／深蹲／开合跳等）、阈值调参记录、防抖与漏计测试。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>姿态估计</td><td>MediaPipe Pose Landmarker</td><td><a href="https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker" target="_blank">ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker</a></td><td>33 个关键点，纯 CPU 实时，部署极简</td></tr>
+          <tr><td>姿态估计（仓库与模型文件）</td><td>MediaPipe</td><td><a href="https://github.com/google-ai-edge/mediapipe" target="_blank">github.com/google-ai-edge/mediapipe</a></td><td>含各平台预编译包与任务模型</td></tr>
+          <tr><td>高精度姿态</td><td>RTMPose（MMPose）</td><td><a href="https://github.com/open-mmlab/mmpose" target="_blank">github.com/open-mmlab/mmpose</a></td><td>精度更高，依赖相对更重</td></tr>
+          <tr><td>检测加姿态</td><td>YOLO11-Pose（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>先检测再估计，多人场景更稳</td></tr>
+          <tr><td>语音播报</td><td>Piper（轻量语音合成）</td><td><a href="https://github.com/rhasspy/piper" target="_blank">github.com/rhasspy/piper</a></td><td>极小，纯 CPU 可跑</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>动作配置格式与解释器</b>：定义动作描述文件（关键点集合、判定角度、上下阈值、迟滞区间、计数规则）并实现其解释执行，是本题最核心的自研逻辑。</li>
+        <li><b>动作状态机</b>：角度阈值的设定、防抖动与防重复计数策略。</li>
+        <li><b>动作质量评分规则</b>：由关键点连线推导的身体姿态偏差计算与分档判定。</li>
+        <li><b>锻炼数据统计与组间歇调度</b>：计时、分组与历史曲线的组织方式。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>接入姿态模型，确认在普通笔记本 CPU 上的帧率表现。</li>
+      <li>采集自己或同学的健身动作视频，观察判定角度随时间的变化曲线。</li>
+      <li>设计动作配置格式，先用俯卧撑跑通「配置 → 状态机 → 计数」这条链路。</li>
+      <li>依据实测曲线确定上下阈值与迟滞区间，实现稳定的状态机计数。</li>
+      <li>按配置加入姿态约束，调参区分正常与变形动作。</li>
+      <li>再补两三个动作的配置（深蹲、开合跳等），验证配置机制确实无需改代码。</li>
+      <li>补充分组、历史与目标等管理功能，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场做十几个动作，屏幕上实时跳出计数与动作提示；再当场新增一个动作配置，验证不改代码也能计数。</div>
+      <div class="fact"><b>测试重点</b>阈值防抖、快速与缓慢动作的兼容、人物出画与遮挡时的处理、多个动作共用一套状态机时的参数隔离。</div>
+      <div class="fact"><b>难点提示</b>阈值取太紧会漏计、取太松会重复计数，<b>必须用真实视频反复调试并记录调参过程</b>；把参数从代码里提出来做成配置，这个过程本身就是很好的设计论述材料。</div>
+    </div>
+
+    <div class="note">本题的自主开发比重很高：动作配置格式、状态机、评分规则、统计逻辑全部自研，模型只负责提供关键点。<b>可自定义姿势</b>是本题与一般计数器的分界——它把「支持一个新动作」从改代码变成写配置，答辩时容易讲出技术含量。</div>
+  </article>
+
+  <!-- 9 -->
+  <article class="card" id="t12">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">12</span>
+          <h3>人流进出计数与区域热度分析</h3>        </div>
+        <p class="lead">输入一段<b>拍摄好的视频</b>，统计进出画面的人数——有多少人走入画面、有多少人走出画面，并按方向分别计数；同时分析画面中各区域的停留热度。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>餐厅门口、图书馆入口、展厅门口这些地方，运营者都想知道"今天有多少人进来、多少人离开"，人工计数不现实也无法长时间持续。<b>本选题的输入是一段已经拍好的视频</b>——架好机位拍一段门口或通道的行人画面，剩下的交给程序离线分析：把画面当作一块场地，统计进出的人数与方向，再看人们在哪里停留得最久。要回答的是三个问题：<b>进来多少人</b>、<b>出去多少人</b>、<b>在哪些区域停留</b>。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t12.jpg" alt="人流进出计数与区域热力图">
+        <figcaption>检测跟踪 → 进出画面计数 → 区域停留统计 → 热力图<br><span class="capsrc">图源：ByteTrack 仓库（ifzhang/ByteTrack）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>行人检测与多目标跟踪</b><span class="tagx">核心</span>：基于现成工具库搭建"检测＋跟踪"流水线，逐帧输出带稳定编号的行人框，这是后续所有统计的基础。</li>
+        <li class="core"><b>轨迹清洗与编号去重</b><span class="tagx">核心</span>：跟踪器的原始输出必然有跳变与碎片，需要自研一层后处理——短时同位置合并、短暂丢失后重连、跳变修复与轨迹插值。<b>这一层才是本题真正的技术含量所在。</b></li>
+        <li class="core"><b>进出画面计数</b><span class="tagx">核心</span>：以画面边界（或自定义的计数线）为基准，依据清洗后的轨迹判定"走入"还是"走出"并双向分别累加，同时记录每次过线的时间与编号以便复核。</li>
+        <li class="core"><b>区域停留时长统计</b><span class="tagx">核心</span>：自定义多边形区域，统计每个人在各区域内的停留时长。</li>
+        <li><b>热力图生成</b>：把轨迹点密度映射为颜色热度并叠加显示。</li>
+        <li><b>实时数据看板</b>：展示当前在场人数、累计进入、累计离开与各区域人数。</li>
+        <li><b>时段统计与趋势图</b>：按分钟或小时聚合数据，绘制进出人数随时间变化的曲线。</li>
+        <li><b>滞留与聚集预警</b>：区域内人数超过阈值、或个人停留超过时限时给出提醒，并标出该区域。</li>
+        <li><b>计数线与区域配置</b>：在画面上以图形方式新增、拖动与删除计数线与统计区域，配置可保存复用。</li>
+        <li><b>轨迹数据导出与回放</b>：把轨迹存成结构化数据，支持带轨迹叠加的视频回放，便于人工复核计数是否准确。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>看板与趋势图、热力图、计数线与区域配置、轨迹回放。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>检测跟踪流水线（含跟踪工具库）搭建、视频批处理、结构化轨迹存储。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>同一段视频清洗前后过线次数的对照、贴边抖动与遮挡用例、指标口径文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>检测与跟踪一体化</td><td>supervision（Roboflow）</td><td><a href="https://github.com/roboflow/supervision" target="_blank">github.com/roboflow/supervision</a></td><td>内置跟踪器与全套标注器，开箱可用</td></tr>
+          <tr><td>行人检测</td><td>YOLO11n（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>轻量模型即可满足实时性</td></tr>
+          <tr><td>跟踪器（自行接入）</td><td>ByteTrack</td><td><a href="https://github.com/ifzhang/ByteTrack" target="_blank">github.com/ifzhang/ByteTrack</a></td><td>面向行人跟踪的成熟方案</td></tr>
+          <tr><td>跟踪器备选</td><td>OC-SORT</td><td><a href="https://github.com/noahcao/OC_SORT" target="_blank">github.com/noahcao/OC_SORT</a></td><td>遮挡场景下更稳</td></tr>
+          <tr><td>极轻量检测备选</td><td>OpenCV HOG 行人检测器</td><td><a href="https://github.com/opencv/opencv" target="_blank">github.com/opencv/opencv</a></td><td>精度较低但速度极快</td></tr>
+          <tr><td>视频读写与几何计算</td><td>OpenCV-Python</td><td><a href="https://github.com/opencv/opencv-python" target="_blank">github.com/opencv/opencv-python</a></td><td>逐帧读取视频、点与多边形判定</td></tr>
+          <tr><td>数据可视化</td><td>ECharts</td><td><a href="https://github.com/apache/echarts" target="_blank">github.com/apache/echarts</a></td><td>趋势图与热力图呈现</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>轨迹清洗与编号维护</b>：短时同位置合并、丢失重连、跳变修复与插值——本题最核心的自研逻辑。</li>
+        <li><b>进出画面判定算法</b>：基于清洗后轨迹的方向判定、贴边抖动时的去重策略、过线事件的审计记录。</li>
+        <li><b>区域停留计时与预警策略</b>：点与多边形的位置判定、进入与离开事件、跨帧时长累计、阈值与预警口径。</li>
+        <li><b>热力图渲染与聚合策略</b>：轨迹点的时间衰减、网格聚合与颜色映射。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>用手机固定机位拍一段门口或通道的行人视频，作为全部后续测试的输入。</li>
+      <li>用现成工具库跑通检测与跟踪，先看清原始轨迹有哪些毛病（跳变、碎片、重入重复）。</li>
+      <li>实现轨迹清洗层，用同一段视频对比清洗前后的过线次数，把差异记录下来。</li>
+      <li>在清洗后的轨迹上实现进出画面计数，反复验证方向判定。</li>
+      <li>实现区域停留统计与预警，重点处理「贴着边界来回走」这类抖动情况。</li>
+      <li>实现热力图、趋势图与轨迹回放，形成完整看板。</li>
+      <li>补充计数线配置与数据导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>播放一段自己拍的门口视频，看板上跳出进入与离开的人数、各区域人数与热力图，并可回放核对每一次过线。</div>
+      <div class="fact"><b>测试重点</b>清洗前后过线次数的差异、边界抖动导致的重复计数、目标丢失后重入的重复统计、人群遮挡时的漏计。</div>
+      <div class="fact"><b>难点提示</b>跟踪编号一旦跳变，计数就会出错，<b>必须在编号层面加一层「短时相同位置合并」的校验</b>再进入计数。</div>
+    </div>
+
+    <div class="note"><b>检测与跟踪本身已经不需要自己写</b>——supervision 这类工具库把检测器、跟踪器和画框画轨迹的标注器都封装好了，几行代码就能跑出带编号的轨迹。所以本题的分数不在"跑通跟踪"，而在<b>轨迹这一层之后</b>：清洗、去重、判定、计数、预警、回放，这些都是自研代码，也是答辩时能讲清楚设计取舍的部分。</div>
+  </article>
+
+  <!-- 10 -->
+  <article class="card" id="t13">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">13</span>
+          <h3>视频目标跟踪与运动轨迹分析</h3>        </div>
+        <p class="lead">拍一段球场或操场视频 → 检测并跟踪场上每个人 → <b>把像素坐标投影到场地平面</b> → 统计跑动距离、速度与活动热区 → 输出一份可回看的轨迹分析</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>体育训练与体育课里，"谁跑了多少、在哪个区域活动最多、队形有没有散"这类信息目前只能靠教练目测。拍一段视频就能量化，但难点<b>不在检测跟踪</b>——现成工具库已经做得很好——而在<b>把像素轨迹变成有意义的场地数据</b>：需要标定场地、把画面坐标投影到平面、处理球员互相遮挡与编号跳变，再据此算出速度、距离与站位。本选题就是这条"从画面到数据"的链路。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t13.jpg" alt="球场视频中的多人跟踪与轨迹分析">
+        <figcaption>固定机位拍一段球场视频 → 检测跟踪 → 场地标定投影 → 统计距离、速度与热区<br><span class="capsrc">图源：Wikimedia Commons（Public domain / U.S. Air Force）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>用手机在球场边固定机位拍一段即可——篮球场、羽毛球场、操场跑道都行，场地标线越清楚越好。若天气或场地不便，可选用公开的体育比赛视频片段。场地坐标的标定只需在画面上点选四个已知点（如场地四角或罚球区角点），<b>不需要任何测量设备</b>。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>多人检测与跟踪</b><span class="tagx">核心</span>：基于现成工具库搭建检测＋跟踪流水线，输出场上每个人的轨迹与编号。</li>
+        <li class="core"><b>场地标定与坐标投影</b><span class="tagx">核心</span>：人工点选场地上的已知参照点，求解单应矩阵，把像素坐标映射到平面场地坐标，并用场地已知尺寸自检投影误差。（本选题的技术主体之一）</li>
+        <li class="core"><b>轨迹清洗与身份维持</b><span class="tagx">核心</span>：处理遮挡、交叉与编号跳变。一群人中编号一乱，后面的距离与速度就全错。（本选题的技术主体之二）</li>
+        <li><b>跑动距离与速度估计</b>：由清洗后的场地坐标轨迹积分得到总跑动距离与瞬时、平均速度。</li>
+        <li><b>活动热区与站位分布</b>：把轨迹点聚合成热力图与站位散点，看每个人偏好在哪个区域活动。</li>
+        <li><b>队伍形态分析</b>：计算队形的展开宽度、队员间距与整体移动方向。</li>
+        <li><b>轨迹回放与叠加</b>：既可在场地平面图上回放轨迹，也可在原视频上叠加编号与轨迹线。</li>
+        <li><b>单人与对比报告</b>：导出某人的跑动距离与速度区间分布，与他人或与上一场次横向对比。</li>
+        <li><b>多次记录合并</b>：把同一场地的多次记录放到同一条时间线上比较。</li>
+        <li><b>数据导出</b>：导出为表格或标准轨迹格式，便于二次分析。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>场地标定点选界面、轨迹回放与叠加、热区与速度图表。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>检测跟踪流水线与推理加速、场地投影服务、数据导出接口。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>投影精度自检（用场地已知尺寸校验）、遮挡与交叉用例、指标口径与报告模板。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>检测与跟踪一体化</td><td>supervision（Roboflow）</td><td><a href="https://github.com/roboflow/supervision" target="_blank">github.com/roboflow/supervision</a></td><td>内置跟踪器与标注器，开箱可用</td></tr>
+          <tr><td>体育场景参考实现</td><td>Roboflow Sports</td><td><a href="https://github.com/roboflow/sports" target="_blank">github.com/roboflow/sports</a></td><td>球场跟踪与统计的完整范例</td></tr>
+          <tr><td>人体检测</td><td>YOLO11n / YOLO11s（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>预训练权重开箱可用</td></tr>
+          <tr><td>跟踪器（自行接入）</td><td>ByteTrack</td><td><a href="https://github.com/ifzhang/ByteTrack" target="_blank">github.com/ifzhang/ByteTrack</a></td><td>密集人群下表现稳定</td></tr>
+          <tr><td>姿态估计（可选）</td><td>MediaPipe Pose Landmarker</td><td><a href="https://github.com/google-ai-edge/mediapipe" target="_blank">github.com/google-ai-edge/mediapipe</a></td><td>需要分析身体姿态时使用</td></tr>
+          <tr><td>标定与视频处理</td><td>OpenCV-Python</td><td><a href="https://github.com/opencv/opencv-python" target="_blank">github.com/opencv/opencv-python</a></td><td>单应矩阵求解、逐帧读取</td></tr>
+          <tr><td>数值计算</td><td>NumPy</td><td><a href="https://github.com/numpy/numpy" target="_blank">github.com/numpy/numpy</a></td><td>轨迹积分与平滑</td></tr>
+          <tr><td>可视化</td><td>ECharts</td><td><a href="https://github.com/apache/echarts" target="_blank">github.com/apache/echarts</a></td><td>热力图与速度曲线</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>场地标定与坐标投影</b>：控制点选取流程、单应矩阵求解、投影误差的自检方法（用场地已知尺寸校验）。</li>
+        <li><b>轨迹清洗与身份维持</b>：遮挡与交叉时的编号延续策略、跳变检测与轨迹修复。</li>
+        <li><b>运动学指标口径</b>：距离积分方式、速度平滑窗口、热区聚合口径——这些口径本身就是可以写进设计文档的决策。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>固定机位拍一段球场视频，在画面上点选四个场地参照点，求出单应矩阵并验证投影是否对准。</li>
+      <li>用现成工具库跑通检测与跟踪，观察原始轨迹在遮挡与交叉处的表现。</li>
+      <li>实现轨迹清洗与身份维持，用清洗前后的距离统计差异说明这一层的作用。</li>
+      <li>实现距离、速度与热区统计。</li>
+      <li>实现轨迹回放与叠加显示。</li>
+      <li>补充队伍形态分析、对比报告与数据导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>播放一段球场视频，屏幕上给出每个人的跑动距离与活动热区，并能回放轨迹。</div>
+      <div class="fact"><b>测试重点</b>投影精度（用场地已知尺寸校验）、遮挡与交叉时的编号稳定性、轨迹清洗前后的指标差异。</div>
+      <div class="fact"><b>难点提示</b>检测跟踪不难，<b>难在标定精度与编号稳定</b>——投影差一点，距离就会系统性偏大或偏小，务必先用场地标线做一次投影自检。</div>
+    </div>
+
+    <div class="note">本题与第 12 题共用同一套检测跟踪基础设施（supervision），区别在于重心落在<b>坐标标定与运动学指标</b>上：从画面坐标到场地坐标这一步，是本题唯一不能靠现成库解决的部分，也是最能体现设计取舍的地方。</div>
+  </article>
+
+  <!-- 16 -->
+  <article class="card" id="t14">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">14</span>
+          <h3>路口交通参数提取与信号配时建议</h3>        </div>
+        <p class="lead">路口视频 → 检测跟踪车辆 → <b>标定与尺度自检</b> → 提取流量／速度／排队长度 → 转向比与服务水平 → 给出信号配时建议</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>路口堵不堵、该不该调绿灯时长，现在主要靠人工蹲点数车，成本高且不连续。拍一段视频就能算，但<b>难的不是数车，而是把像素变成有物理意义的交通参数</b>：视频里"车跑了 200 像素"到底是几米？速度估得准不准？排队长度怎么数？进口道的车最后从哪个出口出去了？本选题做的是<b>从画面到交通工程指标</b>这条链路，并且要求给出误差与对照实验。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t14.jpg" alt="路口视频与交通参数分析">
+        <figcaption>车辆跟踪 → 标定与投影 → 交通参数 → 配时建议<br><span class="capsrc">图源：Wikimedia Commons（CC BY 2.0 / Sam valadi）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>自己在路口或停车场找固定机位拍一段即可（十分钟足够），场地标线越清楚越好。<b>人工数一遍就是标准答案</b>——数两分钟的流量、量一段已知长度的车道线，就能校验系统的精度。不需要任何采集设备。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>车辆检测与多目标跟踪</b><span class="tagx">核心</span>：检测跟踪车辆并维持稳定编号，输出轨迹，并做轨迹清洗。</li>
+        <li class="core"><b>摄像机标定与尺度自检</b><span class="tagx">核心</span>：用车道线、停止线等已知长度标定像素—米的换算关系，处理透视畸变（近大远小），并<b>用另一组已知尺寸交叉验证误差</b>，给出"距离越远误差越大"的实测曲线。（本选题的技术主体之一）</li>
+        <li class="core"><b>交通参数提取</b><span class="tagx">核心</span>：流量、密度、速度三参数，外加排队长度与车头时距——每个参数的定义与计算口径自研。（本选题的技术主体之二）</li>
+        <li class="core"><b>转向比与流向矩阵</b><span class="tagx">核心</span>：统计每个进口道驶向各出口道的车辆数，形成流向矩阵，而不只是"过了几辆"。</li>
+        <li><b>车道与计数线配置</b>：在画面上以图形方式新增、拖动车道区域与计数线，配置可保存复用。</li>
+        <li><b>服务水平分级与配时建议</b>：按饱和度与延误给路口分级，并给出信号配时建议；<b>公式要写明出处</b>，不自创。</li>
+        <li><b>时段报表与趋势</b>：按分钟或小时聚合，绘制流量与速度随时间的变化曲线。</li>
+        <li><b>鲁棒性对照实验</b>：白天／夜间、晴天／雨天、畅通／拥堵三组对照，形成失败案例归类。</li>
+        <li><b>实时性能与轻量化</b>：导出 ONNX 并量化，测不同分辨率下帧率与精度的取舍。</li>
+        <li><b>人工计数对照与误差报告</b>：把系统统计与自己人工数的结果并列，给出误差与原因分析。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>车道与计数线配置界面、参数看板与趋势图、误差对照报告页。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>检测跟踪流水线、标定与投影服务、ONNX 量化与多路调度、结果存储。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>人工计数标准答案、标定精度交叉验证、三组鲁棒性对照实验、交通指标口径与公式出处文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>检测与跟踪一体化</td><td>supervision（Roboflow）</td><td><a href="https://github.com/roboflow/supervision" target="_blank">github.com/roboflow/supervision</a></td><td>内置跟踪器与标注器，开箱可用</td></tr>
+          <tr><td>车辆检测</td><td>YOLO11（Ultralytics）</td><td><a href="https://github.com/ultralytics/ultralytics" target="_blank">github.com/ultralytics/ultralytics</a></td><td>预训练权重开箱可用</td></tr>
+          <tr><td>跟踪算法库（可替换对比）</td><td>BoxMOT</td><td><a href="https://github.com/mikel-brostrom/boxmot" target="_blank">github.com/mikel-brostrom/boxmot</a></td><td>多种跟踪器统一接口</td></tr>
+          <tr><td>跟踪器（自行接入）</td><td>ByteTrack</td><td><a href="https://github.com/ifzhang/ByteTrack" target="_blank">github.com/ifzhang/ByteTrack</a></td><td>密集场景稳定</td></tr>
+          <tr><td>标定与几何变换</td><td>OpenCV-Python</td><td><a href="https://github.com/opencv/opencv-python" target="_blank">github.com/opencv/opencv-python</a></td><td>单应矩阵、透视变换</td></tr>
+          <tr><td>推理加速</td><td>ONNX Runtime</td><td><a href="https://github.com/microsoft/onnxruntime" target="_blank">github.com/microsoft/onnxruntime</a></td><td>量化后可明显提速</td></tr>
+          <tr><td>可视化</td><td>ECharts</td><td><a href="https://github.com/apache/echarts" target="_blank">github.com/apache/echarts</a></td><td>报表与曲线</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>标定与误差自检</b>：控制点选取流程、透视校正、用第二组已知尺寸做交叉验证的方法——本题最硬的一块。</li>
+        <li><b>交通参数口径</b>：三参数与排队长度的定义、跨帧聚合方式、遮挡与漏计时的补偿策略。</li>
+        <li><b>转向比判定</b>：进口道与出口道的区域划分、轨迹起终点匹配、跨线不明确时的处理。</li>
+        <li><b>服务水平分级与配时建议</b>：分级依据、公式出处、建议生成规则。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>固定机位拍一段路口视频，人工数一遍流量作为标准答案。</li>
+      <li>跑通检测跟踪与轨迹清洗。</li>
+      <li>实现标定与误差自检——先确认"速度到底估得准不准"，再往下做。</li>
+      <li>实现交通三参数与排队长度。</li>
+      <li>实现转向比与流向矩阵。</li>
+      <li>做服务水平分级与配时建议（写明公式出处）。</li>
+      <li>补上鲁棒性对照、性能取舍与误差报告，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>播放自己拍的视频，看板给出分车道流量、平均车速、排队长度与配时建议；再展示"速度误差随距离变化"的曲线。</div>
+      <div class="fact"><b>测试重点</b>标定精度（用第二组已知尺寸校验）、与人工计数的误差、轨迹清洗前后的指标差异、夜间／雨天／拥堵三种条件下的表现。</div>
+      <div class="fact"><b>难点提示</b><b>投影差一点，速度就系统性偏大或偏小</b>——这正是本题与"数车"的分界；务必先做投影自检，再做参数统计，顺序反了会白做一遍。</div>
+    </div>
+
+    <div class="note">本题与第 12、13 题共用同一套检测跟踪基础设施，但分数不在这里：<b>标定精度、交通指标口径、人工对照与鲁棒性实验</b>才是自研部分，也是加完难度之后与那两题拉开距离的地方。配时建议要写明公式出处，不要自创。</div>
+  </article>
+</section>
+
+<!-- 三维与仿真 -->
+<section class="sec" id="t-d">
+  <div class="sec-head">
+    <span class="idx">08</span>
+    <h2>三维重建与仿真类</h2>
+    <p>把真实空间转成可计算的三维表示，并在其上做交互、仿真或展示，考查三维数据处理与可视化能力</p>
+  </div>
+
+  <!-- 11 -->
+  <article class="card" id="t15">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">15</span>
+          <h3>2D 户型全覆盖清扫仿真</h3>        </div>
+        <p class="lead">读取一张户型平面图，生成可通行的栅格地图，让一个虚拟清扫机器人自主规划路径并跑完全屋，最后给出覆盖率与路径效率的看板。</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>扫地机器人「扫得干不干净」本质上是一个可量化的问题：在给定空间里，机器人走过的面积占比是多少、有没有死角、路径是否重复绕圈。这些都可以在仿真环境中反复验证，而不需要真的买一台机器。本选题提供现成的真实户型数据集，不需要自己建模也无需实物。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t15.jpg" alt="户型栅格化与清扫覆盖仿真">
+        <figcaption>户型图 → 栅格地图 → 路径规划 → 覆盖率看板</figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 9 个 · 核心 3 个 · 建议实现 5 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>户型图转栅格地图</b><span class="tagx">核心</span>：把二维户型图解析为「可通行 / 障碍」的二值栅格，处理墙体、门洞与家具。</li>
+        <li><b>栅格地图编辑器</b>：允许手动修补解析错误，添加或擦除障碍。</li>
+        <li class="core"><b>全覆盖路径规划</b><span class="tagx">核心</span>：实现如「牛耕式」或「螺旋式」的覆盖路径算法，保证遍历全部可通行区域。</li>
+        <li><b>机器人运动仿真</b>：模拟机器人的位置、朝向与移动步进，在画面上呈现清扫轨迹。</li>
+        <li class="core"><b>覆盖率计算与可视化</b><span class="tagx">核心</span>：统计已清扫栅格占比，以热力或颜色变化呈现覆盖进度。</li>
+        <li><b>死区检测与提示</b>：标记始终未被覆盖的区域并给出原因（如被障碍包围）。</li>
+        <li><b>路径效率指标</b>：统计总步数、重复率与单位面积耗时。</li>
+        <li><b>多户型批量仿真</b>：依次在多个户型上运行并对比指标。</li>
+        <li><b>仿真过程回放</b>：记录轨迹并支持加速回放查看。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>栅格地图编辑器、仿真动画与覆盖率可视化、指标看板。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>户型数据预处理管线、仿真引擎与批量运行、结果存储。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>极端户型用例集（窄通道、凹形房间）、覆盖率与重复率口径、失败案例归类。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可直接使用的公开数据集与工具</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>项目 / 工具</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>户型数据集</td><td>HouseExpo（TeaganLi）</td><td><a href="https://github.com/TeaganLi/HouseExpo" target="_blank">github.com/TeaganLi/HouseExpo</a></td><td>三万余张真实二维户型图，附处理工具</td></tr>
+          <tr><td>栅格化处理</td><td>OpenCV</td><td><a href="https://github.com/opencv/opencv-python" target="_blank">github.com/opencv/opencv-python</a></td><td>图像二值化、膨胀腐蚀等基础处理</td></tr>
+          <tr><td>数值计算</td><td>NumPy</td><td><a href="https://github.com/numpy/numpy" target="_blank">github.com/numpy/numpy</a></td><td>栅格矩阵运算</td></tr>
+          <tr><td>路径规划</td><td>自研为主（可参考 BCD 覆盖算法思路）</td><td><a href="https://github.com/atb033/multi_agent_path_planning" target="_blank">github.com/atb033/multi_agent_path_planning</a></td><td>参考实现，不作为依赖</td></tr>
+          <tr><td>可视化前端</td><td>Canvas / SVG（浏览器原生）</td><td><a href="https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API" target="_blank">MDN Canvas API 文档</a></td><td>实时呈现轨迹与覆盖状态</td></tr>
+          <tr><td>可视化备选</td><td>Matplotlib</td><td><a href="https://github.com/matplotlib/matplotlib" target="_blank">github.com/matplotlib/matplotlib</a></td><td>快速出图，便于写文档</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>户型解析与栅格化管线</b>：从原始平面图到可通行栅格的完整转换逻辑。</li>
+        <li><b>全覆盖路径规划算法</b>：本题的核心自研模块，需要处理障碍绕行与区域划分。</li>
+        <li><b>覆盖率统计与指标看板</b>：覆盖率、重复率、耗时等指标的计算与呈现。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>选定户型数据集，挑几张结构简单的图作为起步样例。</li>
+      <li>实现栅格化管线，可视化检查墙体与门洞是否解析正确。</li>
+      <li>实现全覆盖路径规划，先在单个房间内跑通。</li>
+      <li>加入运动仿真与轨迹渲染，观察是否存在漏扫与卡死。</li>
+      <li>实现覆盖率统计与看板，形成可对比的量化结果。</li>
+      <li>补充死区检测、回放等功能，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>选一张户型图，机器人自动跑完全屋，看板上跳出覆盖率与重复率。</div>
+      <div class="fact"><b>测试重点</b>窄通道与门洞的通过性、凹形房间的覆盖完整性、算法在极端户型上的收敛性。</div>
+      <div class="fact"><b>难点提示</b>全覆盖路径规划容易在「死角」处陷入反复来回，<b>需要设计回退与重新划分区域的机制</b>，这是本题最有分量的设计点。</div>
+    </div>
+
+    <div class="note">本题完全不依赖实物，也不依赖重型仿真框架，用纯 Python 加一个可视化前端即可完成，是课堂演示风险最低的选题之一。</div>
+  </article>
+
+  <!-- 12 -->
+  <article class="card" id="t16">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">16</span>
+          <h3>真实房间重建与第一人称漫游 Demo</h3>        </div>
+        <p class="lead">手机绕拍一段房间视频 → 重建出可运行的三维场景 → 用方向键控制人物在其中行走 → 场景里放几个 NPC，走近即可对话 → 对话有剧本与分支</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>把一个真实房间搬进电脑，过去需要专业设备与软件；现在一段手机视频配合开源重建方法就能得到可用的三维表示。但"看上去很酷"不算完成——本选题要把它做成一个<b>能走、能看、能对话</b>的漫游 Demo：把重建出的空间变成可以探索的小世界，人在里面走动，遇到 NPC 能聊天，聊什么由小组自己写的剧本决定。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t16.jpg" alt="真实房间重建与第一人称漫游">
+        <figcaption>手机绕拍 → 三维重建 → 第一人称行走 → NPC 对话<br><span class="capsrc">图源：SuperSplat 编辑器（playcanvas/supersplat）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 9 个 · 核心 3 个 · 建议实现 5 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>视频/图像序列的三维重建</b><span class="tagx">核心</span>：用开源重建方法从绕拍视频中重建出场景。全部调用现成重建工具，不涉及自行训练模型。</li>
+        <li class="core"><b>第一人称行走控制与碰撞检测</b><span class="tagx">核心</span>：方向键或 WASD 控制前进、后退与转向，鼠标控制视角朝向，含视点高度与移动速度参数；同时从重建几何中提取可行走区域，保证人物不穿墙、不掉出场景、不悬空。（本选题的技术主体）</li>
+        <li class="core"><b>NPC 对话系统与分支剧本</b><span class="tagx">核心</span>：提供剧本文件格式与解释器，支持多轮对话、分支选项、条件判断与变量（问过什么、拿到什么），并把结果写回变量供后续对话使用。</li>
+        <li><b>NPC 与角色的放置与触发</b>：在场景中摆放若干 NPC（简单几何体或免费角色模型），靠近到一定距离即触发对话，离开则结束。</li>
+        <li><b>剧本内容创作</b>：编写一段可完整演出的剧本——若干 NPC、多分支对话、一条主线任务与两种以上结局。</li>
+        <li><b>任务与线索系统</b>：与 NPC 对话推进任务、收集线索，并在界面上显示进度。</li>
+        <li><b>场景加载与网页端浏览</b>：在网页端加载重建结果，显示加载进度，支持在小场景中自由观察。</li>
+        <li><b>小地图与位置提示</b>：以俯视图呈现可行走区域、人物位置与 NPC 位置。</li>
+        <li><b>重建质量评估</b>：记录不同拍摄方式（步幅、重叠度、光线）的还原效果，形成一份对比结论。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>第一人称控制与视角、NPC 对话界面、小地图与加载进度。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>重建工具链调用、场景加载与性能优化、剧本解释器与存档。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>碰撞边界用例（贴墙、门口、台阶）、剧本分支与结局的覆盖测试、重建质量对比记录。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>相机位姿求解</td><td>COLMAP</td><td><a href="https://github.com/colmap/colmap" target="_blank">github.com/colmap/colmap</a></td><td>从图像序列恢复结构，CPU 可跑但耗时较长</td></tr>
+          <tr><td>场景重建</td><td>3D Gaussian Splatting 官方实现</td><td><a href="https://github.com/graphdeco-inria/gaussian-splatting" target="_blank">github.com/graphdeco-inria/gaussian-splatting</a></td><td>重建需 4GB 显存起</td></tr>
+          <tr><td>网页端三维渲染</td><td>Three.js</td><td><a href="https://github.com/mrdoob/three.js" target="_blank">github.com/mrdoob/three.js</a></td><td>场景加载与漫游的基础</td></tr>
+          <tr><td>高斯泼溅网页渲染</td><td>Spark</td><td><a href="https://github.com/sparkjsdev/spark" target="_blank">github.com/sparkjsdev/spark</a></td><td>前端，专门渲染泼溅模型</td></tr>
+          <tr><td>泼溅渲染备选</td><td>GaussianSplats3D</td><td><a href="https://github.com/mkkellogg/GaussianSplats3D" target="_blank">github.com/mkkellogg/GaussianSplats3D</a></td><td>与 Three.js 集成</td></tr>
+          <tr><td>碰撞与物理</td><td>cannon-es</td><td><a href="https://github.com/pmndrs/cannon-es" target="_blank">github.com/pmndrs/cannon-es</a></td><td>轻量物理引擎，也可用简单几何体自实现</td></tr>
+          <tr><td>剧本与分支对话</td><td>ink（叙事脚本语言）</td><td><a href="https://github.com/inkle/ink" target="_blank">github.com/inkle/ink</a></td><td>专为分支叙事设计，可编译到 Web</td></tr>
+          <tr><td>剧本备选</td><td>Yarn Spinner</td><td><a href="https://github.com/YarnSpinnerTool/YarnSpinner" target="_blank">github.com/YarnSpinnerTool/YarnSpinner</a></td><td>面向游戏的对话脚本格式</td></tr>
+          <tr><td>NPC 对话生成（可选）</td><td>Qwen3-8B + Ollama</td><td><a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank">huggingface.co/Qwen/Qwen3-8B</a></td><td>在固定剧本之外生成自由问答</td></tr>
+          <tr><td>免费角色模型</td><td>Quaternius / Mixamo</td><td><a href="https://quaternius.com" target="_blank">quaternius.com</a></td><td>免费可用的低模与角色动画</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>可直接使用的公开场景数据</h4>
+      <table class="tbl">
+        <thead><tr><th>内容</th><th>地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>场景数据包</td><td><a href="https://huggingface.co/datasets/alexmkwizu/gaussian_training_datasets" target="_blank">huggingface.co/datasets/alexmkwizu/gaussian_training_datasets</a></td><td>含已重建好的场景文件</td></tr>
+          <tr><td>Mip-NeRF 360</td><td><a href="https://jonbarron.info/mipnerf360/" target="_blank">jonbarron.info/mipnerf360/</a></td><td>经典评测数据集</td></tr>
+          <tr><td>DL3DV 基准集</td><td><a href="https://huggingface.co/datasets/DL3DV/DL3DV-Benchmark" target="_blank">huggingface.co/datasets/DL3DV/DL3DV-Benchmark</a></td><td>140 个场景，可选低分辨率子集</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>可行走区域提取与碰撞判定</b>：从重建几何中导出地面与障碍并实现轻量碰撞检测，是"能走"的关键，也是本题最容易出问题的环节。</li>
+        <li><b>对话系统与剧本解释器</b>：剧本文件格式设计、条件与变量的求值、对话状态推进与存档。</li>
+        <li><b>剧本与关卡编排</b>：主线任务、分支触发条件与结局判定的设计。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>用手机在教室里绕拍一段视频，先跑通一个开源重建流程，得到场景文件。</li>
+      <li>把重建结果加载到网页端渲染，确认可以自由观察。</li>
+      <li>实现第一人称控制：方向键移动、鼠标转视角、视点高度与速度参数。</li>
+      <li>实现可行走区域与碰撞检测，重点解决穿墙、卡住与掉出场景三种问题。</li>
+      <li>放置 NPC 并实现靠近触发对话，接入剧本解释器。</li>
+      <li>编写一段含分支与结局的剧本，接入任务与线索系统。</li>
+      <li>补上小地图与加载进度，串成一段可以完整走一遍的 Demo。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>用手机绕拍教室，现场在重建出的教室里用方向键走一圈，找到 NPC 聊两句并推进任务。</div>
+      <div class="fact"><b>测试重点</b>碰撞边界（贴墙走、门口、台阶）、长时间行走是否卡住、对话分支的条件判定、大场景加载时的内存占用。</div>
+      <div class="fact"><b>难点提示</b>重建计算量较大，<b>建议提前离线重建好、演示时直接加载结果</b>；碰撞检测在小场景里用简单几何体近似即可，不必引入完整物理引擎。</div>
+    </div>
+
+    <div class="note">相对 D1（二维户型上的清扫仿真），本题链路更长：从真实视频到可运行的三维场景，再到能走、能对话的交互。三维重建只调用现成工具，工作量集中在<b>行走控制、碰撞判定与对话剧本</b>三块，都可以完全自研。</div>
+  </article>
+
+  <!-- 13 -->
+  <article class="card" id="t17">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">17</span>
+          <h3>二手大件三维展示与交易页</h3>        </div>
+        <p class="lead">环绕拍摄一周 → 三维重建 → 生成可 360° 转动的商品详情页 → 组成一个能浏览、能搜索、能提交购买意向的<b>二手交易页面</b></p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>转卖家具、乐器、健身器材等体积较大或形状复杂的物品时，平面照片说不清立体形态，卖家常被反复追问"侧面什么样""有没有磕碰"。本选题不止做一张展示页，而是把它<b>做成一个小型二手交易站</b>：商品有列表、有分类、有搜索，详情页里的商品可以 360° 拖动查看，瑕疵在哪、尺寸多大一眼可见。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t17.jpg" alt="物品三维重建与商品展示页">
+        <figcaption>环绕拍摄 → 三维重建 → 可转动的商品页 → 交易站点<br><span class="capsrc">图源：3D Gaussian Splatting 官方实现（graphdeco-inria）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>无需采购物品，拍摄手边的任意物件即可（水杯、键盘、书包、模型等）。若想先熟悉流程，可直接使用公开的三维重建场景数据集，其中包含已重建好的场景文件，下载即用。演示效果最好的做法是环绕拍摄实验室里的一件大件物品，或者教室的一角。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 3 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>三维重建流程</b><span class="tagx">核心</span>：视频抽帧 → 相机位姿求解 → 场景重建 → 导出模型文件，整合为可一键运行的脚本。全部调用现成重建工具，不涉及模型训练。</li>
+        <li class="core"><b>网页三维商品查看器</b><span class="tagx">核心</span>：在商品详情页内自由旋转、缩放、平移，兼容移动端浏览，在低端设备上自动降级为图片模式。</li>
+        <li class="core"><b>三维瑕疵标注</b><span class="tagx">核心</span>：在模型表面指定位置添加文字或箭头标注，买家旋转到对应角度即可看到。</li>
+        <li><b>商品发布与信息填写</b>：标题、价格、成色、尺寸、瑕疵说明，与三维模型绑定成一条商品记录。</li>
+        <li><b>商品列表页</b>：网格卡片展示，支持按价格、成色、发布时间排序。</li>
+        <li><b>商品详情页</b>：三维模型＋多角度截图＋参数表＋卖家信息。</li>
+        <li><b>分类导航与关键词搜索</b>：按类目浏览，按关键词检索标题与描述。</li>
+        <li><b>收藏与意向单</b>：收藏商品、提交购买意向，形成一份意向清单。</li>
+        <li><b>尺寸测量与标定</b>：借助已知尺寸的参照物换算模型的真实尺寸，显示在详情页。</li>
+        <li><b>模型体积优化</b>：精简高斯球数量，保证移动端流畅加载。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>商品列表与详情页、三维查看器、瑕疵标注与尺寸显示、收藏与意向单。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>重建流程与模型体积优化、商品数据结构与接口、搜索与排序。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>尺寸测量与卷尺对照误差、按材质的重建表现对照、移动端加载性能测试。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>模型与下载地址</h4>
+      <table class="tbl">
+        <thead><tr><th>用途</th><th>模型 / 项目</th><th>地址</th><th>体量</th></tr></thead>
+        <tbody>
+          <tr><td>场景重建</td><td>3D Gaussian Splatting 官方实现</td><td><a href="https://github.com/graphdeco-inria/gaussian-splatting" target="_blank">github.com/graphdeco-inria/gaussian-splatting</a></td><td>重建需 4GB 显存起</td></tr>
+          <tr><td>相机位姿求解</td><td>COLMAP</td><td><a href="https://github.com/colmap/colmap" target="_blank">github.com/colmap/colmap</a></td><td>中等</td></tr>
+          <tr><td>浏览器渲染</td><td>Spark</td><td><a href="https://github.com/sparkjsdev/spark" target="_blank">github.com/sparkjsdev/spark</a></td><td>前端</td></tr>
+          <tr><td>模型查看与裁剪</td><td>SuperSplat</td><td><a href="https://github.com/playcanvas/supersplat" target="_blank">github.com/playcanvas/supersplat</a></td><td>前端</td></tr>
+          <tr><td>Three.js 集成渲染</td><td>GaussianSplats3D</td><td><a href="https://github.com/mkkellogg/GaussianSplats3D" target="_blank">github.com/mkkellogg/GaussianSplats3D</a></td><td>前端</td></tr>
+          <tr><td>渲染库备选</td><td>gsplat.js</td><td><a href="https://github.com/huggingface/gsplat.js" target="_blank">github.com/huggingface/gsplat.js</a></td><td>前端</td></tr>
+          <tr><td>单文件参考实现</td><td>antimatter15/splat</td><td><a href="https://github.com/antimatter15/splat" target="_blank">github.com/antimatter15/splat</a></td><td>前端，体积小</td></tr>
+          <tr><td>重建加速备选</td><td>gsplat（nerfstudio）</td><td><a href="https://github.com/nerfstudio-project/gsplat" target="_blank">github.com/nerfstudio-project/gsplat</a></td><td>需 GPU</td></tr>
+          <tr><td>页面框架</td><td>Vue 3</td><td><a href="https://github.com/vuejs/core" target="_blank">github.com/vuejs/core</a></td><td>前端，也可用原生实现</td></tr>
+          <tr><td>前端三维库</td><td>Three.js</td><td><a href="https://github.com/mrdoob/three.js" target="_blank">github.com/mrdoob/three.js</a></td><td>页面交互的基础</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>可直接使用的公开场景数据集</h4>
+      <table class="tbl">
+        <thead><tr><th>内容</th><th>地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>场景数据包</td><td><a href="https://huggingface.co/datasets/alexmkwizu/gaussian_training_datasets" target="_blank">huggingface.co/datasets/alexmkwizu/gaussian_training_datasets</a></td><td>含已重建好的场景文件</td></tr>
+          <tr><td>Mip-NeRF 360</td><td><a href="https://jonbarron.info/mipnerf360/" target="_blank">jonbarron.info/mipnerf360/</a></td><td>经典评测数据集</td></tr>
+          <tr><td>DL3DV 基准集</td><td><a href="https://huggingface.co/datasets/DL3DV/DL3DV-Benchmark" target="_blank">huggingface.co/datasets/DL3DV/DL3DV-Benchmark</a></td><td>140 个场景，可选低分辨率子集</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>实现思路</h4>
+      <ol class="steps">
+        <li>先用公开场景验证"位姿求解 → 重建 → 浏览器渲染"整条链路，确认可跑通</li>
+        <li>环绕拍摄一件物品（注意补光，反光材质难度最高），抽帧、求解位姿并重建出模型文件</li>
+        <li>构建网页三维查看器与商品详情页，把模型嵌进去</li>
+        <li>实现瑕疵标注与尺寸测量，让详情页能回答"有没有磕碰""多大"</li>
+        <li>搭建商品列表、分类与搜索，把单件展示扩展成一个可浏览的小站点</li>
+        <li>补上收藏、意向单与模型体积优化，凑齐选定的 N 个模块</li>
+      </ol>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>拍摄引导与规范</b>：拍摄轨迹、环绕圈数、相机高度与角度要求，降低重拍率。</li>
+        <li><b>重建质量自动评估</b>：自动判断重建结果是否可用，质量不足时提示重新拍摄。</li>
+        <li><b>三维瑕疵标注工具</b>：在模型表面定位并持久化标注，随商品记录一起保存。</li>
+        <li><b>尺寸测量与标定算法</b>：参照物识别与真实尺寸换算。</li>
+        <li><b>商品数据结构与页面模板</b>：把三维模型、图文与参数组织成可复用的商品记录。</li>
+      </ul>
+    </div>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>打开二手交易站，浏览商品列表，点进详情页拖动查看 360° 模型，看到瑕疵标注与尺寸。</div>
+      <div class="fact"><b>测试重点</b>与卷尺实测尺寸对照计算相对误差；按材质分类测试（金属、玻璃、哑光、织物）；移动端加载性能；商品数量增大后列表与搜索的表现。</div>
+      <div class="fact"><b>难点提示</b>重建质量对拍摄质量极度敏感，反光与透明材质是失败重灾区，<b>建议在文档中形成一份失败案例归类</b>并给出可行的替代拍摄方案。</div>
+    </div>
+
+    <div class="note">这一选题是「三维重建」与「网站开发」两条线的合体：三维部分只调用现成工具，真正的开发量在<b>标注工具、尺寸测量与整套商品页面</b>上。往交易站方向发展之后，它同时覆盖数据结构设计、页面交互与移动端适配这些常规软件工程考点。</div>
+  </article>
+
+  <!-- 17 -->
+  <article class="card" id="t18">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">18</span>
+          <h3>扫描建模与房间布置编辑器</h3>        </div>
+        <p class="lead">手机扫房间 → 单件扫家具得到<b>可复用资产</b> → 进入布置模式：像建造游戏一样拖拽摆放（吸附、碰撞、撤销重做）→ 出效果图与多方案对比</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>想换个家具摆法、想把宿舍重新规划一下，现在只能在脑子里想或拿尺子量。市面上的家装软件要么素材是通用模型、跟自己的房间对不上，要么操作复杂学不会。本选题把两件事连起来：<b>先从真实空间扫出场景与家具资产</b>（不是用现成模型拼），<b>再像建造游戏那样把家具摆进去</b>——吸附到墙面地面、不允许穿墙悬空、随时撤销重做。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t18.jpg" alt="房间布置与家具摆放">
+        <figcaption>扫描房间与家具 → 资产规范化 → 布置模式摆放 → 效果图<br><span class="capsrc">图源：Wikimedia Commons（CC BY 2.0 / Shixart1985）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>用手机扫描即可，不需要任何设备。房间扫教室或宿舍，家具资产扫手边的椅子、箱子、台灯、书架。<b>再准备一件已知尺寸的参照物</b>（一张 A4 纸、一把卷尺）用来把模型换算成真实尺度——这一步直接决定摆进去的东西是不是"玩具尺寸"。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 10 个 · 核心 4 个 · 建议实现 6 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>单件资产重建与规范化</b><span class="tagx">核心</span>：环绕拍摄一件家具 → 重建 → 裁剪背景 → <b>统一朝向与真实尺度</b>（借参照物换算）→ 生成碰撞盒 → 存入素材库。（本选题的技术主体之一）</li>
+        <li class="core"><b>房间重建与可摆放区域提取</b><span class="tagx">核心</span>：重建房间并提取地面平面、墙体与障碍物，为吸附与碰撞提供基础。</li>
+        <li class="core"><b>摆放交互与吸附规则</b><span class="tagx">核心</span>：地面吸附、墙面吸附、网格对齐、相邻物体对齐；旋转与缩放的范围约束。（本选题的技术主体之二）</li>
+        <li class="core"><b>碰撞与合法性判定</b><span class="tagx">核心</span>：物体之间不重叠、不穿墙、不悬空、不挡门；不合法时给出可视化的位置提示。</li>
+        <li><b>撤销与重做</b>：完整的编辑历史，支持连续撤销与重做。</li>
+        <li><b>素材库管理</b>：资产的分类、重命名、替换、删除与版本管理。</li>
+        <li><b>光照与阴影匹配</b>：按房间主光方向生成阴影，避免贴上去"一眼假"。</li>
+        <li><b>多方案与对比</b>：保存多套布置方案，并排对比后选定。</li>
+        <li><b>效果图与平面图导出</b>：输出带尺寸标注的平面图与透视图。</li>
+        <li><b>资产轻量化</b>：压缩模型体积，保证移动端流畅加载。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>布置编辑器的拖拽与吸附交互、素材库面板、撤销重做、方案对比与导出界面。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>房间与家具的扫描重建、资产管线（裁剪/归一化/碰撞盒生成）、资产压缩与加载。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>资产真实尺度的尺子对照、吸附与碰撞的边界用例、编辑器操作录屏、编辑状态数据结构文档。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>场景与资产重建</td><td>3D Gaussian Splatting 官方实现</td><td><a href="https://github.com/graphdeco-inria/gaussian-splatting" target="_blank">github.com/graphdeco-inria/gaussian-splatting</a></td><td>重建需 4GB 显存起</td></tr>
+          <tr><td>相机位姿求解</td><td>COLMAP</td><td><a href="https://github.com/colmap/colmap" target="_blank">github.com/colmap/colmap</a></td><td>中等体量</td></tr>
+          <tr><td>资产裁剪与清理</td><td>SuperSplat</td><td><a href="https://github.com/playcanvas/supersplat" target="_blank">github.com/playcanvas/supersplat</a></td><td>前端工具，裁掉背景</td></tr>
+          <tr><td>资产格式转换与压缩</td><td>glTF-Transform</td><td><a href="https://github.com/donmccurdy/glTF-Transform" target="_blank">github.com/donmccurdy/glTF-Transform</a></td><td>命令行与 Node 库</td></tr>
+          <tr><td>尺度与平面估计</td><td>Depth Anything V2</td><td><a href="https://github.com/DepthAnything/Depth-Anything-V2" target="_blank">github.com/DepthAnything/Depth-Anything-V2</a></td><td>单目深度估计</td></tr>
+          <tr><td>分割（可选）</td><td>SAM 2</td><td><a href="https://github.com/facebookresearch/sam2" target="_blank">github.com/facebookresearch/sam2</a></td><td>提取地面与遮挡物</td></tr>
+          <tr><td>三维渲染与交互</td><td>Three.js</td><td><a href="https://github.com/mrdoob/three.js" target="_blank">github.com/mrdoob/three.js</a></td><td>场景与编辑器基础</td></tr>
+          <tr><td>碰撞与物理</td><td>cannon-es</td><td><a href="https://github.com/pmndrs/cannon-es" target="_blank">github.com/pmndrs/cannon-es</a></td><td>轻量物理引擎</td></tr>
+          <tr><td>免费家具模型（对照用）</td><td>Quaternius</td><td><a href="https://quaternius.com" target="_blank">quaternius.com</a></td><td>与自己扫的资产做尺寸对照</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>从拍摄到可用资产的管线</b>：重建结果裁剪、朝向归一化、真实尺度换算、碰撞盒生成——本题最实的一块，也是"能不能摆"的前提。</li>
+        <li><b>吸附与合法性判定</b>：吸附候选的计算、合法位判定、非法时的提示与自动避让。</li>
+        <li><b>撤销与重做的状态管理</b>：编辑操作的数据结构、序列化与恢复。</li>
+        <li><b>资产轻量化策略</b>：不同精度档位的生成与按需加载。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>扫一个房间，跑通重建与网页端加载。</li>
+      <li>扫一件家具，走通"重建 → 裁剪 → 统一尺度 → 生成碰撞盒"的资产管线。</li>
+      <li>提取地面与墙体，实现地面与墙面吸附。</li>
+      <li>实现碰撞与合法性判定，处理穿墙、悬空、挡门三种情况。</li>
+      <li>实现撤销重做与素材库管理。</li>
+      <li>补上光照匹配、多方案对比与效果图导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>现场把教室扫一遍，再把一把椅子扫成资产，摆进房间——拖拽旋转、贴墙吸附、撤销重做。</div>
+      <div class="fact"><b>测试重点</b>资产的真实尺度误差（与卷尺对照）、吸附的稳定性、碰撞判定的边界情况、移动端加载性能。</div>
+      <div class="fact"><b>难点提示</b><b>家具资产的真实尺度</b>是最容易出错的地方——比例不对，摆进去就是玩具或巨人；务必用已知尺寸的参照物做一次标定与验证。</div>
+    </div>
+
+    <div class="note">与第 16 题（房间漫游）和第 17 题（二手大件展示）的区别很清楚：那两题是把空间与物品<b>展示出来</b>，本题是<b>拿它们当素材去编辑</b>——考的是编辑器的交互与约束设计（吸附、碰撞、撤销），这是软件工程里很典型的一块，也最容易做成"好用/不好用"的分水岭。</div>
+  </article>
+
+  <!-- 18 -->
+  <article class="card" id="t19">
+    <div class="card-hero">
+      <div class="txt">
+        <div class="chead">
+          <span class="cid">19</span>
+          <h3>重建场景的语义标注与文字导航</h3>        </div>
+        <p class="lead">在重建出的房间里标注物体 → 用自然语言问"某某在哪" → 系统给出<b>文字方位指引</b>，并让视角飞到该物体</p>
+        <div class="need">
+          <h4>问题场景</h4>
+          <p>房间里东西一多就记不住放哪儿，换个人来找更是全靠问。三维场景本身不含语义——模型只知道那里有一团几何形状，不知道那是"充电器"。本选题要给重建场景<b>加上一层语义与方位描述</b>：标注、命名、建立层级（在哪个柜子的哪一层），然后让系统能用人类听得懂的话回答"在哪"，并且这句话要真的能照着找到。</p>
+        </div>
+      </div>
+      <figure class="thumb">
+        <img src="assets/img-t19.jpg" alt="三维场景语义标注与文字导航">
+        <figcaption>标注物体 → 问句匹配 → 文字方位指引 → 镜头飞到目标<br><span class="capsrc">图源：Wikimedia Commons（CC BY-SA 4.0，建筑点云重建）</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="src"><b>输入从哪来：</b>手机绕拍教室或宿舍即可；也可直接使用公开的场景数据集（其中含已重建好的场景文件），先把"标注 → 问答 → 飞行"这条链路跑通，再换成自己扫的数据。标注工作由小组自己完成，<b>答复对不对由人来判定</b>，标准答案清楚。</div>
+
+    <div class="mods">
+      <h4>功能模块 <em>共 9 个 · 核心 3 个 · 建议实现 5 个（其中核心 ≥ 2 个）</em></h4>
+      <ul>
+        <li class="core"><b>三维场景中的语义标注工具</b><span class="tagx">核心</span>：在场景里打点、框选、命名、建立层级（柜子 → 层 → 物体），并持久化保存。（本选题的技术主体之一）</li>
+        <li class="core"><b>空间方位描述生成</b><span class="tagx">核心</span>：相对参照物生成可执行的文字指引（"进教室右手边第二个书架的中间层"）。（本选题的技术主体之二）</li>
+        <li class="core"><b>问句到目标的匹配</b><span class="tagx">核心</span>：把口语问法（"充电器""充电头""那个充电的东西"）匹配到标注名，匹配不上时主动反问。</li>
+        <li><b>相机飞行到目标</b>：计算视角路径并平滑移动，落点让目标落在画面中央。</li>
+        <li><b>目标高亮与轮廓提示</b>：在场景中把目标物体标出来。</li>
+        <li><b>标注的分组与检索</b>：按房间或家具分组浏览、搜索标注。</li>
+        <li><b>指引文字的可读性校验</b>：<b>让第三方按文字指引实际找一遍</b>，统计成功率——这是本题最干脆的验收指标。</li>
+        <li><b>多视角缩略图</b>：为每个标注生成一张截图，便于核对与展示。</li>
+        <li><b>标注数据导入导出</b>：以标准格式导出，替换重建结果后可复用。</li>
+      </ul>
+    </div>
+
+    <div class="div3">
+      <h5>三人分工参考（3 人组；2 人组按 2/3 折算模块数，三个方向仍需有人覆盖）</h5>
+      <div class="row">
+        <div class="col"><b>A 前端交互</b><p>三维标注工具、提问框与答案卡片、目标高亮、相机飞行动画。</p></div>
+        <div class="col"><b>B 后端与模型部署</b><p>重建结果加载与优化、标注数据存储、问句匹配与描述生成服务。</p></div>
+        <div class="col"><b>C 测试与文档</b><p>标注规范与层级约定、方位描述规则表、人类可执行率实验（找同学按指引实找）、失败案例归类。</p></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h4>可选用的现成模型与下载地址</h4>
+      <table class="tbl mdl">
+        <thead><tr><th>环节</th><th>模型 / 项目</th><th>下载地址</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>场景重建</td><td>3D Gaussian Splatting 官方实现</td><td><a href="https://github.com/graphdeco-inria/gaussian-splatting" target="_blank">github.com/graphdeco-inria/gaussian-splatting</a></td><td>重建需 4GB 显存起</td></tr>
+          <tr><td>场景重建备选</td><td>COLMAP</td><td><a href="https://github.com/colmap/colmap" target="_blank">github.com/colmap/colmap</a></td><td>中等体量</td></tr>
+          <tr><td>网页端三维渲染</td><td>Three.js</td><td><a href="https://github.com/mrdoob/three.js" target="_blank">github.com/mrdoob/three.js</a></td><td>交互与相机控制基础</td></tr>
+          <tr><td>泼溅模型渲染</td><td>Spark</td><td><a href="https://github.com/sparkjsdev/spark" target="_blank">github.com/sparkjsdev/spark</a></td><td>前端</td></tr>
+          <tr><td>问句匹配与描述兜底</td><td>Qwen3-VL-8B-Instruct</td><td><a href="https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct" target="_blank">huggingface.co/Qwen/Qwen3-VL-8B-Instruct</a></td><td>量化后约 6GB 显存</td></tr>
+          <tr><td>文本语义匹配</td><td>bge-m3</td><td><a href="https://huggingface.co/BAAI/bge-m3" target="_blank">huggingface.co/BAAI/bge-m3</a></td><td>约 2GB，纯 CPU 可跑</td></tr>
+          <tr><td>公开场景数据</td><td>含已重建场景的场景数据包</td><td><a href="https://huggingface.co/datasets/alexmkwizu/gaussian_training_datasets" target="_blank">huggingface.co/datasets/alexmkwizu/gaussian_training_datasets</a></td><td>下载即用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="block">
+      <h4>自主开发模块</h4>
+      <ul class="devs">
+        <li><b>标注工具与数据模型</b>：层级结构的定义、锚点坐标的选取与持久化、标注的增删改。</li>
+        <li><b>空间方位描述生成</b>：参照物的选择、方位词体系（左／右／上／前／旁边／里）、从层级路径到自然语言的生成规则。</li>
+        <li><b>问句匹配策略</b>：同义词与口语变体的处理、候选排序、匹配不上时的反问。</li>
+        <li><b>相机路径与落点计算</b>：视角向量插值与目标居中。</li>
+      </ul>
+    </div>
+
+    <ol class="steps">
+      <li>扫一个房间（或用公开场景数据），把重建结果加载到网页端。</li>
+      <li>实现标注工具，先标 15–20 个物体并建立层级。</li>
+      <li>实现问句匹配，能根据一句话找到目标。</li>
+      <li>实现方位描述生成与相机飞行。</li>
+      <li>做可读性校验：找同学按文字指引实际找一遍，统计成功率并迭代描述规则。</li>
+      <li>补上分组检索、缩略图与导入导出，凑齐选定的 N 个模块。</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact"><b>端到端演示</b>问"充电器在哪"，系统给出文字指引并在三维场景里高亮、镜头飞过去；再让现场同学照着文字实际找一次。</div>
+      <div class="fact"><b>测试重点</b>方位描述的人类可执行率（第三方按指引找的成功率）、口语问法的匹配率、标注层级过深时的描述长度、场景加载性能。</div>
+      <div class="fact"><b>难点提示</b><b>"在哪"这三个字说起来简单，要说清楚很难</b>——参照物选谁、方位词怎么定、层级说到哪一层，都需要一套自研规则；建议把"人类可执行率"当作第一指标，而不是"匹配准确率"。</div>
+    </div>
+
+    <div class="note">与第 16 题同用三维重建，但增量很清楚：第 16 题是<b>空间本身可走可看</b>，本题是<b>空间里的东西可问可找</b>。两项可以独立成题；如果两组恰好选同一空间，重建结果还能互相复用。</div>
+  </article>
+</section>
+
+<!-- 验收与交付 -->
+<section class="sec" id="accept">
+  <div class="sec-head">
+    <span class="idx">09</span>
+    <h2>验收标准与交付物</h2>
+    <p>所有选题遵循同一套验收口径，评审时按下列六项逐条核对</p>
+  </div>
+
+  <div class="gate">
+    <div class="gitem">
+      <span class="gn">1</span>
+      <div>
+        <h4>端到端可运行</h4>
+        <p>从输入到输出形成完整闭环，能够在课堂上现场演示一条真实数据走完全程。允许在局部环节使用预先准备的数据，但主流程必须实时可跑。</p>
+      </div>
+    </div>
+    <div class="gitem">
+      <span class="gn">2</span>
+      <div>
+        <h4>测试用例不少于 15 条</h4>
+        <p>须覆盖 <b>功能正确性、边界条件、异常输入、性能表现、可用性</b> 五个方面，写明输入、预期输出与实际结果。注意这是对<b>软件系统本身</b>的测试，不是对模型精度指标的评测。</p>
+      </div>
+    </div>
+    <div class="gitem">
+      <span class="gn">3</span>
+      <div>
+        <h4>模型部署说明完整</h4>
+        <p>所用模型须为现成开源模型，<b>不涉及自行训练</b>。需说明模型来源、部署方式（本地 / 云端 / 编排框架）、运行环境与关键参数，并给出可复现的部署步骤。</p>
+      </div>
+    </div>
+    <div class="gitem">
+      <span class="gn">4</span>
+      <div>
+        <h4>自主开发模块可追溯</h4>
+        <p>每个选题均标注了核心模块，<b>所选模块中须包含不少于 2 个核心模块</b>。交付时需指明哪些代码属于自主开发、解决了什么问题、设计上做了哪些取舍。</p>
+      </div>
+    </div>
+    <div class="gitem">
+      <span class="gn">5</span>
+      <div>
+        <h4>工作量达到建议实现数</h4>
+        <p>每个选题给出了功能模块总数与建议实现数。完成建议数量的模块并达到上述要求，即视为工作量达标；<b>2 人组按 3 人组的 2/3 折算</b>。不同选题的模块粒度不同，<b>建议数不可横向直接比较</b>，其设定目的在于让各选题的预期总工作量保持相当。</p>
+      </div>
+    </div>
+    <div class="gitem">
+      <span class="gn">6</span>
+      <div>
+        <h4>分工表与提交记录一致</h4>
+        <p>开题时填写的分工表须与实际提交情况一致。<b>每位成员的 Git 提交记录是个人贡献的核定依据</b>，需写入报告；三个方向（前端交互 / 后端与模型部署 / 测试与文档）均应有明确负责人。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="deliver">
+    <h3>需提交的材料</h3>
+    <div class="dgrid">
+      <div class="dcard">
+        <b>系统源代码</b>
+        <p>完整可运行的工程，附依赖清单与启动方式。</p>
+      </div>
+      <div class="dcard">
+        <b>需求与设计文档</b>
+        <p>需求分析、总体架构、模块设计与关键算法说明。</p>
+      </div>
+      <div class="dcard">
+        <b>测试用例文档</b>
+        <p>不少于 15 条测试用例，含输入、预期与实际结果。</p>
+      </div>
+      <div class="dcard">
+        <b>模型部署说明</b>
+        <p>模型来源、部署方式、环境配置与参数设置。</p>
+      </div>
+      <div class="dcard">
+        <b>演示材料</b>
+        <p>课堂演示所需的操作步骤与录屏或截图。</p>
+      </div>
+      <div class="dcard">
+        <b>个人工作总结</b>
+        <p>承担的工作、遇到的问题与解决过程。</p>
+      </div>
+      <div class="dcard">
+        <b>分工表与 Git 记录</b>
+        <p>开题时填写的分工表，以及可核对的提交记录。</p>
+      </div>
+      <div class="dcard">
+        <b>汇报 PPT 与演示视频</b>
+        <p>现场答辩用，视频仅在现场演示失效时兜底。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note note-wide">选题一经确定即可开始实施。若在实施过程中发现某一模块确实难以落地，可在 <b>不改变选题方向、且仍包含 2 个以上核心模块</b> 的前提下，用同等复杂度的模块替换，并在设计文档中说明替换理由。</div>
+</section>
+
+</main>
+
+<footer>
+  <div class="fin">
+    <div class="fl">
+      <b>《软件工程理论基础》研究生课程 · 课程设计选题说明</b>
+      <p>基于现成开源模型的 AI 应用工程实践 —— 19 个选题方向、统一的工作量口径、明确的验收标准</p>
+    </div>
+    <div class="fr">
+      <span>选题共 <b>19</b> 个</span>
+      <span>核心模块 <b>≥ 2 个</b> / 题</span>
+      <span>测试用例 <b>≥ 15</b> 条</span>
+    </div>
+  </div>
+  <div class="credits">
+    <b>配图来源</b>
+    <p>1 MediaPipe 官方首页 ｜ 2 Wikimedia Commons（CC0，Gabriel Barletta）｜ 3 Wikimedia Commons（CC BY-SA 4.0，M. U. Paily）｜ 4 Wikimedia Commons（Public domain，USDAgov）｜ 5 Wikimedia Commons（CC BY-SA 4.0，Ehécatl Cabrera）｜ 6 Wikimedia Commons（CC BY-SA 4.0，Jacek Halicki）｜ 7 Wikimedia Commons（CC BY 2.0，Infrogmation of New Orleans）｜ 8 Wikimedia Commons（CC BY 2.0，PTPioneer）｜ 9 ByteTrack 仓库（ifzhang/ByteTrack）｜ 10 Wikimedia Commons（Public domain，U.S. Air Force）｜ 11 Wikimedia Commons（CC BY-SA 4.0，Tallbox）｜ 12 SuperSplat 编辑器（playcanvas/supersplat）｜ 13 3D Gaussian Splatting 官方实现（graphdeco-inria）｜ 14 Excalidraw 项目 ｜ 15 Wikimedia Commons（Public domain，BLMUtah）｜ 16 Wikimedia Commons（CC BY 2.0，Sam valadi）｜ 17 Wikimedia Commons（CC BY 2.0，Shixart1985）｜ 18 Wikimedia Commons（CC BY-SA 4.0，建筑点云重建）｜ 19 video-retalking 项目（OpenTalker/video-retalking）。带 CC BY / CC BY-SA 的图片按原作者要求署名，带作者署名的第三方项目图片版权归原项目所有，均仅用于本课程教学。</p>
+  </div>
+</footer>
+
+<div class="sheet" id="urlPanel" hidden>
+  <div class="sheet-mask" data-close="1"></div>
+  <div class="sheet-box">
+    <h4>设置腾讯文档网址</h4>
+    <p>把在线登记表的链接粘进来，页面上那个按钮就会指向它。<b>只保存在本机浏览器里</b>，换台电脑要重设一次。</p>
+    <input type="url" id="urlInput" placeholder="https://docs.qq.com/sheet/..." spellcheck="false">
+    <div class="sheet-act">
+      <button type="button" class="rbtn primary" id="urlSave">保存</button>
+      <button type="button" class="rbtn" id="urlReset">恢复默认</button>
+      <button type="button" class="rbtn" data-close="1">取消</button>
+    </div>
+    <div class="dnote" id="urlMsg"></div>
+  </div>
+</div>
+
+<div class="sheet" id="drawPanel" hidden>
+  <div class="sheet-mask" data-close="1"></div>
+  <div class="sheet-box wide">
+    <h4>随机抽签 · 决定小组汇报顺序</h4>
+    <ol class="drawstep">
+      <li>打开在线登记表，把整张表选中复制（或至少复制「题目编号」和「分工 A / B / C」这几列）</li>
+      <li>粘到下面的框里，点「识别已选题目」——被占用的题目会自动列出来</li>
+      <li>确认清单没错，点「开始抽签」；把结果按顺序粘回表格最后一列「答辩顺序」</li>
+    </ol>
+    <textarea id="drawInput" rows="5" spellcheck="false" placeholder="在这里粘贴（Ctrl+V）：整张表、两列，或者直接敲 1、5、7 这样的编号都行"></textarea>
+    <div class="sheet-act">
+      <button type="button" class="rbtn primary" id="drawParse">识别已选题目</button>
+      <button type="button" class="rbtn" id="drawClear">清空</button>
+      <button type="button" class="rbtn" data-close="1">关闭</button>
+    </div>
+    <div class="picked" id="drawPicked"><span class="empty">还没有识别。先粘贴再点「识别已选题目」。</span></div>
+    <div class="sheet-act">
+      <button type="button" class="rbtn primary" id="drawRun" disabled>开始抽签</button>
+      <button type="button" class="rbtn" id="drawCopy" disabled>复制结果（按题目 1…N 排列）</button>
+    </div>
+    <div class="drawresult" id="drawResult"></div>
+    <div class="dnote" id="drawMsg"></div>
+  </div>
+</div>
+
+<div class="fsctrl" role="group" aria-label="页面字号调节">
+  <span class="lbl">字号</span>
+  <button id="fsDown" type="button" aria-label="减小字号" title="减小字号（快捷键 [ ）">A&minus;</button>
+  <span id="fsVal" aria-live="polite">100%</span>
+  <button id="fsUp" type="button" aria-label="增大字号" title="增大字号（快捷键 ] ）">A+</button>
+  <button id="fsReset" class="reset" type="button" title="恢复默认（快捷键 \ ）">重置</button>
+  <span class="hint">或按 [ ] 键</span>
+</div>
+
+<script>
+(function () {
+  var BASE = 1.15, MIN = 0.80, MAX = 2.6, STEP = 0.13, KEY = 'xuantopic-fscale';
+  var root = document.documentElement;
+  var out = document.getElementById('fsVal');
+  var k = BASE;
+  function clamp(v) { return Math.min(MAX, Math.max(MIN, Math.round(v * 100) / 100)); }
+  function apply(v, save) {
+    k = clamp(v);
+    root.style.setProperty('--fscale', k);
+    if (out) { out.textContent = Math.round(k / BASE * 100) + '%'; }
+    if (save) { try { localStorage.setItem(KEY, String(k)); } catch (e) {} }
+  }
+  try { var sv = localStorage.getItem(KEY); if (sv !== null && !isNaN(parseFloat(sv))) { k = clamp(parseFloat(sv)); } } catch (e) {}
+  var up = document.getElementById('fsUp');
+  var dn = document.getElementById('fsDown');
+  var rs = document.getElementById('fsReset');
+  if (up) { up.addEventListener('click', function () { apply(k + STEP, true); }); }
+  if (dn) { dn.addEventListener('click', function () { apply(k - STEP, true); }); }
+  if (rs) { rs.addEventListener('click', function () { apply(BASE, true); }); }
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    if (e.key === ']' || e.key === '=') { apply(k + STEP, true); }
+    else if (e.key === '[' || e.key === '-') { apply(k - STEP, true); }
+    else if (e.key === '\\') { apply(BASE, true); }
+  });
+  apply(k, false);
+})();
+
+/* 平滑滚动到锚点，并留出吸顶导航的高度 */
+(function () {
+  var nav = document.querySelector('.nav');
+  document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+    a.addEventListener('click', function (ev) {
+      var id = a.getAttribute('href').slice(1);
+      if (!id) { return; }
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      ev.preventDefault();
+      var off = nav ? nav.getBoundingClientRect().height + 12 : 12;
+      var top = el.getBoundingClientRect().top + window.pageYOffset - off;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+    });
+  });
+  /* 当前章节高亮 */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.nav a[href^="#"]'));
+  var targets = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+  function onScroll() {
+    var y = window.pageYOffset + (nav ? nav.getBoundingClientRect().height + 40 : 40);
+    var idx = -1;
+    for (var i = 0; i < targets.length; i++) {
+      if (targets[i] && targets[i].offsetTop <= y) { idx = i; }
+    }
+    links.forEach(function (a, i) { a.classList.toggle('on', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* ---------- 左侧树状目录（篇 → 选题 → 小节） ---------- */
+(function () {
+  var treeTab = document.getElementById('treeTab');
+  var treeNav = document.getElementById('treeNav');
+  var tnList = document.getElementById('tnList');
+  if (!treeTab || !treeNav || !tnList) { return; }
+  var secs = Array.prototype.slice.call(document.querySelectorAll('section.sec'));
+  if (!secs.length) { return; }
+
+  /* 篇的划分是信息架构，只能手写；节与小节全部从 DOM 现取，改正文不用同步改脚本 */
+  var PART_OF = { guide: 0, workload: 0, team: 0, 't-e': 1, 't-c': 2, 't-a': 3, 't-b': 4, 't-d': 5, accept: 6 };
+  var PARTS = [
+    { name: '总则与规则', tip: '选题总则 / 选题一览 / 分组与分工' },
+    { name: '互动演示', tip: '以实时视听交互为核心，现场可参与、演示直观' },
+    { name: '语音与知识记录', tip: '语音只是入口，重点在转写之后的知识整理' },
+    { name: '视觉识别与图像处理', tip: '拍一张照，系统告诉你这是什么、该怎么办' },
+    { name: '动作计数与目标跟踪', tip: '以拍摄的视频为输入，做检测跟踪、计数与轨迹统计' },
+    { name: '三维重建与仿真', tip: '把真实空间转成三维表示，在其上交互、仿真或展示' },
+    { name: '验收与交付', tip: '统一的验收口径与需要提交的材料' }
+  ];
+  var SUBSHORT = {
+    '功能模块': '功能模块', '模型与下载地址': '模型与下载', '可选用的现成模型与下载地址': '模型与下载',
+    '自主开发模块': '自主开发', '实现思路': '实现思路', '问题场景': '问题场景', '三人分工参考': '三人分工'
+  };
+  var SUBSEL = '.card-hero .need h4, .rules h4, .gate h4, .mods h4, .block h4, .div3 h5';
+  var CDN = ['c0', 'c1', 'c2', 'c3', 'c4'];
+  var parts = [];
+
+  function shortLabel(txt) {
+    var t = String(txt || '').replace(/\s+/g, ' ').trim();
+    var base = t.split(/[：:（(]/)[0].trim() || t;
+    if (SUBSHORT[base]) { return SUBSHORT[base]; }
+    return base.length > 13 ? base.slice(0, 13) + '…' : base;
+  }
+  function goTo(el) {
+    var y = el.getBoundingClientRect().top + window.pageYOffset - 96;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  }
+
+  function mkPart(meta) {
+    var el = document.createElement('div'); el.className = 'tn-part';
+    var row = document.createElement('div'); row.className = 'tn-row tn-part-row';
+    var go = document.createElement('button'); go.type = 'button'; go.className = 'tn-part-go';
+    if (meta.tip) { go.title = meta.tip; }
+    var nm = document.createElement('span'); nm.className = 'pn'; nm.textContent = meta.name;
+    var ct = document.createElement('span'); ct.className = 'pc';
+    go.appendChild(nm); go.appendChild(ct);
+    row.appendChild(go);
+    var caret = document.createElement('button');
+    caret.type = 'button'; caret.className = 'tn-caret'; caret.textContent = '▸';
+    caret.setAttribute('aria-expanded', 'false'); caret.title = '展开 / 收起这一篇';
+    row.appendChild(caret);
+    var list = document.createElement('div'); list.className = 'tn-chaps';
+    el.appendChild(row); el.appendChild(list);
+    var p = { el: el, row: row, caret: caret, count: ct, list: list, groups: [], sec0: null };
+    function toggle() {
+      var open = el.classList.toggle('open');
+      caret.setAttribute('aria-expanded', open ? 'true' : 'false');
+      return open;
+    }
+    caret.addEventListener('click', toggle);
+    go.addEventListener('click', function () { if (toggle() && p.sec0) { goTo(p.sec0); } });
+    return p;
+  }
+
+  function mkGroup(host, badge, title, idBase, colorIdx, ownerSec) {
+    var group = document.createElement('div'); group.className = 'tn-group';
+    var row = document.createElement('div'); row.className = 'tn-row';
+    var go = document.createElement('button'); go.type = 'button'; go.className = 'tn-go'; go.title = title;
+    if (badge) {
+      var n = document.createElement('span'); n.className = 'n ' + CDN[colorIdx % 5]; n.textContent = badge;
+      go.appendChild(n);
+    }
+    var tt = document.createElement('span'); tt.className = 't'; tt.textContent = title;
+    go.appendChild(tt);
+    go.addEventListener('click', function () { goTo(host); });
+    row.appendChild(go);
+
+    var items = [], wrap = document.createElement('div'); wrap.className = 'tn-subs';
+    Array.prototype.forEach.call(host.querySelectorAll(SUBSEL), function (h, i) {
+      if (!h.id) { h.id = idBase + '-h' + i; }
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'tn-sub';
+      var full = String(h.textContent || '').replace(/\s+/g, ' ').trim();
+      b.textContent = shortLabel(full); b.title = full;
+      b.addEventListener('click', function () { goTo(h); });
+      wrap.appendChild(b);
+      items.push({ el: h, btn: b });
+    });
+    if (items.length) {
+      var caret = document.createElement('button');
+      caret.type = 'button'; caret.className = 'tn-caret'; caret.textContent = '▸';
+      caret.setAttribute('aria-expanded', 'false'); caret.title = '展开 / 收起本项小节';
+      caret.addEventListener('click', function () {
+        var o = group.classList.toggle('open');
+        caret.setAttribute('aria-expanded', o ? 'true' : 'false');
+      });
+      row.appendChild(caret);
+    }
+    group.appendChild(row); group.appendChild(wrap);
+    return { group: group, row: row, items: items, host: host, sec: ownerSec };
+  }
+
+  var cur = -1;
+  secs.forEach(function (sec, si) {
+    var want = PART_OF[sec.id];
+    if (want == null) { want = 0; }
+    while (cur < want) {
+      cur++;
+      var np = mkPart(PARTS[cur] || { name: '第 ' + (cur + 1) + ' 篇', tip: '' });
+      parts.push(np); tnList.appendChild(np.el);
+    }
+    var P = parts[cur];
+    if (!P.sec0) { P.sec0 = sec; }
+    var cards = Array.prototype.slice.call(sec.querySelectorAll(':scope > article.card'));
+    if (cards.length) {
+      cards.forEach(function (card, ci) {
+        var h3 = card.querySelector('.chead h3');
+        var cid = card.querySelector('.cid');
+        var g = mkGroup(card, cid ? cid.textContent.trim() : '',
+          h3 ? h3.textContent.trim() : ('第 ' + (si + 1) + ' 个'),
+          card.id || (sec.id + '-c' + ci), si + ci, sec);
+        P.groups.push(g); P.list.appendChild(g.group);
+      });
+    } else {
+      var idx = sec.querySelector('.sec-head .idx');
+      var h2 = sec.querySelector('.sec-head h2');
+      var g2 = mkGroup(sec, idx ? idx.textContent.trim() : '',
+        h2 ? h2.textContent.trim() : sec.id, sec.id, si, sec);
+      P.groups.push(g2); P.list.appendChild(g2.group);
+    }
+  });
+
+  var grpTotal = 0, subTotal = 0;
+  parts.forEach(function (p) {
+    p.count.textContent = p.groups.length + ' 项';
+    p.groups.forEach(function (g) { grpTotal++; subTotal += g.items.length; });
+  });
+  var foot = document.createElement('div'); foot.className = 'tn-foot';
+  foot.textContent = '共 ' + parts.length + ' 篇 · ' + grpTotal + ' 项 · ' + subTotal + ' 小节';
+  tnList.appendChild(foot);
+
+  function setPart(p, open) {
+    p.el.classList.toggle('open', open);
+    p.caret.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function setGroup(g, open) {
+    if (!g.items.length) { return; }
+    g.group.classList.toggle('open', open);
+    var c = g.group.querySelector('.tn-caret');
+    if (c) { c.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  }
+  document.getElementById('tnExpand').addEventListener('click', function () {
+    parts.forEach(function (p) { setPart(p, true); p.groups.forEach(function (g) { setGroup(g, true); }); });
+  });
+  document.getElementById('tnCollapse').addEventListener('click', function () {
+    parts.forEach(function (p) { setPart(p, false); p.groups.forEach(function (g) { setGroup(g, false); }); });
+  });
+
+  /* 开合状态记在 html[data-tree] 上，并记忆偏好（首次进入宽屏默认打开） */
+  function treeSet(on) {
+    document.documentElement.setAttribute('data-tree', on ? 'on' : 'off');
+    try { localStorage.setItem('xuantopic-tree', on ? 'on' : 'off'); } catch (err) { /* 忽略 */ }
+  }
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('xuantopic-tree'); } catch (err) { /* 忽略 */ }
+    if (saved !== 'on' && saved !== 'off') {
+      saved = (window.matchMedia && matchMedia('(min-width:1500px)').matches) ? 'on' : 'off';
+    }
+    treeSet(saved === 'on');
+  })();
+  treeTab.addEventListener('click', function () {
+    treeSet(document.documentElement.getAttribute('data-tree') !== 'on');
+  });
+  document.getElementById('tnClose').addEventListener('click', function () { treeSet(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+    if (e.key === 't' || e.key === 'T') {
+      treeSet(document.documentElement.getAttribute('data-tree') !== 'on');
+    }
+  });
+
+  /* 滚动高亮：当前篇自动展开（只开不关），当前条目与当前小节高亮 */
+  function treeSync() {
+    if (window.innerWidth < 1200) { return; }
+    var line = 130, active = null;
+    secs.forEach(function (s) { if (s.getBoundingClientRect().top <= line) { active = s; } });
+    var actG = null;
+    parts.forEach(function (p) {
+      var has = false;
+      p.groups.forEach(function (g) {
+        var on = g.sec === active;
+        g.row.classList.toggle('active', on);
+        if (on) { has = true; actG = g; }
+      });
+      p.row.classList.toggle('active-part', has);
+      if (has) { setPart(p, true); }
+    });
+    if (!actG) { return; }
+    if (actG.items.length) {
+      setGroup(actG, true);
+      var k = -1;
+      actG.items.forEach(function (it, i) { if (it.el.getBoundingClientRect().top <= line) { k = i; } });
+      actG.items.forEach(function (it, i) { it.btn.classList.toggle('active', i === k); });
+    }
+    var top = actG.host === actG.sec ? actG.row.offsetTop : actG.group.offsetTop;
+    if (top < tnList.scrollTop + 8 || top > tnList.scrollTop + tnList.clientHeight - 72) {
+      tnList.scrollTop = Math.max(0, top - tnList.clientHeight / 2);
+    }
+  }
+  window.addEventListener('scroll', treeSync, { passive: true });
+  window.addEventListener('resize', treeSync);
+  treeSync();
+})();
+/* ---------- 登记表：自定义链接 + 随机抽签 ---------- */
+(function () {
+  var DEF_URL = 'https://docs.qq.com/sheet/DUk1IeW1kTHRMV0hm';
+  var K_URL = 'xuantopic-regurl', K_DRAW = 'xuantopic-draw';
+  var $ = function (id) { return document.getElementById(id); };
+  var link = $('regLink'), btnUrl = $('btnRegUrl'), btnDraw = $('btnDraw');
+  if (!link || !btnUrl || !btnDraw) { return; }
+
+  function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function save(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 忽略 */ } }
+
+  /* 题目名从页面自身取，永远与卡片一致 */
+  var TITLE = {};
+  Array.prototype.forEach.call(document.querySelectorAll('article.card[id^="t"]'), function (c) {
+    var n = +c.id.slice(1), h = c.querySelector('.chead h3');
+    if (n > 0 && h) { TITLE[n] = h.textContent.trim(); }
+  });
+  var NUMS = Object.keys(TITLE).map(Number).sort(function (a, b) { return a - b; });
+
+  /* ---- 弹层开关 ---- */
+  function open(p) { p.hidden = false; document.documentElement.style.overflow = 'hidden'; }
+  function close(p) { p.hidden = true; document.documentElement.style.overflow = ''; }
+  Array.prototype.forEach.call(document.querySelectorAll('.sheet'), function (p) {
+    p.addEventListener('click', function (e) {
+      if (e.target.hasAttribute && e.target.hasAttribute('data-close')) { close(p); }
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { Array.prototype.forEach.call(document.querySelectorAll('.sheet'), function (p) { close(p); }); }
+  });
+
+  /* ---- 1. 自定义腾讯文档网址 ---- */
+  var urlPanel = $('urlPanel'), urlInput = $('urlInput'), urlMsg = $('urlMsg');
+  function applyUrl(u) {
+    u = (u || '').trim() || DEF_URL;
+    link.href = u; link.title = u; save(K_URL, u);
+    var custom = (u !== DEF_URL);
+    btnUrl.textContent = custom ? '⚙ 已自定义网址（点此改）' : '⚙ 设置网址';
+    btnUrl.classList.toggle('primary', false);
+    return custom;
+  }
+  applyUrl(read(K_URL) || DEF_URL);
+
+  btnUrl.addEventListener('click', function () {
+    urlInput.value = (read(K_URL) || DEF_URL);
+    urlMsg.textContent = '';
+    open(urlPanel); urlInput.focus(); urlInput.select();
+  });
+  $('urlSave').addEventListener('click', function () {
+    var v = urlInput.value.trim();
+    if (v && !/^https?:\/\//i.test(v)) { urlMsg.textContent = '⚠ 链接要以 http:// 或 https:// 开头'; return; }
+    var custom = applyUrl(v);
+    urlMsg.textContent = custom ? '✅ 已保存（只在本机浏览器生效）' : '✅ 已恢复默认链接';
+    setTimeout(function () { close(urlPanel); }, 700);
+  });
+  $('urlReset').addEventListener('click', function () {
+    urlInput.value = DEF_URL; applyUrl(DEF_URL);
+    urlMsg.textContent = '✅ 已恢复默认链接';
+  });
+
+  /* ---- 2. 随机抽签 ---- */
+  var panel = $('drawPanel'), input = $('drawInput'), pickedBox = $('drawPicked'),
+      resultBox = $('drawResult'), msg = $('drawMsg'), runBtn = $('drawRun'), copyBtn = $('drawCopy');
+  var picked = [], order = {};
+
+  function norm(v) { return String(v == null ? '' : v).replace(/\s/g, ''); }
+  function isTitleCell(v, n) {              // 题号对应的题目名要排除，它不能算"已选"的证据
+    var a = norm(v), b = norm(TITLE[n] || '');
+    if (!a || !b) { return false; }
+    return a === b || a.indexOf(b) === 0 || b.indexOf(a) === 0;
+  }
+  function parsePicked(text) {
+    var t = String(text || '').replace(/\u00a0/g, ' ');
+    var hit = {};
+    var lines = t.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
+    if (!lines.length) { return []; }
+    var hasTab = t.indexOf('\t') >= 0;
+    if (!hasTab && lines.length <= 1) {          // 只有一行编号：1、5、7 / 1,5,7 / 1 5 7
+      (t.match(/\d{1,2}/g) || []).forEach(function (d) { if (TITLE[+d]) { hit[+d] = 1; } });
+      return Object.keys(hit).map(Number).sort(function (a, b) { return a - b; });
+    }
+    /* 第一格不是纯数字 → 这是表头，按列名认列（最稳） */
+    var numIdx = 0, claimIdx = [];
+    if (!/^\d{1,2}$/.test(lines[0].split('\t')[0].trim())) {
+      var head = lines[0].split('\t').map(function (c) { return c.trim(); });
+      numIdx = -1;
+      head.forEach(function (h, i) {
+        if (numIdx < 0 && /编号/.test(h)) { numIdx = i; }
+        if (/组员|成员|姓名|所选|功能|分工/.test(h)) { claimIdx.push(i); }
+      });
+      if (numIdx < 0) { numIdx = 0; }
+      lines = lines.slice(1);
+    }
+    lines.forEach(function (line) {
+      var cells = line.split('\t').map(function (c) { return c.trim(); });
+      if (!/^\d{1,2}$/.test(cells[numIdx] || '')) { return; }
+      var n = +cells[numIdx];
+      if (!TITLE[n]) { return; }
+      if (cells.length === 1) { hit[n] = 1; return; }   // 只粘了编号一列
+      var ev;
+      if (claimIdx.length) {
+        ev = claimIdx.map(function (i) { return norm(cells[i]); }).join('');
+      } else {
+        ev = cells.filter(function (c, i) {
+          if (i === numIdx) { return false; }
+          if (isTitleCell(c, n)) { return false; }
+          return norm(c) !== '';
+        }).join('');
+      }
+      if (ev !== '') { hit[n] = 1; }
+    });
+    return Object.keys(hit).map(Number).sort(function (a, b) { return a - b; });
+  }
+
+  function renderPicked() {
+    if (!picked.length) {
+      pickedBox.innerHTML = '<span class="empty">没识别到已选题目 —— 检查一下是不是还没人填，或者粘贴时漏了编号列。</span>';
+      runBtn.disabled = true; copyBtn.disabled = true;
+      return;
+    }
+    pickedBox.innerHTML = picked.map(function (n) {
+      return '<span class="pchip"><b>' + n + '</b>' + (TITLE[n] || '') + '</span>';
+    }).join('');
+    runBtn.disabled = false; copyBtn.disabled = false;
+  }
+  renderPicked();
+
+  function shuffle(a) {
+    var arr = a.slice(1 - 1), i, j, t, rnd = new Uint32Array(1);
+    for (i = arr.length - 1; i > 0; i--) {
+      if (window.crypto && crypto.getRandomValues) { crypto.getRandomValues(rnd); j = rnd[0] % (i + 1); }
+      else { j = Math.floor(Math.random() * (i + 1)); }
+      t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function renderResult(animate) {
+    var rows = NUMS.filter(function (n) { return order[n]; })
+      .sort(function (a, b) { return order[a] - order[b]; });
+    if (!rows.length) { resultBox.innerHTML = ''; return; }
+    resultBox.innerHTML = '<ol>' + rows.map(function (n, i) {
+      return '<li' + (animate ? ' class="reveal" style="animation-delay:' + (i * 180) + 'ms"' : '') + '>'
+        + '<b>第 ' + order[n] + ' 位</b>'
+        + '<span><em>' + n + '</em>' + (TITLE[n] || '') + '</span></li>';
+    }).join('') + '</ol>';
+    msg.textContent = '共 ' + rows.length + ' 个小组的汇报顺序已确定。抽签结果已记在本机浏览器里，关掉页面再打开还在。';
+  }
+
+  runBtn.addEventListener('click', function () {
+    if (picked.length < 2) { msg.textContent = '⚠ 至少要有 2 个已选题目才有抽签的意义。'; return; }
+    var seq = shuffle(picked.slice());
+    order = {};
+    seq.forEach(function (n, i) { order[n] = i + 1; });
+    save(K_DRAW, JSON.stringify({ picked: picked.slice(), order: order }));
+    renderResult(true);
+    copyBtn.disabled = false;
+  });
+
+  copyBtn.addEventListener('click', function () {
+    var txt = NUMS.map(function (n) { return order[n] ? String(order[n]) : ''; }).join('\n');
+    if (txt.replace(/\s/g, '') === '') { msg.textContent = '⚠ 还没有抽签结果。'; return; }
+    var done = function () { msg.textContent = '✅ 已复制。回到表格，点「答辩顺序」列第 2 行，Ctrl+V 即可一次填完（共 ' + NUMS.length + ' 行，未选题的行是空的）。'; };
+    var fail = function () {
+      var ta = document.createElement('textarea');
+      ta.value = txt; ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) { done(); } else { msg.textContent = '⚠ 浏览器不允许自动复制，请手动选中下面这串数字复制：\n' + txt; }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, fail);
+    } else { fail(); }
+  });
+
+  $('drawParse').addEventListener('click', function () {
+    picked = parsePicked(input.value);
+    order = {};
+    renderPicked(); renderResult(false);
+    msg.textContent = picked.length ? '识别到 ' + picked.length + ' 个已被选中的题目，确认无误后点「开始抽签」。' : '';
+  });
+  $('drawClear').addEventListener('click', function () {
+    input.value = ''; picked = []; order = {};
+    renderPicked(); renderResult(false); msg.textContent = '';
+  });
+  btnDraw.addEventListener('click', function () {
+    open(panel);
+    var saved = read(K_DRAW);
+    if (saved && !picked.length) {
+      try {
+        var o = JSON.parse(saved);
+        if (o && o.picked && o.picked.length) {
+          picked = o.picked; order = o.order || {};
+          input.value = picked.join('、');
+          renderPicked(); renderResult(false);
+          msg.textContent = '这是上次的抽签结果。要重新抽就点「开始抽签」；题号有变化请重新粘贴识别。';
+        }
+      } catch (e) { /* 忽略 */ }
+    }
+  });
+})();
+
+</script>
+</body>
+</html>

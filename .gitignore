@@ -1,0 +1,19 @@
+# 虚拟环境（每个成员自己 setup_env.sh 生成，绝不上传）
+.venv/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# macOS 系统文件
+.DS_Store
+
+# 摄像头采集素材（视频/截图，文件大，且属于个人调参过程产物）
+captures/
+
+# 模型文件（setup_env.sh 会从官方源重新下载）
+pose_landmarker_lite.task
+
+# 选题过程文档（历史草稿，不进版本库）
+选题/_archive/
+选题/_backup/
