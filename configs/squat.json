@@ -1,0 +1,23 @@
+{
+  "id": "squat",
+  "name": "深蹲",
+  "camera_side": "侧",
+  "counter": {
+    "signal": "angle",
+    "points": [23, 25, 27],
+    "lo": 100,
+    "hi": 160,
+    "first": "lo",
+    "min_interval": 0.40
+  },
+  "quality": [
+    {
+      "name": "not_standing_straight",
+      "check": "angle_min",
+      "points": [23, 25, 27],
+      "min": 155,
+      "when": "ready",
+      "tip": "站起时腿没伸直"
+    }
+  ]
+}

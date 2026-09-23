@@ -154,6 +154,22 @@ def say(text):
             pass
 
 
+def bring_window_to_front():
+    """
+    从终端启动的 GUI 窗口默认抢不到键盘焦点，按键（q / r）会没反应。
+    进程内直接调 Cocoa API 把自己设成前台 App，不经过任何外部自动化权限。
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from AppKit import NSApplication, NSApplicationActivationPolicyRegular
+        app = NSApplication.sharedApplication()
+        app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+        app.activateIgnoringOtherApps_(True)
+    except Exception as e:
+        print(f"  （抢焦点失败，可以手动点一下画面窗口：{e}）")
+
+
 # --------------------------------------------------------------------------
 # 主程序
 # --------------------------------------------------------------------------
@@ -216,6 +232,8 @@ def main():
     time.sleep(0.4)                     # 等第一帧
 
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
+    last_count = 0                      # 上次计数，用于「刚数上一个」时语音报数
+    got_first = False                   # 是否已出过画面（用来抢一次窗口焦点）
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -303,16 +321,32 @@ def main():
                 say(hits[0]["tip"])
                 last_say = now
 
+            # 刚数上一个就念出数字，做动作时不用盯屏幕也知道数上了没有
+            if count > last_count:
+                say(str(count))
+                last_count = count
+
             cv2.imshow("realtime pose", frame)
+            if not got_first:
+                # 第一次出画面时抢一下键盘焦点，否则 q / r 按了没反应
+                got_first = True
+                cv2.waitKey(1)
+                bring_window_to_front()
+
             k = cv2.waitKey(1) & 0xFF
             if k == ord("q"):
                 break
             if k == ord("r"):
                 action.reset()
+                last_count = 0
 
     cam.stop()
     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # 窗口没抢到焦点时 q 按不动，终端里 Ctrl+C 随时能退，不依赖窗口焦点
+        print("\n收到 Ctrl+C，退出。")
