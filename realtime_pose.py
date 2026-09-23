@@ -369,12 +369,27 @@ def main():
             cv2.putText(frame, f"{fps:4.1f} fps", (12, 140),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
 
+            # 先把「刚命中、要保持显示」的错误算出来：
+            # on_rep 类约束只在计数那一帧命中，只闪一帧根本看不清 → 让结果挂 2 秒
+            if hits:
+                shown_hits = hits
+                shown_until = now + 2.0
+            elif now > shown_until:
+                shown_hits = []
+            hit_map = {h["name"]: h for h in shown_hits}
+
             # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
             #   OK 绿=达标   !! 红=不达标   ? 灰=点没拍全   -- 灰=本阶段不判
             y = 180
             hidden = False
             for c in checks:
-                if not c["visible"]:
+                kept = hit_map.get(c["name"])
+                if kept is not None:
+                    # 刚命中、正在保持显示的错误（数值取命中那一刻的）
+                    txt = (f"{c['name'].upper():18s} "
+                           f"{kept.get('value') or 0:5.2f}/{(kept.get('limit') or 0):.2f}  !!")
+                    color = (60, 60, 255)
+                elif not c["visible"]:
                     hidden = True
                     txt = f"{c['name'].upper():18s}    ?   point hidden"
                     color = (150, 150, 150)
@@ -382,10 +397,12 @@ def main():
                     txt = f"{c['name'].upper():18s}   --   not this phase"
                     color = (150, 150, 150)
                 elif c["ok"]:
-                    txt = f"{c['name'].upper():18s} {c['value']:5.0f}/{c['limit']:.0f}  OK"
+                    txt = (f"{c['name'].upper():18s} "
+                           f"{c['value']:5.2f}/{c['limit']:.2f}  OK")
                     color = (120, 230, 120)
                 else:
-                    txt = f"{c['name'].upper():18s} {c['value']:5.0f}/{c['limit']:.0f}  !!"
+                    txt = (f"{c['name'].upper():18s} "
+                           f"{c['value']:5.2f}/{c['limit']:.2f}  !!")
                     color = (60, 60, 255)
                 cv2.putText(frame, txt, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
                 y += 26
@@ -394,16 +411,8 @@ def main():
                 cv2.putText(frame, "! POINTS HIDDEN  ->  step back, keep whole body in frame",
                             (12, y + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (60, 200, 255), 2)
 
-            # 错误提示保持：on_rep 类约束只在「计数那一帧」命中，只闪一帧根本看不清，
-            # 所以把命中的提示留住 2 秒再撤。
-            if hits:
-                shown_hits = hits
-                shown_until = now + 2.0
-            elif now > shown_until:
-                shown_hits = []
-
             if shown_hits:
-                banner = "   ".join("! " + h["name"].upper() for h in shown_hits)
+                banner = "   ".join("! " + (h["name"] or "?").upper() for h in shown_hits)
                 cv2.putText(frame, banner, (12, y + 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (60, 60, 255), 3)
 
