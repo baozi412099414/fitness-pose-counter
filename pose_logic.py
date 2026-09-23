@@ -36,6 +36,10 @@ def distance_between(a, b):
     return float(np.linalg.norm(np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)))
 
 
+# 归一化基准（肩宽）的最小像素值：比这个还小就说明关键点异常，该帧丢弃
+MIN_UNIT_LEN = 40.0
+
+
 # --------------------------------------------------------------------------
 # 计数状态机（带迟滞）
 # --------------------------------------------------------------------------
@@ -291,6 +295,10 @@ class Action:
         values = self.signals(points)
         self.last_values = values                # 供 HUD 显示每个条件的当前值
         sig = values[0] if values else None      # 显示用（多条件时是第一个）
+        # 任一条件的信号算不出来（关键点异常，如「肩宽」趋近 0）→ 整帧跳过，
+        # 否则一个离谱值就会污染峰值，导致「永远判定通过、永远不报错」。
+        if any(v is None for v in values):
+            return self.counter.count, self.counter.stage, None, [], []
         # 可信度：把所有条件用到的关键点都算进来；人没拍到 / 跟丢时不更新状态机，
         # 否则 MediaPipe 输出的「幽灵骨架」会让程序凭空加数。
         conf = 1.0

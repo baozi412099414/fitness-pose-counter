@@ -287,6 +287,31 @@ def test_jumping_jack():
     print("  ✅ 双条件 AND 生效：只做一半不计数，不标准能报错\n")
 
 
+def test_abnormal_frame_dropped():
+    print("=== 测试 11：关键点异常帧被丢弃（肩宽趋近 0 时不产生离谱比值） ===")
+    a = load_action("configs/jumping_jack.json")
+
+    def pose(shoulder_w, hand_y, foot_half):
+        p = [(0, 0)] * 33
+        p[11] = (150, 100)
+        p[12] = (150 + shoulder_w, 100)          # 肩宽可变
+        p[15] = (150, hand_y)
+        p[27] = (150 - foot_half, 400)
+        p[28] = (150 + foot_half, 400)
+        return p
+
+    # 异常帧：肩宽只剩 2px（MediaPipe 偶尔会把两个肩点检到几乎重合）
+    sigs = a.signals(pose(2, 30, 50))
+    print(f"  肩宽 2px   -> 信号 {sigs}（应含 None，被丢弃）")
+    assert any(s is None for s in sigs), "肩宽过小应判为异常帧"
+
+    # 正常帧：肩宽 100px
+    sigs = a.signals(pose(100, 30, 50))
+    print(f"  肩宽 100px -> 手高度 {sigs[0]:.2f}  脚水平距 {sigs[1]:.2f}")
+    assert all(s is not None for s in sigs), "正常帧不该被丢弃"
+    print("  ✅ 异常帧不会污染峰值（这是「永远不报错」的根因）\n")
+
+
 if __name__ == "__main__":
     test_rep_counter()
     test_hysteresis()
@@ -298,4 +323,5 @@ if __name__ == "__main__":
     test_peak_judgment()
     test_depth_judgment()
     test_jumping_jack()
+    test_abnormal_frame_dropped()
     print("全部通过 ✅")
