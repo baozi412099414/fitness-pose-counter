@@ -67,7 +67,12 @@
   （原因见下方"摄像头权限的坑"，是结构性限制，不用再重新排查）。
 
 **排查过程存档**（踩过的坑，遇到类似现象直接查这里，不用重新走一遍）：
-1. 探测逻辑等待太短 → 已修复，`--cam N` 直连时完全跳过探测（8 秒等待可调 `--wait`）。
+1. 探测逻辑等待太短 → 已修复。`camera_check.py` 和 `realtime_pose.py` 的探测都加了
+   8 秒等待（`camera_check.py` 可用 `--wait` 调），`--cam N` 直连时完全跳过探测。
+   ⚠ **2026-09-22 复现（重要）**：USB 线插得好好的（`ioreg` 里 iPhone 是 active、
+   `SupportsIPhoneOS=Yes`），但 `realtime_pose.py` 上一版探测「读一次就 release」，
+   把 iPhone 握手打断 → 现象就是「连上立马断开」。**看着像线的问题，其实是代码**。
+   诊断命令：`ioreg -p IOUSB -w0 -l | grep -i iphone`（能看到 iPhone 就不是线的事）。
 2. 摄像头权限报 `not authorized`，查到是 Claude Code 桌面 App 内部嵌套的
    `com.anthropic.claude-code` helper 没有声明 `NSCameraUsageDescription`，
    TCC 责任链在这里截断，导致从 Claude Code 里怎么开系统权限都没用 →
