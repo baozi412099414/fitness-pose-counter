@@ -197,6 +197,9 @@ class Action:
         self.name = cfg.get("name", cfg["id"])
         self.signal_type = cfg["counter"]["signal"]   # "angle" | "distance"
         self.signal_points = cfg["counter"]["points"]
+        # 可选：归一化参考点对。距离类信号（如开合跳的两脚踝距离）会被它除一下，
+        # 一般传「两肩」——用肩宽当尺子，站远站近数值都稳定。
+        self.unit_points = cfg["counter"].get("unit_points")
         self.counter = RepCounter(cfg["counter"])
         self.min_visibility = cfg.get("min_visibility", 0.5)
         self.quality = QualityChecker(cfg.get("quality", []),
@@ -208,7 +211,11 @@ class Action:
         """从 33 个关键点算出当前判定信号值。"""
         pts = [points[i] for i in self.signal_points]
         if self.signal_type == "distance":
-            return distance_between(pts[0], pts[1])
+            d = distance_between(pts[0], pts[1])
+            if self.unit_points:
+                u = [points[i] for i in self.unit_points]
+                d = d / (distance_between(u[0], u[1]) + 1e-6)   # 归一化（除以肩宽）
+            return d
         return angle_between(pts[0], pts[1], pts[2])
 
     def update(self, points, visibilities=None, now=None):

@@ -292,8 +292,13 @@ def main():
                 # 启动头 2 秒你应该是站着的，用这段时间信号的中位数当「站立基线」，
                 # 再自动定门槛：下蹲门槛 = 基线-25°，还原线 = 基线-8°，
                 # 「站起伸直」标准 = 基线-10°。换个人 / 换机位都不必回来改配置。
+                # 注意：只对「角度类」动作有效；距离类（如开合跳的脚距/肩宽比值）
+                # 单位不是度，用不了这套减法，所以直接跳过、用配置里的固定阈值。
                 if not calib_done and person_ok:
-                    if time.time() < warmup_until:
+                    if action.signal_type != "angle":
+                        calib_done = True
+                        print(f"  （{action.name} 是距离类信号，跳过角度基线校准，用配置阈值）")
+                    elif time.time() < warmup_until:
                         warmup_samples.append(action.signal(pts))
                     elif len(warmup_samples) >= 8:
                         warmup_samples.sort()

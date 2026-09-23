@@ -1,0 +1,23 @@
+{
+  "id": "jumping_jack",
+  "name": "开合跳",
+  "camera_side": "正",
+  "counter": {
+    "signal": "distance",
+    "points": [27, 28],
+    "unit_points": [11, 12],
+    "lo": 0.35,
+    "hi": 0.85,
+    "first": "hi",
+    "min_interval": 0.30
+  },
+  "quality": [
+    {
+      "name": "legs_not_apart",
+      "check": "peak_min",
+      "min": 0.95,
+      "when": "on_rep",
+      "tip": "腿没张开，跳开一点"
+    }
+  ]
+}
