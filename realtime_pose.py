@@ -232,6 +232,10 @@ def main():
     cam.start()
     time.sleep(0.4)                     # 等第一帧
 
+    # WINDOW_NORMAL 让窗口可拖拽缩放，也更容易拿到键盘焦点（默认 AUTOSIZE 会锁死尺寸）
+    cv2.namedWindow("realtime pose", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("realtime pose", 960, 540)
+
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
     last_count = 0                      # 上次计数，用于「刚数上一个」时语音报数
     got_first = False                   # 是否已出过画面（用来抢一次窗口焦点）
@@ -354,8 +358,17 @@ def main():
                 cv2.waitKey(1)
                 bring_window_to_front()
 
+            # 直接点窗口的 ✕ 关掉也要能退出（最符合直觉的方式）
+            try:
+                if cv2.getWindowProperty("realtime pose", cv2.WND_PROP_VISIBLE) < 1:
+                    print("\n窗口已关闭，退出。")
+                    break
+            except cv2.error:
+                break
+
+            # q / ESC 退出，r 清零
             k = cv2.waitKey(1) & 0xFF
-            if k == ord("q"):
+            if k in (ord("q"), 27):
                 break
             if k == ord("r"):
                 action.reset()

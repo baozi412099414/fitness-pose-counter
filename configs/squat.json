@@ -5,7 +5,7 @@
   "counter": {
     "signal": "angle",
     "points": [23, 25, 27],
-    "lo": 115,
+    "lo": 140,
     "hi": 155,
     "first": "lo",
     "min_interval": 0.40
