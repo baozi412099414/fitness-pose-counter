@@ -50,25 +50,44 @@ class RepCounter:
     """
 
     def __init__(self, counter_cfg):
-        self.lo = float(counter_cfg["lo"])
-        self.hi = float(counter_cfg["hi"])
-        self.first = counter_cfg.get("first", "lo")
+        # 两种模式：
+        #  · 单条件（默认）：给 lo / hi 两个阈值，看一个信号
+        #  · 多条件 AND    ：给 conditions 列表，**所有条件同时满足**才算进入动作
+        #    （开合跳必须这样 —— 只拿「手举起」当条件的话，抬手就会误计数）
+        self.conditions = counter_cfg.get("conditions")
+        if self.conditions:
+            self.first = counter_cfg.get("first", "on")
+        else:
+            self.lo = float(counter_cfg["lo"])
+            self.hi = float(counter_cfg["hi"])
+            self.first = counter_cfg.get("first", "lo")
         self.min_interval = float(counter_cfg.get("min_interval", 0.35))
         self.stage = "ready"        # ready=等待开始；active=已进入动作阶段
         self.count = 0
         self._last_t = -1e9
 
-    def update(self, signal, now=None):
+    def _act_and_rest(self, values):
+        """返回 (是否满足「进入动作」, 是否满足「回到还原」)。"""
+        if self.conditions:
+            act = all(v >= c["on"] for v, c in zip(values, self.conditions))
+            rest = all(v <= c["off"] for v, c in zip(values, self.conditions))
+            return act, rest
+        v = values[0]
+        if self.first == "lo":
+            return (v <= self.lo), (v >= self.hi)
+        return (v >= self.hi), (v <= self.lo)
+
+    def update(self, values, now=None):
+        """values 可以是单个数，也可以是各条件的信号值列表（多条件模式）。"""
+        if not isinstance(values, (list, tuple)):
+            values = [values]
         now = time.time() if now is None else now
+        act, rest = self._act_and_rest(values)
         if self.stage == "ready":
-            if self.first == "lo" and signal <= self.lo:
-                self.stage = "active"
-            elif self.first == "hi" and signal >= self.hi:
+            if act:
                 self.stage = "active"
         else:  # active：等待还原
-            done = (self.first == "lo" and signal >= self.hi) or \
-                   (self.first == "hi" and signal <= self.lo)
-            if done:
+            if rest:
                 if now - self._last_t >= self.min_interval:
                     self.count += 1
                     self._last_t = now
@@ -204,23 +223,39 @@ class Action:
     def __init__(self, cfg):
         self.id = cfg["id"]
         self.name = cfg.get("name", cfg["id"])
-        self.signal_type = cfg["counter"]["signal"]   # "angle" | "distance"
-        self.signal_points = cfg["counter"]["points"]
-        # 可选：归一化参考点对。距离类信号（如开合跳的两脚踝距离）会被它除一下，
-        # 一般传「两肩」——用肩宽当尺子，站远站近数值都稳定。
-        self.unit_points = cfg["counter"].get("unit_points")
-        self.counter = RepCounter(cfg["counter"])
+        counter_cfg = cfg["counter"]
+        # 多条件 AND 模式：conditions 里每个条件自带 signal / points / unit_points
+        self.conditions = counter_cfg.get("conditions")
+        if self.conditions:
+            first = self.conditions[0]
+            self.signal_type = first["signal"]
+            self.signal_points = first["points"]
+            self.unit_points = first.get("unit_points")
+        else:
+            self.signal_type = counter_cfg["signal"]   # "angle" | "distance" | "dy"
+            self.signal_points = counter_cfg["points"]
+            # 可选：归一化参考点对（一般传「两肩」= 用肩宽当尺子，站远站近数值都稳定）
+            self.unit_points = counter_cfg.get("unit_points")
+        self.counter = RepCounter(counter_cfg)
         self.min_visibility = cfg.get("min_visibility", 0.5)
         self.quality = QualityChecker(cfg.get("quality", []),
                                       min_visibility=self.min_visibility)
         self.sig_peak = None            # 本轮动作里信号达到过的最大值（供 peak_* 判定）
         self.depth_valley = None        # 动作阶段里信号的最小值（供 valley_* 判定）
         self.rule_ext = {}              # {规则名: {peak, valley}} 自带 signal 的规则各自记极值
+        self.last_values = []           # 最近一帧各条件的信号值（供 HUD 显示）
+
+    def signals(self, points):
+        """算所有判定条件的信号值（单条件模式就一个）。"""
+        conds = self.conditions or [{"signal": self.signal_type,
+                                     "points": self.signal_points,
+                                     "unit_points": self.unit_points}]
+        return [self._calc_signal(c["signal"], points, c["points"], c.get("unit_points"))
+                for c in conds]
 
     def signal(self, points):
-        """从 33 个关键点算出当前计数信号值。"""
-        return self._calc_signal(self.signal_type, points,
-                                 self.signal_points, self.unit_points)
+        """显示用的主信号（多条件时取第一个）。"""
+        return self.signals(points)[0]
 
     @staticmethod
     def _calc_signal(sig_type, points, idx, unit_points=None):
@@ -248,12 +283,17 @@ class Action:
 
     def update(self, points, visibilities=None, now=None):
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
-        sig = self.signal(points)
-        # 计数信号的可信度：人没拍到 / 目标跟丢时，MediaPipe 会输出「幽灵骨架」或乱点，
-        # 拿它算角度就会「没人也在加数」，所以可信度不够就**不更新状态机**。
+        values = self.signals(points)
+        self.last_values = values                # 供 HUD 显示每个条件的当前值
+        sig = values[0] if values else None      # 显示用（多条件时是第一个）
+        # 可信度：把所有条件用到的关键点都算进来；人没拍到 / 跟丢时不更新状态机，
+        # 否则 MediaPipe 输出的「幽灵骨架」会让程序凭空加数。
         conf = 1.0
         if visibilities is not None:
-            conf = min(visibilities[i] for i in self.signal_points)
+            idxs = set()
+            for c in (self.conditions or [{"points": self.signal_points}]):
+                idxs.update(c["points"])
+            conf = min(visibilities[i] for i in idxs)
 
         # 追踪本轮峰值：peak_min / peak_max 类约束要用它，
         # 因为「刚过计数线那一帧」的角度不能代表这一轮的实际幅度。
@@ -262,7 +302,7 @@ class Action:
         just_counted = False
         if conf >= self.min_visibility:
             before = self.counter.count
-            count, stage = self.counter.update(sig, now)
+            count, stage = self.counter.update(values, now)
             just_counted = count > before       # 这一帧刚数上一个
         else:
             count, stage = self.counter.count, self.counter.stage

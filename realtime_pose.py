@@ -352,10 +352,15 @@ def main():
             det_color = (120, 230, 120) if person_ok else (60, 60, 255)
             cv2.putText(frame, det_txt, (12, 92),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, det_color, 2)
-            # 校准信息：站立基线 + 本轮最低点（帮你判断门槛该定多少）
-            base_txt = f"{baseline:.0f}" if baseline else "calib.."
-            low_txt = f"{action.depth_valley:.0f}" if action.depth_valley is not None else "--"
-            cv2.putText(frame, f"base {base_txt}  lowest {low_txt}", (12, 116),
+            # 信息行：多条件动作显示各条件当前值；角度类动作显示站立基线 + 本轮最低点
+            if action.conditions:
+                vals = "  ".join(f"{v:5.2f}" for v in action.last_values)
+                info_txt = f"cond  {vals}"
+            else:
+                base_txt = f"{baseline:.0f}" if baseline else "calib.."
+                low_txt = f"{action.depth_valley:.0f}" if action.depth_valley is not None else "--"
+                info_txt = f"base {base_txt}  lowest {low_txt}"
+            cv2.putText(frame, info_txt, (12, 116),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 120), 2)
             cv2.putText(frame, f"{fps:4.1f} fps", (12, 140),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)

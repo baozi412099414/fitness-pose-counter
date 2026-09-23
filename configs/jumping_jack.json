@@ -3,13 +3,24 @@
   "name": "开合跳",
   "camera_side": "正",
   "counter": {
-    "signal": "dy",
-    "points": [11, 15],
-    "unit_points": [11, 12],
-    "lo": -0.8,
-    "hi": 0.3,
-    "first": "hi",
-    "min_interval": 0.30
+    "conditions": [
+      {
+        "signal": "dy",
+        "points": [11, 15],
+        "unit_points": [11, 12],
+        "on": 0.3,
+        "off": -0.6
+      },
+      {
+        "signal": "distance",
+        "points": [27, 28],
+        "unit_points": [11, 12],
+        "on": 0.6,
+        "off": 0.35
+      }
+    ],
+    "first": "on",
+    "min_interval": 0.35
   },
   "quality": [
     {
