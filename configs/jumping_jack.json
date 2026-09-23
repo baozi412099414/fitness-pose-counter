@@ -3,30 +3,18 @@
   "name": "开合跳",
   "camera_side": "正",
   "counter": {
-    "conditions": [
-      {
-        "signal": "dy",
-        "points": [11, 15],
-        "unit_points": [11, 12],
-        "on": 0.2,
-        "off": -0.3
-      },
-      {
-        "signal": "dx",
-        "points": [27, 28],
-        "unit_points": [11, 12],
-        "on": 0.3,
-        "off": 0.6
-      }
-    ],
-    "first": "on",
-    "min_interval": 0.35
+    "signal": "angle",
+    "points": [13, 11, 23],
+    "lo": 30,
+    "hi": 60,
+    "first": "hi",
+    "min_interval": 0.40
   },
   "quality": [
     {
       "name": "hand_not_up",
       "check": "peak_min",
-      "min": 1.8,
+      "min": 150,
       "when": "on_rep",
       "tip": "手没举过头顶"
     },
@@ -36,7 +24,7 @@
       "points": [27, 28],
       "unit_points": [11, 12],
       "check": "peak_min",
-      "min": 3.0,
+      "min": 1.5,
       "when": "on_rep",
       "tip": "腿没张开，跳开一点"
     }

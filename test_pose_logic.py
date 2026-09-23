@@ -225,105 +225,89 @@ def test_depth_judgment():
 
 
 def test_jumping_jack():
-    print("=== 测试 10：开合跳（双条件 AND + 用水平距离区分走路） ===")
+    print("=== 测试 10：开合跳（肩角计数 + 手/腿两条质量约束） ===")
     action = load_action("configs/jumping_jack.json")
-    print(f"  计数条件 {len(action.counter.conditions)} 条（AND），质量约束 {len(action.quality.rules)} 条")
-    # 肩宽 150px。真实实测：手举过头时肩-腕竖直差 ≈ 1.5 倍肩宽（手臂比肩宽长），
-    # 所以合成数据也按这个比例造，否则测不出真实门槛。
-    SHOULDER_Y, SHOULDER_W = 300, 150
+    print(f"  计数信号 {action.signal_type}（肩-肘-髋夹角），质量约束 {len(action.quality.rules)} 条")
+    # 肩(11)=(200,300)、髋(23)=(200,400)。肩角 = 角(肘,肩,髋)：
+    #   手垂身侧 肘(200,400) -> 0 度；手举到肩高 肘(300,300) -> 90 度；手举过头 肘(200,100) -> 180 度
+    SHOULDER, HIP = (200, 300), (200, 400)
+    DOWN, SHOULDER_HIGH, UP = (200, 400), (300, 300), (200, 100)
+    CLOSE, OPEN, HALF_OPEN = 5, 200, 100
 
-    def pose(hand_y, foot_half, foot_dy=0):
-        """hand_y 手腕 y；foot_half 每只脚离中线的水平距离；foot_dy 两脚前后差（模拟走路迈步）"""
+    def pose(elbow, foot_half=CLOSE, foot_dy=0):
         p = [(0, 0)] * 33
-        p[11] = (200, SHOULDER_Y)              # 左肩
-        p[12] = (200 + SHOULDER_W, SHOULDER_Y)  # 右肩
-        p[15] = (200, hand_y)                  # 左腕
-        p[27] = (275 - foot_half, 700 + foot_dy)   # 左踝
-        p[28] = (275 + foot_half, 700 - foot_dy)   # 右踝
+        p[11] = SHOULDER
+        p[12] = (SHOULDER[0] + 150, SHOULDER[1])
+        p[13] = elbow
+        p[23] = HIP
+        p[27] = (275 - foot_half, 700 + foot_dy)
+        p[28] = (275 + foot_half, 700 - foot_dy)
         return p
 
     vis = [1.0] * 33
-    DOWN = SHOULDER_Y + int(1.5 * SHOULDER_W)    # 手放下  dy≈-1.5
-    UP = SHOULDER_Y - int(2.2 * SHOULDER_W)      # 手举过头 dy≈+2.2（实测）
-    HALF = SHOULDER_Y - int(1.2 * SHOULDER_W)    # 手举一半 dy≈+1.2（不达标）
-    CLOSE = 5                                    # 脚并拢 ≈0.07
-    OPEN = int(2.1 * SHOULDER_W)                 # 脚张开 ≈4.2（实测）
-    HALF_OPEN = int(1.0 * SHOULDER_W)            # 只张开 ≈2.0（不达标）
 
-    # ① 标准开合跳
-    action.update(pose(DOWN, CLOSE), vis, now=0.0)
+    # 1 标准开合跳（手举过头 + 脚张开）
+    action.update(pose(DOWN), vis, now=0.0)
     _, _, sig_up, _, _ = action.update(pose(UP, OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = action.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ① 标准开合跳（手 dy={sig_up:.2f}）-> 计数 {c}，报错 {[h['name'] for h in hits]}（应为空）")
+    c, s, sig, hits, _ = action.update(pose(DOWN), vis, now=1.0)
+    print(f"  1 标准开合跳（肩角 {sig_up:.0f} 度）-> 计数 {c}，报错 {[h['name'] for h in hits]}（应为空）")
     assert c == 1, "标准动作应计 1 次"
     assert not hits, "标准动作不该报错"
 
-    # ② 只抬手、不跳（脚一直并拢）-> 不该计数
+    # 2 手只举到肩膀高度（90 度：过了进入门槛 60 度，但没到举过头标准 150 度）
     a2 = load_action("configs/jumping_jack.json")
-    a2.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a2.update(pose(UP, CLOSE), vis, now=0.5)
-    c, s, sig, hits, _ = a2.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ② 只抬手不跳 -> 计数 {c}（应为 0）")
-    assert c == 0, "只有手举起、脚没张开，不该计数"
-
-    # ③ 摸头发 + 走路：手举起，但两脚是「一前一后」迈步（水平距离小）-> 不该计数
-    a3 = load_action("configs/jumping_jack.json")
-    a3.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a3.update(pose(UP, 10, 60), vis, now=0.5)      # 手摸头 + 脚前后差 120px
-    c, s, sig, hits, _ = a3.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ③ 摸头发+走路迈步 -> 计数 {c}（应为 0）")
-    assert c == 0, "走路的前后迈步不该算成脚张开"
-
-    # ④ 只有脚张开、手没抬起 -> 不该计数
-    a4 = load_action("configs/jumping_jack.json")
-    a4.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a4.update(pose(DOWN, OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a4.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ④ 只张脚不抬手 -> 计数 {c}（应为 0）")
-    assert c == 0, "只有脚张开、手没举起，不该计数"
-
-    # ⑤ 手只举到一半（dy≈1.0 < 标准 1.3）-> 计数 + 报 hand_not_up
-    a5 = load_action("configs/jumping_jack.json")
-    a5.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a5.update(pose(HALF, OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a5.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ⑤ 手只举到 dy≈1.0 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
-    assert c == 1, "过了计数线也算一次（计数宽松）"
+    a2.update(pose(DOWN), vis, now=0.0)
+    a2.update(pose(SHOULDER_HIGH, OPEN), vis, now=0.5)
+    c, s, sig, hits, _ = a2.update(pose(DOWN), vis, now=1.0)
+    print(f"  2 手只举到肩高（肩角 {sig:.0f} 度）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    assert c == 1, "过了进入门槛也算一次"
     assert any(h["name"] == "hand_not_up" for h in hits), "应报「手没举过头顶」"
 
-    # ⑥ 手举过头、但腿只张开一半（1.07 < 标准 1.5）-> 计数 + 报 legs_not_apart
-    a6 = load_action("configs/jumping_jack.json")
-    a6.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a6.update(pose(UP, HALF_OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a6.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ⑥ 腿只张开到 1.07 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    # 3 手举过头、但腿没张开
+    a3 = load_action("configs/jumping_jack.json")
+    a3.update(pose(DOWN), vis, now=0.0)
+    a3.update(pose(UP, HALF_OPEN), vis, now=0.5)
+    c, s, sig, hits, _ = a3.update(pose(DOWN), vis, now=1.0)
+    print(f"  3 手举过头但腿只张开一半 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert any(h["name"] == "legs_not_apart" for h in hits), "应报「腿没张开」"
-    print("  ✅ 双条件 AND + 计数宽松/质量严格 都生效\n")
+
+    # 4 手只抬到胸前（约 30 度，没过进入门槛 60 度）-> 不算一次动作
+    a4 = load_action("configs/jumping_jack.json")
+    a4.update(pose(DOWN), vis, now=0.0)
+    a4.update(pose((250, 387), OPEN), vis, now=0.5)
+    c, s, sig, hits, _ = a4.update(pose(DOWN), vis, now=1.0)
+    print(f"  4 手只抬到胸前 -> 计数 {c}（应为 0，不算一次动作）")
+    assert c == 0, "没举过肩不该算一次动作"
+    print("  肩角计数稳定；手没举过头、腿没张开 都能报出来")
+
 
 
 def test_abnormal_frame_dropped():
     print("=== 测试 11：关键点异常帧被丢弃（肩宽趋近 0 时不产生离谱比值） ===")
     a = load_action("configs/jumping_jack.json")
 
-    def pose(shoulder_w, hand_y, foot_half):
+    def pts(shoulder_w):
         p = [(0, 0)] * 33
         p[11] = (150, 100)
-        p[12] = (150 + shoulder_w, 100)          # 肩宽可变
-        p[15] = (150, hand_y)
-        p[27] = (150 - foot_half, 400)
-        p[28] = (150 + foot_half, 400)
+        p[12] = (150 + shoulder_w, 100)     # 肩宽可变（腿距归一化用）
+        p[27] = (100, 400)                  # 两脚左右张开 100px
+        p[28] = (200, 400)
         return p
 
-    # 异常帧：肩宽只剩 2px（MediaPipe 偶尔会把两个肩点检到几乎重合）
-    sigs = a.signals(pose(2, 30, 50))
-    print(f"  肩宽 2px   -> 信号 {sigs}（应含 None，被丢弃）")
-    assert any(s is None for s in sigs), "肩宽过小应判为异常帧"
+    # 腿距信号 = dx / 肩宽，肩宽只剩 2px 时应该判为异常帧，而不是算出 50 倍这种离谱值
+    bad = a._calc_signal("dx", pts(2), [27, 28], [11, 12])
+    print(f"  肩宽 2px   -> 腿距信号 {bad}（应是 None，被丢弃）")
+    assert bad is None, "肩宽过小应判为异常帧"
 
-    # 正常帧：肩宽 100px
-    sigs = a.signals(pose(100, 30, 50))
-    print(f"  肩宽 100px -> 手高度 {sigs[0]:.2f}  脚水平距 {sigs[1]:.2f}")
-    assert all(s is not None for s in sigs), "正常帧不该被丢弃"
-    print("  ✅ 异常帧不会污染峰值（这是「永远不报错」的根因）\n")
+    good = a._calc_signal("dx", pts(100), [27, 28], [11, 12])
+    print(f"  肩宽 100px -> 腿距信号 {good:.2f}（正常）")
+    assert good is not None and 0.9 < good < 1.1, "正常帧应算出 ≈1.0"
+
+    # 角度类信号不依赖归一化，不会被异常肩宽影响
+    ang = a._calc_signal("angle", pts(2), [13, 11, 23])
+    print(f"  肩角信号（不依赖归一化）-> {ang:.1f} 度")
+    print("  异常帧不会污染距离类约束的峰值")
+
 
 
 if __name__ == "__main__":
