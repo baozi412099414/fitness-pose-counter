@@ -60,16 +60,27 @@ def _backend():
     return cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
 
 
-def probe_cameras(max_index=4):
-    """挨个试设备号，返回真正能读出画面的那些。"""
+def probe_cameras(max_index=4, wait=8.0):
+    """
+    挨个试设备号，只认「真的能读出一帧」的那些。
+
+    关键：连续互通相机握手要好几秒。等太短就会「刚连上就被 release 掉」，
+    表现为 iPhone 亮一下马上断开、列表里还什么都没有。
+    所以对每个设备号最多耐心等 wait 秒。
+    （这个坑 CLAUDE.md 里记录过，camera_check.py 早就修了，这里补上。）
+    """
     found = []
     for i in range(max_index):
         cap = cv2.VideoCapture(i, _backend())
         if cap.isOpened():
-            ok, frame = cap.read()
-            if ok and frame is not None:
-                h, w = frame.shape[:2]
-                found.append((i, w, h))
+            t0 = time.time()
+            while time.time() - t0 < wait:
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    h, w = frame.shape[:2]
+                    found.append((i, w, h))
+                    break
+                time.sleep(0.4)
         cap.release()
     return found
 
