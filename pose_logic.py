@@ -96,12 +96,12 @@ class QualityChecker:
         self.rules = quality_cfgs or []
         self.min_visibility = min_visibility
 
-    def check(self, points, visibilities=None, stage="any"):
+    def check(self, points, visibilities=None, stage="any", just_counted=False):
         """
         逐条检查，返回明细列表，每项含：
           name / tip / value(实测值) / limit(阈值) / ok(是否达标)
           visible  关键点是否拍全（拍不到 → 不判定，避免误报）
-          checked  本阶段是否参与判定（规则可用 "when" 限定只在 ready / active 判）
+          checked  本次是否参与判定（"when" 可选 any / ready / active / on_rep）
         """
         checks = []
         for rule in self.rules:
@@ -116,7 +116,14 @@ class QualityChecker:
             # 阶段过滤：例如「手臂没伸直」只在还原阶段判 ——
             # 否则动作过程中肘角本来就小，会像「总说塌腰」那样一直误报
             when = rule.get("when", "any")
-            checked = (when == "any") or (when == stage)
+            if when == "any":
+                checked = True
+            elif when == "on_rep":
+                # 只在「刚刚完成一次计数」的那一帧判。
+                # 例：「站起时腿没伸直」—— 下蹲过程中膝角小是正常的，不该判。
+                checked = just_counted
+            else:
+                checked = (when == stage)
 
             kind = rule.get("check")
             value, limit, ok = None, None, True
@@ -183,11 +190,15 @@ class Action:
         conf = 1.0
         if visibilities is not None:
             conf = min(visibilities[i] for i in self.signal_points)
+        just_counted = False
         if conf >= self.min_visibility:
+            before = self.counter.count
             count, stage = self.counter.update(sig, now)
+            just_counted = count > before       # 这一帧刚数上一个
         else:
             count, stage = self.counter.count, self.counter.stage
-        checks = self.quality.check(points, visibilities, stage)
+        # just_counted 传给质量检查，让 when="on_rep" 的约束只在计数那一刻判
+        checks = self.quality.check(points, visibilities, stage, just_counted)
         hits = self.quality.hits(checks)
         return count, stage, sig, hits, checks
 

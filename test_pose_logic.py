@@ -160,6 +160,31 @@ def test_no_count_without_person():
     print("  ✅ 没人不加数，有人正常加数\n")
 
 
+def test_on_rep_timing():
+    print("=== 测试 8：约束绑定到计数事件（只在站起那一刻判） ===")
+    action = load_action("configs/squat.json")
+    vis = [1.0] * 33
+
+    def knee_pts(offset):
+        """构造膝角由 offset 决定的姿态：offset 越大，膝角越小。"""
+        p = [(0, 0)] * 33
+        p[23] = (100, 100)
+        p[25] = (100 + offset, 160)
+        p[27] = (100, 220)
+        return p
+
+    action.update(knee_pts(60), vis, now=0.0)                        # 蹲下 -> active
+    c, s, sig, hits, _ = action.update(knee_pts(10), vis, now=1.0)   # 站起，但没伸直到位
+    print(f"  站起膝角 {sig:.1f}° -> REPS {c}  报错 {[h['name'] for h in hits]}")
+    assert c == 1, "应该计 1 次"
+    assert hits, "没伸直到位应报（和计数同时发生是正确的）"
+
+    c, s, sig, hits, _ = action.update(knee_pts(45), vis, now=2.0)   # 下蹲过程中
+    print(f"  下蹲膝角 {sig:.1f}° -> REPS {c}  报错 {[h['name'] for h in hits]}（应为空）")
+    assert not hits, "下蹲过程中不该报「站起时没伸直」"
+    print("  ✅ 只在站起那一刻判，下蹲过程不误报\n")
+
+
 if __name__ == "__main__":
     test_rep_counter()
     test_hysteresis()
@@ -168,4 +193,5 @@ if __name__ == "__main__":
     test_stage_filter()
     test_load_and_update()
     test_no_count_without_person()
+    test_on_rep_timing()
     print("全部通过 ✅")

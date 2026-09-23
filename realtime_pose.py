@@ -235,6 +235,9 @@ def main():
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
     last_count = 0                      # 上次计数，用于「刚数上一个」时语音报数
     got_first = False                   # 是否已出过画面（用来抢一次窗口焦点）
+    # 启动后头 2 秒画面还在稳定（相机自动曝光、人还在站位），这期间 MediaPipe
+    # 容易输出乱跳的关键点，会造成「凭空多计一次」→ 所以先不计数。
+    warmup_until = time.time() + 2.0
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -279,7 +282,12 @@ def main():
                     cv2.circle(frame, p, 3, (255, 255, 255), -1)
 
                 # 配置驱动的判定：算信号 → 状态机计数 → 质量明细
-                count, stage, sig, hits, checks = action.update(pts, vis)
+                if time.time() >= warmup_until:
+                    count, stage, sig, hits, checks = action.update(pts, vis)
+                else:
+                    # 稳定期内只算信号拿来显示，不动状态机（避免凭空多计一次）
+                    sig = action.signal(pts)
+                    count, stage = action.counter.count, action.counter.stage
                 if sig is not None:
                     sig_txt = f"{sig:5.1f}"
 
