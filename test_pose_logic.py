@@ -225,23 +225,23 @@ def test_depth_judgment():
 
 
 def test_jumping_jack():
-    print("=== 测试 10：开合跳（双条件 AND —— 手举起 且 脚张开） ===")
+    print("=== 测试 10：开合跳（双条件 AND + 用水平距离区分走路） ===")
     action = load_action("configs/jumping_jack.json")
     print(f"  计数条件 {len(action.counter.conditions)} 条（AND），质量约束 {len(action.quality.rules)} 条")
 
-    def pose(hand_y, foot_half):
-        """hand_y = 手腕 y（越小越高）；foot_half = 每只脚离中线的水平距离。肩宽固定 100px"""
+    def pose(hand_y, foot_half, foot_dy=0):
+        """hand_y 手腕 y；foot_half 每只脚离中线的水平距离；foot_dy 两脚前后差（模拟走路迈步）"""
         p = [(0, 0)] * 33
         p[11] = (100, 100)                 # 左肩
         p[12] = (200, 100)                 # 右肩（肩宽 = 100）
         p[15] = (100, hand_y)              # 左腕
-        p[27] = (150 - foot_half, 400)     # 左踝
-        p[28] = (150 + foot_half, 400)     # 右踝
+        p[27] = (150 - foot_half, 400 + foot_dy)   # 左踝
+        p[28] = (150 + foot_half, 400 - foot_dy)   # 右踝
         return p
 
     vis = [1.0] * 33
     DOWN, UP = 300, 30            # 手放下 dy=-2.0 / 手举起 dy=+0.7
-    CLOSE, OPEN = 2, 50           # 脚并拢 比值0.04 / 脚张开 比值1.0
+    CLOSE, OPEN = 2, 50           # 脚并拢 / 脚左右张开
 
     # ① 标准开合跳
     action.update(pose(DOWN, CLOSE), vis, now=0.0)
@@ -251,7 +251,7 @@ def test_jumping_jack():
     assert c == 1, "标准动作应计 1 次"
     assert not hits, "标准动作不该报错"
 
-    # ② 只抬手、不跳（脚一直并拢）-> 不该计数  ← 这正是之前误计数的场景
+    # ② 只抬手、不跳（脚一直并拢）-> 不该计数
     a2 = load_action("configs/jumping_jack.json")
     a2.update(pose(DOWN, CLOSE), vis, now=0.0)
     a2.update(pose(UP, CLOSE), vis, now=0.5)
@@ -259,19 +259,28 @@ def test_jumping_jack():
     print(f"  ② 只抬手不跳 -> 计数 {c}（应为 0）")
     assert c == 0, "只有手举起、脚没张开，不该计数"
 
-    # ③ 只张脚、不抬手 -> 不该计数
+    # ③ 摸头发 + 走路：手举起，但两脚是「一前一后」迈步（水平距离小）-> 不该计数
+    #    （用直线距离时，前后迈步的距离很大，会被误当成「脚张开」—— 这就是之前的 bug）
     a3 = load_action("configs/jumping_jack.json")
     a3.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a3.update(pose(DOWN, OPEN), vis, now=0.5)
+    a3.update(pose(UP, 10, 60), vis, now=0.5)      # 手摸头 + 脚前后差 120px
     c, s, sig, hits, _ = a3.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ③ 只张脚不抬手 -> 计数 {c}（应为 0）")
-    assert c == 0, "只有脚张开、手没举起，不该计数"
+    print(f"  ③ 摸头发+走路迈步 -> 计数 {c}（应为 0）")
+    assert c == 0, "走路的前后迈步不该算成脚张开"
 
-    # ④ 两条件都满足、但手没举过头（dy=0.55）-> 计数 + 报 hand_not_up
+    # ④ 只有脚张开、手没抬起 -> 不该计数
     a4 = load_action("configs/jumping_jack.json")
     a4.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a4.update(pose(45, OPEN), vis, now=0.5)
+    a4.update(pose(DOWN, OPEN), vis, now=0.5)
     c, s, sig, hits, _ = a4.update(pose(DOWN, CLOSE), vis, now=1.0)
+    print(f"  ④ 只张脚不抬手 -> 计数 {c}（应为 0）")
+    assert c == 0, "只有脚张开、手没举起，不该计数"
+
+    # ⑤ 两条件都满足、但手没举过头（dy=0.55）-> 计数 + 报 hand_not_up
+    a5 = load_action("configs/jumping_jack.json")
+    a5.update(pose(DOWN, CLOSE), vis, now=0.0)
+    a5.update(pose(45, OPEN), vis, now=0.5)
+    c, s, sig, hits, _ = a5.update(pose(DOWN, CLOSE), vis, now=1.0)
     print(f"  ④ 手只举到 dy=0.55 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert c == 1, "过了计数线也算一次（计数宽松）"
     assert any(h["name"] == "hand_not_up" for h in hits), "应报「手没举过头顶」"

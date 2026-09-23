@@ -263,6 +263,7 @@ class Action:
         算一个信号值。计数信号和「规则自带信号」共用这套算法：
           angle    三点夹角（度）
           distance 两点欧氏距离
+          dx       两点的水平差（开合跳判「脚左右张开」，能区分走路的前后迈步）
           dy       两点的竖直差（图像 y 向下，所以「上面的点 − 下面的点」为正）
         给了 unit_points 就再除以这对点的距离做归一化（一般传两肩 —— 用肩宽当尺子，
         这样站远站近数值都稳定）。
@@ -272,6 +273,10 @@ class Action:
             return angle_between(pts[0], pts[1], pts[2])
         if sig_type == "distance":
             v = distance_between(pts[0], pts[1])
+        elif sig_type == "dx":
+            # 两点的「水平」差 —— 开合跳要用它：走路是前后迈步（图像里 y 差大、x 差小），
+            # 开合跳是左右张开（x 差大）。用直线距离区分不开这两件事。
+            v = abs(pts[0][0] - pts[1][0])
         elif sig_type == "dy":
             v = pts[0][1] - pts[1][1]
         else:

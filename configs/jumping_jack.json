@@ -12,10 +12,10 @@
         "off": -0.6
       },
       {
-        "signal": "distance",
+        "signal": "dx",
         "points": [27, 28],
         "unit_points": [11, 12],
-        "on": 0.6,
+        "on": 0.7,
         "off": 0.35
       }
     ],
@@ -32,7 +32,7 @@
     },
     {
       "name": "legs_not_apart",
-      "signal": "distance",
+      "signal": "dx",
       "points": [27, 28],
       "unit_points": [11, 12],
       "check": "peak_min",

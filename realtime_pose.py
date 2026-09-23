@@ -390,12 +390,17 @@ def main():
                 cv2.putText(frame, "! POINTS HIDDEN  ->  step back, keep whole body in frame",
                             (12, y + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (60, 200, 255), 2)
 
+            # 语音播报：报错优先，并且和报数合并成一句话。
+            # （同一次动作既计数又报错时，两个 say 会互相打断，所以不能连着说两次）
             if hits and now - last_say >= 2.0:
-                say(hits[0]["tip"])
+                tip = hits[0]["tip"]
+                if count > last_count:
+                    tip += f"，{count}"
+                    last_count = count
+                say(tip)
                 last_say = now
-
-            # 刚数上一个就念出数字，做动作时不用盯屏幕也知道数上了没有
-            if count > last_count:
+            elif count > last_count:
+                # 没有错误提示时，单独念数字（做动作时不用盯屏幕也知道数上了）
                 say(str(count))
                 last_count = count
 
