@@ -287,7 +287,13 @@ class Action:
             return None
         if unit_points:
             u = [points[i] for i in unit_points]
-            v = v / (distance_between(u[0], u[1]) + 1e-6)
+            unit_len = distance_between(u[0], u[1])
+            # 归一化基准（一般 = 肩宽）太小，说明这一帧关键点异常（两点几乎重合）。
+            # 直接除会算出离谱的比值（实测见过 28），把「峰值判定」彻底污染掉
+            # —— 结果就是「永远判定通过、永远不报错」。所以这种帧直接丢弃。
+            if unit_len < MIN_UNIT_LEN:
+                return None
+            v = v / unit_len
         return v
 
     def update(self, points, visibilities=None, now=None):
