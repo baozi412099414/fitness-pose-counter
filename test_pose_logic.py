@@ -244,9 +244,11 @@ def test_jumping_jack():
 
     vis = [1.0] * 33
     DOWN = SHOULDER_Y + int(1.5 * SHOULDER_W)    # 手放下  dy≈-1.5
-    UP = SHOULDER_Y - int(1.67 * SHOULDER_W)     # 手举过头 dy≈+1.67（实测值）
-    HALF = SHOULDER_Y - int(1.0 * SHOULDER_W)    # 手举一半 dy≈+1.0（不达标）
-    CLOSE, OPEN, HALF_OPEN = 5, 133, 80          # 脚并拢 / 张开(1.77) / 只张开(1.07)
+    UP = SHOULDER_Y - int(2.2 * SHOULDER_W)      # 手举过头 dy≈+2.2（实测）
+    HALF = SHOULDER_Y - int(1.2 * SHOULDER_W)    # 手举一半 dy≈+1.2（不达标）
+    CLOSE = 5                                    # 脚并拢 ≈0.07
+    OPEN = int(2.1 * SHOULDER_W)                 # 脚张开 ≈4.2（实测）
+    HALF_OPEN = int(1.0 * SHOULDER_W)            # 只张开 ≈2.0（不达标）
 
     # ① 标准开合跳
     action.update(pose(DOWN, CLOSE), vis, now=0.0)

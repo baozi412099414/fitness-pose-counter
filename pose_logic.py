@@ -248,6 +248,7 @@ class Action:
         self.depth_valley = None        # 动作阶段里信号的最小值（供 valley_* 判定）
         self.rule_ext = {}              # {规则名: {peak, valley}} 自带 signal 的规则各自记极值
         self.last_values = []           # 最近一帧各条件的信号值（供 HUD 显示）
+        self.unit_smooth = None         # 归一化基准（肩宽）的平滑值，避免抖动被放大
 
     def signals(self, points):
         """算所有判定条件的信号值（单条件模式就一个）。"""
@@ -261,8 +262,7 @@ class Action:
         """显示用的主信号（多条件时取第一个）。"""
         return self.signals(points)[0]
 
-    @staticmethod
-    def _calc_signal(sig_type, points, idx, unit_points=None):
+    def _calc_signal(self, sig_type, points, idx, unit_points=None):
         """
         算一个信号值。计数信号和「规则自带信号」共用这套算法：
           angle    三点夹角（度）
@@ -271,6 +271,10 @@ class Action:
           dy       两点的竖直差（图像 y 向下，所以「上面的点 − 下面的点」为正）
         给了 unit_points 就再除以这对点的距离做归一化（一般传两肩 —— 用肩宽当尺子，
         这样站远站近数值都稳定）。
+
+        注意：归一化基准用**指数平滑值**，不是当帧值 —— 肩宽本身会抖（跳动、抬手
+        都会影响肩点），拿当帧值当除数等于把这抖动放大成比值乱跳（实测出现过
+        「手高度 = 3.36 倍肩宽」这种不可能的数）。
         """
         pts = [points[i] for i in idx]
         if sig_type == "angle":
@@ -293,7 +297,12 @@ class Action:
             # —— 结果就是「永远判定通过、永远不报错」。所以这种帧直接丢弃。
             if unit_len < MIN_UNIT_LEN:
                 return None
-            v = v / unit_len
+            # 基准用指数平滑值，避免逐帧抖动被放大成比值乱跳
+            if self.unit_smooth is None:
+                self.unit_smooth = unit_len
+            else:
+                self.unit_smooth = 0.9 * self.unit_smooth + 0.1 * unit_len
+            v = v / self.unit_smooth
         return v
 
     def update(self, points, visibilities=None, now=None):
