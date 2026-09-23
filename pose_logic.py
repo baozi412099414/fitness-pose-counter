@@ -84,29 +84,57 @@ class RepCounter:
 # 质量判定（姿态约束）
 # --------------------------------------------------------------------------
 class QualityChecker:
-    """按配置里的 quality 规则逐条检查，返回命中的提示列表（空列表=标准）。"""
+    """
+    按配置里的 quality 规则逐条检查。
 
-    def __init__(self, quality_cfgs):
+    关键点：如果某条规则用到的关键点「不可见」（visibility 太低，例如脚出画了），
+    就**不判定**该规则 —— 因为 MediaPipe 对拍不到的点会猜一个位置，拿它算角度
+    得到的是乱值，只会误报。这种情况标 visible=False，让上层提示用户调整机位。
+    """
+
+    def __init__(self, quality_cfgs, min_visibility=0.5):
         self.rules = quality_cfgs or []
+        self.min_visibility = min_visibility
 
-    def check(self, points):
-        hits = []
+    def check(self, points, visibilities=None):
+        """
+        逐条检查，返回明细列表，每项含：
+          name / tip / value(实测值) / limit(阈值) / ok(是否达标) / visible(关键点是否拍全)
+        visible=False 表示本次不判定，ok 无意义。
+        """
+        checks = []
         for rule in self.rules:
-            pts = [points[i] for i in rule["points"]]
+            idx = rule["points"]
+            pts = [points[i] for i in idx]
+            visible = True
+            if visibilities is not None:
+                visible = min(visibilities[i] for i in idx) >= self.min_visibility
             kind = rule.get("check")
-            ok = True
+            value, limit, ok = None, None, True
             if kind == "collinear":
                 # 三点共线度：算中间点的夹角，180 度为完全直线（塌腰/撅臀时变小）
-                deg = angle_between(pts[0], pts[1], pts[2])
-                ok = deg >= rule.get("min_angle", 160)
+                value = angle_between(pts[0], pts[1], pts[2])
+                limit = rule.get("min_angle", 160)
+                ok = value >= limit
             elif kind == "angle_min":
                 # 某个角要 >= min（例如撑起时肘角 >= 150 才叫伸直）
-                deg = angle_between(pts[0], pts[1], pts[2])
-                ok = deg >= rule.get("min", 0)
-            if not ok:
-                hits.append({"name": rule.get("name", "动作不标准"),
-                             "tip": rule.get("tip", rule.get("name", "动作不标准"))})
-        return hits
+                value = angle_between(pts[0], pts[1], pts[2])
+                limit = rule.get("min", 0)
+                ok = value >= limit
+            checks.append({
+                "name": rule.get("name", "动作不标准"),
+                "tip": rule.get("tip", rule.get("name", "动作不标准")),
+                "value": value,
+                "limit": limit,
+                "ok": ok,
+                "visible": visible,
+            })
+        return checks
+
+    @staticmethod
+    def hits(checks):
+        """从明细里挑出「关键点可见、但不达标」的，作为要报的错误。"""
+        return [c for c in checks if c["visible"] and not c["ok"]]
 
 
 # --------------------------------------------------------------------------
@@ -121,7 +149,8 @@ class Action:
         self.signal_type = cfg["counter"]["signal"]   # "angle" | "distance"
         self.signal_points = cfg["counter"]["points"]
         self.counter = RepCounter(cfg["counter"])
-        self.quality = QualityChecker(cfg.get("quality", []))
+        self.quality = QualityChecker(cfg.get("quality", []),
+                                      min_visibility=cfg.get("min_visibility", 0.5))
 
     def signal(self, points):
         """从 33 个关键点算出当前判定信号值。"""
@@ -130,12 +159,13 @@ class Action:
             return distance_between(pts[0], pts[1])
         return angle_between(pts[0], pts[1], pts[2])
 
-    def update(self, points, now=None):
-        """喂一帧关键点，返回 (count, stage, signal, hits)。"""
+    def update(self, points, visibilities=None, now=None):
+        """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
         sig = self.signal(points)
         count, stage = self.counter.update(sig, now)
-        hits = self.quality.check(points)
-        return count, stage, sig, hits
+        checks = self.quality.check(points, visibilities)
+        hits = self.quality.hits(checks)
+        return count, stage, sig, hits, checks
 
     def reset(self):
         self.counter.reset()

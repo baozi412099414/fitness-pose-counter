@@ -43,7 +43,7 @@ def test_hysteresis():
 def test_quality():
     print("=== 测试 3：质量判定（塌腰检测） ===")
     q = QualityChecker([
-        {"name": "塌腰", "check": "collinear", "points": [11, 23, 27],
+        {"name": "low_back", "check": "collinear", "points": [11, 23, 27],
          "min_angle": 165, "tip": "身体没绷直，塌腰了"}
     ])
     pts = [(0, 0)] * 33
@@ -51,18 +51,44 @@ def test_quality():
     pts[27] = (200, 200)   # 踝
     # 标准：肩-髋-踝三点在一条直线上（共线角 180°）
     pts[23] = (150, 150)
-    print("  标准姿态命中:", q.check(pts) or "(无)")
-    assert not q.check(pts), "标准姿态不应报错"
+    checks = q.check(pts)
+    print(f"  标准姿态: 共线度 {checks[0]['value']:.1f}° / 阈值 {checks[0]['limit']}° -> {q.hits(checks) or '(无)'}")
+    assert not q.hits(checks), "标准姿态不应报错"
     # 塌腰：髋下沉，共线角变小
     pts[23] = (150, 190)
-    hits = q.check(pts)
-    print("  塌腰姿态命中:", hits)
-    assert hits, "塌腰应该被检出"
+    checks = q.check(pts)
+    print(f"  塌腰姿态: 共线度 {checks[0]['value']:.1f}° / 阈值 {checks[0]['limit']}° -> {q.hits(checks)}")
+    assert q.hits(checks), "塌腰应该被检出"
     print("  ✅ 塌腰被正确检出\n")
 
 
+def test_invisible_points():
+    print("=== 测试 5：关键点不可见时不误报（照不全身体的场景） ===")
+    q = QualityChecker([
+        {"name": "low_back", "check": "collinear", "points": [11, 23, 27],
+         "min_angle": 165, "tip": "塌腰"}
+    ])
+    pts = [(0, 0)] * 33
+    pts[11] = (100, 100)
+    pts[23] = (150, 190)   # 塌腰姿态
+    pts[27] = (200, 200)
+    # 关键点都拍到了 -> 应该报
+    vis_all = [1.0] * 33
+    checks = q.check(pts, vis_all)
+    print("  关键点都可见 ->", q.hits(checks))
+    assert q.hits(checks), "可见时塌腰应被检出"
+    # 脚踝出画（visibility 很低）-> 不该报，而是标记为不可见
+    vis_hidden = [1.0] * 33
+    vis_hidden[27] = 0.1
+    checks = q.check(pts, vis_hidden)
+    print("  脚踝出画     -> hits:", q.hits(checks), "  visible:", checks[0]["visible"])
+    assert not q.hits(checks), "关键点不可见时不应误报"
+    assert checks[0]["visible"] is False, "应标记为不可见"
+    print("  ✅ 拍不到就不判定，交给上层提示调整机位\n")
+
+
 def test_load_and_update():
-    print("=== 测试 4：整条链路（读 JSON → 算角度 → 状态机） ===")
+    print("=== 测试 4：整条链路（读 JSON → 算角度 → 状态机 → 质量明细） ===")
     action = load_action("configs/pushup.json")
     print(f"  已加载动作：{action.name}（{action.id}），信号类型 {action.signal_type}")
     # 构造一个明确姿态：肩(100,100)、肘(100,120)、腕(100,200) 三点竖直共线 => 肘角 180°
@@ -75,14 +101,19 @@ def test_load_and_update():
     sig = action.signal(pts)
     print(f"  肘角 = {sig:.1f}°（预期 180°）")
     assert abs(sig - 180) < 0.5, f"肘角应接近 180，实际 {sig}"
-    count, stage, s, hits = action.update(pts)
-    print(f"  update -> 计数 {count} 阶段 {stage} 质量提示 {hits}")
-    print("  ✅ 读配置 + 算角度 + 状态机联动 跑通\n")
+    vis = [1.0] * 33
+    count, stage, s, hits, checks = action.update(pts, vis)
+    print(f"  update -> 计数 {count} 阶段 {stage}")
+    for c in checks:
+        print(f"    [{c['name']}] 实测 {c['value']:.1f}° / 阈值 {c['limit']}°  "
+              f"可见={c['visible']}  达标={c['ok']}")
+    print("  ✅ 读配置 + 算角度 + 状态机 + 质量明细 全链路跑通\n")
 
 
 if __name__ == "__main__":
     test_rep_counter()
     test_hysteresis()
     test_quality()
+    test_invisible_points()
     test_load_and_update()
     print("全部通过 ✅")

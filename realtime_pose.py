@@ -217,10 +217,9 @@ def main():
 
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
 
-    # MediaPipe 启动时会尝试联网上报遥测，网络不通要等约 60 秒才继续（见 CLAUDE.md）。
+    # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
-    print("正在初始化姿态模型 …")
-    print("  （MediaPipe 会尝试联网上报遥测，网络不通时需等约 60 秒，属正常现象，请稍候）")
+    print("正在初始化姿态模型 …（首次启动可能要等十几秒到一分钟，请稍候）")
     t_init = time.time()
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
         print(f"  模型就绪，初始化用时 {time.time() - t_init:.0f} 秒\n")
@@ -241,18 +240,20 @@ def main():
 
             res = bus.get()
             sig_txt = "--"
-            count, stage, sig, hits = 0, "ready", None, []
+            count, stage, sig, hits, checks = 0, "ready", None, [], []
             if res and res.pose_landmarks:
                 lm = res.pose_landmarks[0]
                 pts = [(int(p.x * w), int(p.y * h)) for p in lm]
+                # 关键点可信度：拍不到的点 MediaPipe 会「猜」一个位置，必须过滤，否则误判
+                vis = [p.visibility for p in lm]
 
                 for a, b in SKELETON:
                     cv2.line(frame, pts[a], pts[b], (0, 220, 180), 2)
                 for p in pts:
                     cv2.circle(frame, p, 3, (255, 255, 255), -1)
 
-                # 配置驱动的判定：算信号 → 状态机计数 → 质量提示
-                count, stage, sig, hits = action.update(pts)
+                # 配置驱动的判定：算信号 → 状态机计数 → 质量明细
+                count, stage, sig, hits, checks = action.update(pts, vis)
                 if sig is not None:
                     sig_txt = f"{sig:5.1f}"
 
@@ -273,12 +274,28 @@ def main():
             cv2.putText(frame, f"{fps:4.1f} fps", (12, 92),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
 
-            # 质量提示：HUD 英文标签，语音念中文
-            y = 132
-            for hit in hits:
-                cv2.putText(frame, f"! {hit['name'].upper()}", (12, y),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (60, 60, 255), 2)
-                y += 30
+            # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
+            #   OK 绿 = 达标    !! 红 = 不达标    ? 灰 = 关键点没拍全，本次不判定
+            y = 134
+            hidden = False
+            for c in checks:
+                if not c["visible"]:
+                    hidden = True
+                    txt = f"{c['name'].upper():18s}    ?   point hidden"
+                    color = (150, 150, 150)
+                elif c["ok"]:
+                    txt = f"{c['name'].upper():18s} {c['value']:5.0f}/{c['limit']:.0f}  OK"
+                    color = (120, 230, 120)
+                else:
+                    txt = f"{c['name'].upper():18s} {c['value']:5.0f}/{c['limit']:.0f}  !!"
+                    color = (60, 60, 255)
+                cv2.putText(frame, txt, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+                y += 26
+
+            if hidden:
+                cv2.putText(frame, "! POINTS HIDDEN  ->  step back, keep whole body in frame",
+                            (12, y + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (60, 200, 255), 2)
+
             if hits and now - last_say >= 2.0:
                 say(hits[0]["tip"])
                 last_say = now
