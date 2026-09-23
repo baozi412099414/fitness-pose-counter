@@ -221,8 +221,9 @@ def main():
         base_options=mp_python.BaseOptions(model_asset_path=args.model),
         running_mode=vision.RunningMode.LIVE_STREAM,   # 异步，不阻塞取帧
         num_poses=1,
-        min_pose_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
+        # 调高一点，减少「跟丢后还在输出幽灵骨架」的情况（另一道防线是 visibility 过滤）
+        min_pose_detection_confidence=0.6,
+        min_tracking_confidence=0.6,
         result_callback=bus.put,
     )
 
@@ -259,14 +260,21 @@ def main():
             res = bus.get()
             sig_txt = "--"
             count, stage, sig, hits, checks = 0, "ready", None, [], []
+            conf = 0.0                      # 计数关键点的最低可信度
+            person_ok = False               # 可信度够不够（不够就暂停计数）
             if res and res.pose_landmarks:
                 lm = res.pose_landmarks[0]
                 pts = [(int(p.x * w), int(p.y * h)) for p in lm]
-                # 关键点可信度：拍不到的点 MediaPipe 会「猜」一个位置，必须过滤，否则误判
+                # 关键点可信度：人没拍到 / 跟丢时 MediaPipe 会输出「幽灵骨架」，
+                # 计数和质量判定都必须先看这个，否则会凭空加数、凭空报警
                 vis = [p.visibility for p in lm]
+                conf = min(vis[i] for i in action.signal_points)
+                person_ok = conf >= action.min_visibility
 
+                # 骨架照画（可信度低时画成灰色，一眼看出「这是猜的」）
+                skel_color = (0, 220, 180) if person_ok else (110, 110, 110)
                 for a, b in SKELETON:
-                    cv2.line(frame, pts[a], pts[b], (0, 220, 180), 2)
+                    cv2.line(frame, pts[a], pts[b], skel_color, 2)
                 for p in pts:
                     cv2.circle(frame, p, 3, (255, 255, 255), -1)
 
@@ -284,17 +292,22 @@ def main():
             fps = sum(fps_hist) / len(fps_hist)
 
             # HUD（OpenCV 画不了中文，用英文；中文交给 say 语音念）
-            cv2.rectangle(frame, (0, 0), (340, 104), (32, 32, 32), -1)
+            cv2.rectangle(frame, (0, 0), (360, 128), (32, 32, 32), -1)
             cv2.putText(frame, f"REPS {count}", (12, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
             cv2.putText(frame, f"{action.id.upper():9s} {stage.upper():6s} sig {sig_txt}", (12, 68),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 255, 220), 1)
-            cv2.putText(frame, f"{fps:4.1f} fps", (12, 92),
+            # 检测状态：可信度不够时明确写「PAUSED」，而不是默默加数
+            det_txt = f"track {conf:.2f}  " + ("COUNTING" if person_ok else "PAUSED no-person")
+            det_color = (120, 230, 120) if person_ok else (60, 60, 255)
+            cv2.putText(frame, det_txt, (12, 92),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, det_color, 2)
+            cv2.putText(frame, f"{fps:4.1f} fps", (12, 116),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
 
             # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
             #   OK 绿=达标   !! 红=不达标   ? 灰=点没拍全   -- 灰=本阶段不判
-            y = 134
+            y = 158
             hidden = False
             for c in checks:
                 if not c["visible"]:

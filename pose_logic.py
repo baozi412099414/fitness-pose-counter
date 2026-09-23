@@ -164,8 +164,9 @@ class Action:
         self.signal_type = cfg["counter"]["signal"]   # "angle" | "distance"
         self.signal_points = cfg["counter"]["points"]
         self.counter = RepCounter(cfg["counter"])
+        self.min_visibility = cfg.get("min_visibility", 0.5)
         self.quality = QualityChecker(cfg.get("quality", []),
-                                      min_visibility=cfg.get("min_visibility", 0.5))
+                                      min_visibility=self.min_visibility)
 
     def signal(self, points):
         """从 33 个关键点算出当前判定信号值。"""
@@ -177,7 +178,15 @@ class Action:
     def update(self, points, visibilities=None, now=None):
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
         sig = self.signal(points)
-        count, stage = self.counter.update(sig, now)
+        # 计数信号的可信度：人没拍到 / 目标跟丢时，MediaPipe 会输出「幽灵骨架」或乱点，
+        # 拿它算角度就会「没人也在加数」，所以可信度不够就**不更新状态机**。
+        conf = 1.0
+        if visibilities is not None:
+            conf = min(visibilities[i] for i in self.signal_points)
+        if conf >= self.min_visibility:
+            count, stage = self.counter.update(sig, now)
+        else:
+            count, stage = self.counter.count, self.counter.stage
         checks = self.quality.check(points, visibilities, stage)
         hits = self.quality.hits(checks)
         return count, stage, sig, hits, checks

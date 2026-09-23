@@ -132,6 +132,34 @@ def test_stage_filter():
     print("  ✅ 约束只在指定阶段生效，动作过程中不再误报\n")
 
 
+def test_no_count_without_person():
+    print("=== 测试 7：人没拍到时不该计数（幽灵骨架不加数） ===")
+    action = load_action("configs/squat.json")
+    # 蹲下姿态：膝角约 87°（若不看可信度，这帧会触发 active）
+    down = [(0, 0)] * 33
+    down[23] = (100, 100)
+    down[25] = (160, 140)
+    down[27] = (100, 220)
+    # 站起姿态：三点竖直共线 => 膝角 180°
+    up = [(0, 0)] * 33
+    up[23] = (100, 100)
+    up[25] = (100, 160)
+    up[27] = (100, 220)
+
+    vis_bad = [0.1] * 33      # 人没拍到 / 目标跟丢
+    vis_ok = [1.0] * 33       # 人在画面里
+
+    c1, s1, sig1, _, _ = action.update(down, vis_bad, now=0.0)
+    print(f"  可信度 0.1（没人）+ 蹲下姿态 -> REPS {c1}  阶段 {s1}（应保持 0 / ready）")
+    assert c1 == 0 and s1 == "ready", "人没拍到时不该改变计数状态"
+
+    action.update(down, vis_ok, now=1.0)                        # 有人：蹲下 -> active
+    c2, s2, sig2, _, _ = action.update(up, vis_ok, now=2.0)     # 有人：站起 -> 计 1
+    print(f"  可信度 1.0（有人）+ 蹲下再站起 -> REPS {c2}  阶段 {s2}  膝角 {sig2:.0f}°")
+    assert c2 == 1, f"有人时一次完整深蹲应计 1，实际 {c2}"
+    print("  ✅ 没人不加数，有人正常加数\n")
+
+
 if __name__ == "__main__":
     test_rep_counter()
     test_hysteresis()
@@ -139,4 +167,5 @@ if __name__ == "__main__":
     test_invisible_points()
     test_stage_filter()
     test_load_and_update()
+    test_no_count_without_person()
     print("全部通过 ✅")
