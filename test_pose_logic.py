@@ -228,20 +228,25 @@ def test_jumping_jack():
     print("=== 测试 10：开合跳（双条件 AND + 用水平距离区分走路） ===")
     action = load_action("configs/jumping_jack.json")
     print(f"  计数条件 {len(action.counter.conditions)} 条（AND），质量约束 {len(action.quality.rules)} 条")
+    # 肩宽 150px。真实实测：手举过头时肩-腕竖直差 ≈ 1.5 倍肩宽（手臂比肩宽长），
+    # 所以合成数据也按这个比例造，否则测不出真实门槛。
+    SHOULDER_Y, SHOULDER_W = 300, 150
 
     def pose(hand_y, foot_half, foot_dy=0):
         """hand_y 手腕 y；foot_half 每只脚离中线的水平距离；foot_dy 两脚前后差（模拟走路迈步）"""
         p = [(0, 0)] * 33
-        p[11] = (100, 100)                 # 左肩
-        p[12] = (200, 100)                 # 右肩（肩宽 = 100）
-        p[15] = (100, hand_y)              # 左腕
-        p[27] = (150 - foot_half, 400 + foot_dy)   # 左踝
-        p[28] = (150 + foot_half, 400 - foot_dy)   # 右踝
+        p[11] = (200, SHOULDER_Y)              # 左肩
+        p[12] = (200 + SHOULDER_W, SHOULDER_Y)  # 右肩
+        p[15] = (200, hand_y)                  # 左腕
+        p[27] = (275 - foot_half, 700 + foot_dy)   # 左踝
+        p[28] = (275 + foot_half, 700 - foot_dy)   # 右踝
         return p
 
     vis = [1.0] * 33
-    DOWN, UP = 300, 30            # 手放下 dy=-2.0 / 手举起 dy=+0.7
-    CLOSE, OPEN = 2, 50           # 脚并拢 / 脚左右张开
+    DOWN = SHOULDER_Y + int(1.5 * SHOULDER_W)    # 手放下  dy≈-1.5
+    UP = SHOULDER_Y - int(1.67 * SHOULDER_W)     # 手举过头 dy≈+1.67（实测值）
+    HALF = SHOULDER_Y - int(1.0 * SHOULDER_W)    # 手举一半 dy≈+1.0（不达标）
+    CLOSE, OPEN, HALF_OPEN = 5, 133, 80          # 脚并拢 / 张开(1.77) / 只张开(1.07)
 
     # ① 标准开合跳
     action.update(pose(DOWN, CLOSE), vis, now=0.0)
@@ -260,7 +265,6 @@ def test_jumping_jack():
     assert c == 0, "只有手举起、脚没张开，不该计数"
 
     # ③ 摸头发 + 走路：手举起，但两脚是「一前一后」迈步（水平距离小）-> 不该计数
-    #    （用直线距离时，前后迈步的距离很大，会被误当成「脚张开」—— 这就是之前的 bug）
     a3 = load_action("configs/jumping_jack.json")
     a3.update(pose(DOWN, CLOSE), vis, now=0.0)
     a3.update(pose(UP, 10, 60), vis, now=0.5)      # 手摸头 + 脚前后差 120px
@@ -276,15 +280,23 @@ def test_jumping_jack():
     print(f"  ④ 只张脚不抬手 -> 计数 {c}（应为 0）")
     assert c == 0, "只有脚张开、手没举起，不该计数"
 
-    # ⑤ 两条件都满足、但手没举过头（dy=0.55）-> 计数 + 报 hand_not_up
+    # ⑤ 手只举到一半（dy≈1.0 < 标准 1.3）-> 计数 + 报 hand_not_up
     a5 = load_action("configs/jumping_jack.json")
     a5.update(pose(DOWN, CLOSE), vis, now=0.0)
-    a5.update(pose(45, OPEN), vis, now=0.5)
+    a5.update(pose(HALF, OPEN), vis, now=0.5)
     c, s, sig, hits, _ = a5.update(pose(DOWN, CLOSE), vis, now=1.0)
-    print(f"  ④ 手只举到 dy=0.55 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    print(f"  ⑤ 手只举到 dy≈1.0 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert c == 1, "过了计数线也算一次（计数宽松）"
     assert any(h["name"] == "hand_not_up" for h in hits), "应报「手没举过头顶」"
-    print("  ✅ 双条件 AND 生效：只做一半不计数，不标准能报错\n")
+
+    # ⑥ 手举过头、但腿只张开一半（1.07 < 标准 1.5）-> 计数 + 报 legs_not_apart
+    a6 = load_action("configs/jumping_jack.json")
+    a6.update(pose(DOWN, CLOSE), vis, now=0.0)
+    a6.update(pose(UP, HALF_OPEN), vis, now=0.5)
+    c, s, sig, hits, _ = a6.update(pose(DOWN, CLOSE), vis, now=1.0)
+    print(f"  ⑥ 腿只张开到 1.07 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    assert any(h["name"] == "legs_not_apart" for h in hits), "应报「腿没张开」"
+    print("  ✅ 双条件 AND + 计数宽松/质量严格 都生效\n")
 
 
 def test_abnormal_frame_dropped():
