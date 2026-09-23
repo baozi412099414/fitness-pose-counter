@@ -217,7 +217,13 @@ def main():
 
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
 
+    # MediaPipe 启动时会尝试联网上报遥测，网络不通要等约 60 秒才继续（见 CLAUDE.md）。
+    # 这里提前说明，免得用户以为程序卡死了。
+    print("正在初始化姿态模型 …")
+    print("  （MediaPipe 会尝试联网上报遥测，网络不通时需等约 60 秒，属正常现象，请稍候）")
+    t_init = time.time()
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
+        print(f"  模型就绪，初始化用时 {time.time() - t_init:.0f} 秒\n")
         t0 = time.time()
         while True:
             frame = cam.read()

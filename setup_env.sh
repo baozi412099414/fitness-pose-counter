@@ -116,7 +116,9 @@ ok "pip 已就绪"
 say "4/5  安装依赖"
 # -----------------------------------------------------------------------------
 PKGS="numpy opencv-python"
-[ "$INSTALL_MP" -eq 1 ] && PKGS="$PKGS mediapipe"
+# mediapipe 必须固定 0.10.35：1.0.1 在 macOS 26 上初始化 Metal 时会直接 abort
+# （Check failed: service_ Service is unavailable），详见 CLAUDE.md「mediapipe 版本坑」
+[ "$INSTALL_MP" -eq 1 ] && PKGS="$PKGS mediapipe==0.10.35"
 info "准备安装：$PKGS"
 info "（第一次装要下几十 MB，慢的话是在下载，不是卡住）"
 echo

@@ -30,7 +30,7 @@
 | numpy | 2.4.6 | |
 | opencv-python | **5.0.0.93** | 新大版本，已验证 API 兼容 |
 | opencv-contrib-python | 5.0.0.93 | mediapipe 拽进来的，与上面共存 |
-| mediapipe | **1.0.1** | |
+| mediapipe | **0.10.35** | ⚠ **绝不能升到 1.0.1**，在 macOS 26 上初始化就崩，见下方「mediapipe 版本坑」 |
 | pose_landmarker_lite.task | 5.6 MB | 已下载在根目录 |
 
 **已验证可用的 API**（不必再怀疑）：`cv2.VideoWriter_fourcc`、`cv2.CAP_AVFOUNDATION`、
@@ -41,6 +41,32 @@
 ```bash
 .venv/bin/pip uninstall -y opencv-python
 ```
+
+## ⚠ mediapipe 版本坑（2026-09-22 排查，别装错版本）
+
+**必须用 mediapipe 0.10.35，绝对不要用 1.0.1。**
+
+- **症状**：跑 `realtime_pose.py`（任何用 PoseLandmarker 的代码）进程直接
+  `Abort trap: 6` 崩溃，报：
+  ```
+  F0000 graph_service.h:139] Check failed: service_ Service is unavailable.
+    @ -[DrishtiMetalHelper initWithCalculatorContext:]
+    @ mediapipe::api2::TensorsToDetectionsCalculator::Open()
+  ```
+- **原因**：1.0.1 是极简纯 C API 版（整个包只有一个 `tasks/c/libmediapipe.dylib`，97MB），
+  初始化 graph 时某个必需 service packet 没设置好，在 macOS 26 上必崩。
+  实测 `delegate=CPU` 也没用；dylib 里也没有任何 `MEDIAPIPE_*` 环境变量开关能绕过。
+- **解法**：换成 `0.10.35`（PyPI 上除 1.0.1 外的最新版），IMAGE 与 LIVE_STREAM 都正常。
+  ```bash
+  .venv/bin/pip install "mediapipe==0.10.35"
+  ```
+- **唯一遗留问题**：0.10.35 每次启动会尝试上传遥测（clearcut），**网络超时导致卡约 61 秒**
+  才继续（`portable_clearcut_uploader.cc` 报 `Failed to send to clearcut`）。
+  功能不受影响，只是启动慢；`MEDIAPIPE_DISABLE_TELEMETRY=1` 无效。
+- **验证方式**（不碰摄像头，安全）：用一张合成黑图跑一次 `detect`，看到
+  `✅ detect 成功` 就说明版本没问题；1.0.1 会在这里崩。
+- **注意**：这个问题和摄像头无关。当时现象是「iPhone 连上就断」，一度误判成线的问题——
+  其实是两层问题叠加：探测逻辑打断握手（已修）**加上** mediapipe 1.0.1 崩溃。
 
 ## 文件清单
 
