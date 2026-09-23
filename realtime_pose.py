@@ -359,7 +359,10 @@ def main():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, det_color, 2)
             # 信息行：多条件动作显示各条件当前值；角度类动作显示站立基线 + 本轮最低点
             if action.conditions:
-                vals = "  ".join(f"{v:5.2f}" for v in action.last_values)
+                # 注意：某帧关键点异常时信号会被丢弃成 None，这里必须处理，
+                # 否则 f"{None:5.2f}" 会抛 TypeError，把整个主循环搞崩（画面「卡住」）
+                vals = "  ".join("  -- " if v is None else f"{v:5.2f}"
+                                 for v in action.last_values)
                 info_txt = f"cond  {vals}"
             else:
                 base_txt = f"{baseline:.0f}" if baseline else "calib.."
@@ -399,11 +402,11 @@ def main():
                     color = (150, 150, 150)
                 elif c["ok"]:
                     txt = (f"{c['name'].upper():18s} "
-                           f"{c['value']:5.2f}/{c['limit']:.2f}  OK")
+                           f"{(c['value'] or 0):5.2f}/{(c['limit'] or 0):.2f}  OK")
                     color = (120, 230, 120)
                 else:
                     txt = (f"{c['name'].upper():18s} "
-                           f"{c['value']:5.2f}/{c['limit']:.2f}  !!")
+                           f"{(c['value'] or 0):5.2f}/{(c['limit'] or 0):.2f}  !!")
                     color = (60, 60, 255)
                 cv2.putText(frame, txt, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
                 y += 26
