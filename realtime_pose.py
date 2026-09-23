@@ -36,7 +36,7 @@ MODEL_PATH = "pose_landmarker_lite.task"
 CONFIG_DIR = "configs"
 
 # 站立基线自动校准用的偏移量（见 main 里的校准逻辑）
-LO_DROP = 25.0      # 下蹲门槛 = 站立基线 - 25°
+LO_DROP = 15.0      # 下蹲门槛 = 站立基线 - 15°（调小更敏感、调大更迟钝）
 HI_DROP = 8.0       # 还原线   = 站立基线 - 8°
 STRAIGHT_DROP = 10.0  # 「站起伸直」标准 = 站立基线 - 10°
 
@@ -185,6 +185,8 @@ def main():
     ap.add_argument("--list", action="store_true", help="列出可用摄像头后退出")
     ap.add_argument("--model", type=str, default=MODEL_PATH)
     ap.add_argument("--action", type=str, default="pushup", help="configs/ 下的动作名（不含 .json）")
+    ap.add_argument("--lo-drop", type=float, default=LO_DROP,
+                    help="下蹲门槛 = 站立基线 - 该值（默认 15°；调小更敏感、调大更迟钝）")
     args = ap.parse_args()
 
     if args.list:
@@ -296,7 +298,7 @@ def main():
                     elif len(warmup_samples) >= 8:
                         warmup_samples.sort()
                         baseline = warmup_samples[len(warmup_samples) // 2]
-                        action.counter.lo = baseline - LO_DROP
+                        action.counter.lo = baseline - args.lo_drop
                         action.counter.hi = baseline - HI_DROP
                         for r in action.quality.rules:
                             if r.get("check") == "peak_min":
