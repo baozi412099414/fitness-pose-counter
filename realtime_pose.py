@@ -275,13 +275,16 @@ def main():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
 
             # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
-            #   OK 绿 = 达标    !! 红 = 不达标    ? 灰 = 关键点没拍全，本次不判定
+            #   OK 绿=达标   !! 红=不达标   ? 灰=点没拍全   -- 灰=本阶段不判
             y = 134
             hidden = False
             for c in checks:
                 if not c["visible"]:
                     hidden = True
                     txt = f"{c['name'].upper():18s}    ?   point hidden"
+                    color = (150, 150, 150)
+                elif not c["checked"]:
+                    txt = f"{c['name'].upper():18s}   --   not this phase"
                     color = (150, 150, 150)
                 elif c["ok"]:
                     txt = f"{c['name'].upper():18s} {c['value']:5.0f}/{c['limit']:.0f}  OK"

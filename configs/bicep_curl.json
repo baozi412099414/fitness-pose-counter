@@ -1,0 +1,23 @@
+{
+  "id": "bicep_curl",
+  "name": "二头弯举",
+  "camera_side": "正",
+  "counter": {
+    "signal": "angle",
+    "points": [11, 13, 15],
+    "lo": 75,
+    "hi": 145,
+    "first": "lo",
+    "min_interval": 0.30
+  },
+  "quality": [
+    {
+      "name": "arm_not_straight",
+      "check": "angle_min",
+      "points": [11, 13, 15],
+      "min": 150,
+      "when": "ready",
+      "tip": "放下时手臂没伸直"
+    }
+  ]
+}

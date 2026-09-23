@@ -96,19 +96,28 @@ class QualityChecker:
         self.rules = quality_cfgs or []
         self.min_visibility = min_visibility
 
-    def check(self, points, visibilities=None):
+    def check(self, points, visibilities=None, stage="any"):
         """
         逐条检查，返回明细列表，每项含：
-          name / tip / value(实测值) / limit(阈值) / ok(是否达标) / visible(关键点是否拍全)
-        visible=False 表示本次不判定，ok 无意义。
+          name / tip / value(实测值) / limit(阈值) / ok(是否达标)
+          visible  关键点是否拍全（拍不到 → 不判定，避免误报）
+          checked  本阶段是否参与判定（规则可用 "when" 限定只在 ready / active 判）
         """
         checks = []
         for rule in self.rules:
             idx = rule["points"]
             pts = [points[i] for i in idx]
+
+            # 关键点可见性：拍不到就不判（MediaPipe 会瞎猜位置，算出来是乱值）
             visible = True
             if visibilities is not None:
                 visible = min(visibilities[i] for i in idx) >= self.min_visibility
+
+            # 阶段过滤：例如「手臂没伸直」只在还原阶段判 ——
+            # 否则动作过程中肘角本来就小，会像「总说塌腰」那样一直误报
+            when = rule.get("when", "any")
+            checked = (when == "any") or (when == stage)
+
             kind = rule.get("check")
             value, limit, ok = None, None, True
             if kind == "collinear":
@@ -117,10 +126,15 @@ class QualityChecker:
                 limit = rule.get("min_angle", 160)
                 ok = value >= limit
             elif kind == "angle_min":
-                # 某个角要 >= min（例如撑起时肘角 >= 150 才叫伸直）
+                # 某个角要 >= min（例如还原时肘角 >= 150 才叫伸直）
                 value = angle_between(pts[0], pts[1], pts[2])
                 limit = rule.get("min", 0)
                 ok = value >= limit
+            elif kind == "angle_max":
+                # 某个角要 <= max（例如弯起时肘角 <= 70 才算弯到位）
+                value = angle_between(pts[0], pts[1], pts[2])
+                limit = rule.get("max", 180)
+                ok = value <= limit
             checks.append({
                 "name": rule.get("name", "动作不标准"),
                 "tip": rule.get("tip", rule.get("name", "动作不标准")),
@@ -128,13 +142,14 @@ class QualityChecker:
                 "limit": limit,
                 "ok": ok,
                 "visible": visible,
+                "checked": checked,
             })
         return checks
 
     @staticmethod
     def hits(checks):
-        """从明细里挑出「关键点可见、但不达标」的，作为要报的错误。"""
-        return [c for c in checks if c["visible"] and not c["ok"]]
+        """挑出「关键点可见 + 本阶段该判 + 不达标」的，作为要报的错误。"""
+        return [c for c in checks if c["visible"] and c["checked"] and not c["ok"]]
 
 
 # --------------------------------------------------------------------------
@@ -163,7 +178,7 @@ class Action:
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
         sig = self.signal(points)
         count, stage = self.counter.update(sig, now)
-        checks = self.quality.check(points, visibilities)
+        checks = self.quality.check(points, visibilities, stage)
         hits = self.quality.hits(checks)
         return count, stage, sig, hits, checks
 

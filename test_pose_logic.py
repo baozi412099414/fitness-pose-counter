@@ -106,8 +106,30 @@ def test_load_and_update():
     print(f"  update -> 计数 {count} 阶段 {stage}")
     for c in checks:
         print(f"    [{c['name']}] 实测 {c['value']:.1f}° / 阈值 {c['limit']}°  "
-              f"可见={c['visible']}  达标={c['ok']}")
+              f"可见={c['visible']} 本阶段判={c['checked']} 达标={c['ok']}")
     print("  ✅ 读配置 + 算角度 + 状态机 + 质量明细 全链路跑通\n")
+
+
+def test_stage_filter():
+    print("=== 测试 6：约束只在指定阶段判定（避免动作过程中误报） ===")
+    q = QualityChecker([
+        {"name": "arm_not_straight", "check": "angle_min", "points": [11, 13, 15],
+         "min": 150, "when": "ready", "tip": "没伸直"}
+    ])
+    pts = [(0, 0)] * 33
+    pts[11] = (100, 100)
+    pts[13] = (160, 150)   # 肘外展 -> 肘角约 80°（像弯举 / 下压过程中的姿态）
+    pts[15] = (100, 200)
+    vis = [1.0] * 33
+    # 动作阶段（active）：不该判「没伸直」
+    checks = q.check(pts, vis, stage="active")
+    print(f"  active 阶段 -> hits {q.hits(checks)}   本阶段判={checks[0]['checked']}")
+    assert not q.hits(checks), "active 阶段不该判「没伸直」"
+    # 还原阶段（ready）：该判，这里肘角小 -> 应报
+    checks = q.check(pts, vis, stage="ready")
+    print(f"  ready  阶段 -> hits {q.hits(checks)}   本阶段判={checks[0]['checked']}")
+    assert q.hits(checks), "ready 阶段肘角小应报「没伸直」"
+    print("  ✅ 约束只在指定阶段生效，动作过程中不再误报\n")
 
 
 if __name__ == "__main__":
@@ -115,5 +137,6 @@ if __name__ == "__main__":
     test_hysteresis()
     test_quality()
     test_invisible_points()
+    test_stage_filter()
     test_load_and_update()
     print("全部通过 ✅")
