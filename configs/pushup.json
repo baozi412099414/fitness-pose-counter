@@ -12,14 +12,14 @@
   },
   "quality": [
     {
-      "name": "塌腰",
+      "name": "low_back",
       "check": "collinear",
       "points": [11, 23, 27],
       "min_angle": 165,
       "tip": "身体没绷直，塌腰了"
     },
     {
-      "name": "手臂未伸直",
+      "name": "arm_not_straight",
       "check": "angle_min",
       "points": [11, 13, 15],
       "min": 150,

@@ -1,44 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-实时姿态捕捉 + 计数骨架  —— 选题 11：健身动作计数与姿态纠正
+实时姿态捕捉 + 动作计数 + 质量提示  —— 选题 11：健身动作计数与姿态纠正
 
-这份代码解决的是「摄像头实时接入」这一层，把三个实时的坑都处理掉了：
-  1. 取帧线程与推理解耦，旧帧直接丢弃  -> 画面不会越跑越延迟
-  2. MediaPipe LIVE_STREAM 异步模式     -> 推理不阻塞取帧
-  3. macOS 摄像头自动探测               -> 绕开 Continuity Camera 设备号乱跳
-
-依赖：
-    pip install opencv-python mediapipe numpy
-
-模型（lite 版约 9MB，下载一次即可，放在本文件同目录）：
-    curl -L -o pose_landmarker_lite.task \
-      https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+相对旧版的两处关键改动：
+  1. 动作判定不再硬编码，改为从 configs/*.json 读取（pose_logic.load_action），
+     新增动作 = 加一份 JSON，不改本文件。
+  2. 质量提示：HUD 用英文标签 + macOS 自带 say 语音念中文提示（塌腰/手臂没伸直等）。
 
 运行：
-    python realtime_pose.py              # 自动探测摄像头
-    python realtime_pose.py --list       # 只列出可用摄像头
-    python realtime_pose.py --cam 1      # 手动指定设备号
-    python realtime_pose.py --src a.mp4  # 读视频文件（调参时用）
+    .venv/bin/python realtime_pose.py --list                    # 列出摄像头
+    .venv/bin/python realtime_pose.py --action pushup           # 实时（自动探测）
+    .venv/bin/python realtime_pose.py --cam 1 --action pushup   # 指定设备号
+    .venv/bin/python realtime_pose.py --src a.mp4 --action pushup  # 读视频调参
 
 按 q 退出，按 r 清零计数。
+注意：摄像头相关脚本必须从系统自带「终端.app」跑（见 CLAUDE.md）。
 """
 
 import argparse
-import math
+import os
+import subprocess
 import sys
 import threading
 import time
 
 import cv2
-import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
-MODEL_PATH = "pose_landmarker_lite.task"
+from pose_logic import load_action
 
-# MediaPipe Pose 33 关键点里常用的几个
+MODEL_PATH = "pose_landmarker_lite.task"
+CONFIG_DIR = "configs"
+
+# MediaPipe Pose 33 关键点里常用的几个（画骨架用）
 L_SHOULDER, R_SHOULDER = 11, 12
 L_ELBOW,    R_ELBOW    = 13, 14
 L_WRIST,    R_WRIST    = 15, 16
@@ -118,51 +115,6 @@ class Camera(threading.Thread):
         self.cap.release()
 
 
-# --------------------------------------------------------------------------
-# 角度与状态机
-# --------------------------------------------------------------------------
-def joint_angle(a, b, c):
-    """b 为顶点，返回 a-b-c 的夹角（度）。a/b/c 是 (x, y)。"""
-    ba = np.array([a[0] - b[0], a[1] - b[1]], dtype=np.float64)
-    bc = np.array([c[0] - b[0], c[1] - b[1]], dtype=np.float64)
-    denom = np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-9
-    return math.degrees(math.acos(np.clip(np.dot(ba, bc) / denom, -1.0, 1.0)))
-
-
-class RepCounter:
-    """
-    带迟滞（hysteresis）的两态状态机。
-    down_th 和 up_th 之间那段是「不表态区」，角度在阈值边缘抖动时不会反复翻转,
-    这是防止重复计数最有效的一招。min_interval 再兜一层时间防抖。
-    """
-
-    def __init__(self, down_th=95.0, up_th=155.0, min_interval=0.35):
-        self.down_th = down_th
-        self.up_th = up_th
-        self.min_interval = min_interval
-        self.stage = "up"
-        self.count = 0
-        self._last_t = 0.0
-
-    def update(self, angle):
-        now = time.time()
-        if self.stage == "up" and angle < self.down_th:
-            self.stage = "down"
-        elif self.stage == "down" and angle > self.up_th:
-            if now - self._last_t >= self.min_interval:
-                self.count += 1
-                self._last_t = now
-            self.stage = "up"
-        return self.count, self.stage
-
-    def reset(self):
-        self.count = 0
-        self.stage = "up"
-
-
-# --------------------------------------------------------------------------
-# 主程序
-# --------------------------------------------------------------------------
 class ResultBus:
     """LIVE_STREAM 模式下结果从回调里异步回来，这里做个最新值的中转。"""
 
@@ -179,12 +131,28 @@ class ResultBus:
             return self.result
 
 
+# --------------------------------------------------------------------------
+# 语音播报
+# --------------------------------------------------------------------------
+def say(text):
+    """macOS 自带 say 命令念中文，后台执行不阻塞主循环。非 mac 平台静默跳过。"""
+    if sys.platform == "darwin" and text:
+        try:
+            subprocess.Popen(["say", text])
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------------
+# 主程序
+# --------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cam", type=int, default=None, help="摄像头设备号")
     ap.add_argument("--src", type=str, default=None, help="视频文件路径")
     ap.add_argument("--list", action="store_true", help="列出可用摄像头后退出")
     ap.add_argument("--model", type=str, default=MODEL_PATH)
+    ap.add_argument("--action", type=str, default="pushup", help="configs/ 下的动作名（不含 .json）")
     args = ap.parse_args()
 
     if args.list:
@@ -195,6 +163,17 @@ def main():
         for i, w, h in cams:
             print(f"  设备号 {i}: {w}x{h}")
         return
+
+    # 加载动作配置（新增动作 = 加一份 JSON，不改代码）
+    cfg_path = os.path.join(CONFIG_DIR, f"{args.action}.json")
+    if not os.path.exists(cfg_path):
+        print(f"找不到动作配置：{cfg_path}")
+        print(f"{CONFIG_DIR}/ 下现有：")
+        for f in sorted(os.listdir(CONFIG_DIR)):
+            print(f"  {f}")
+        return
+    action = load_action(cfg_path)
+    print(f"动作：{action.name}（{action.id}），信号类型 {action.signal_type}")
 
     # 选视频源
     if args.src:
@@ -220,11 +199,12 @@ def main():
         result_callback=bus.put,
     )
 
-    counter = RepCounter()              # 默认参数按俯卧撑肘角设的，自己按实测曲线改
     fps_hist, t_prev = [], time.time()
     cam = Camera(source)
     cam.start()
     time.sleep(0.4)                     # 等第一帧
+
+    last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
 
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
         t0 = time.time()
@@ -243,7 +223,8 @@ def main():
             landmarker.detect_async(mp_img, int((time.time() - t0) * 1000))
 
             res = bus.get()
-            angle_txt = "--"
+            sig_txt = "--"
+            count, stage, sig, hits = 0, "ready", None, []
             if res and res.pose_landmarks:
                 lm = res.pose_landmarks[0]
                 pts = [(int(p.x * w), int(p.y * h)) for p in lm]
@@ -253,12 +234,10 @@ def main():
                 for p in pts:
                     cv2.circle(frame, p, 3, (255, 255, 255), -1)
 
-                # 示例：右肘角度驱动计数（俯卧撑 / 二头弯举）
-                ang = joint_angle(pts[R_SHOULDER], pts[R_ELBOW], pts[R_WRIST])
-                counter.update(ang)
-                angle_txt = f"{ang:5.1f}"
-                cv2.putText(frame, angle_txt, (pts[R_ELBOW][0] + 10, pts[R_ELBOW][1]),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                # 配置驱动的判定：算信号 → 状态机计数 → 质量提示
+                count, stage, sig, hits = action.update(pts)
+                if sig is not None:
+                    sig_txt = f"{sig:5.1f}"
 
             # 帧率
             now = time.time()
@@ -268,20 +247,31 @@ def main():
                 fps_hist.pop(0)
             fps = sum(fps_hist) / len(fps_hist)
 
-            cv2.rectangle(frame, (0, 0), (300, 100), (32, 32, 32), -1)
-            cv2.putText(frame, f"REPS {counter.count}", (12, 40),
+            # HUD（OpenCV 画不了中文，用英文；中文交给 say 语音念）
+            cv2.rectangle(frame, (0, 0), (340, 104), (32, 32, 32), -1)
+            cv2.putText(frame, f"REPS {count}", (12, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
-            cv2.putText(frame, f"{counter.stage.upper():5s} ang {angle_txt}", (12, 68),
+            cv2.putText(frame, f"{action.id.upper():9s} {stage.upper():6s} sig {sig_txt}", (12, 68),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 255, 220), 1)
-            cv2.putText(frame, f"{fps:4.1f} fps", (12, 90),
+            cv2.putText(frame, f"{fps:4.1f} fps", (12, 92),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
+
+            # 质量提示：HUD 英文标签，语音念中文
+            y = 132
+            for hit in hits:
+                cv2.putText(frame, f"! {hit['name'].upper()}", (12, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (60, 60, 255), 2)
+                y += 30
+            if hits and now - last_say >= 2.0:
+                say(hits[0]["tip"])
+                last_say = now
 
             cv2.imshow("realtime pose", frame)
             k = cv2.waitKey(1) & 0xFF
             if k == ord("q"):
                 break
             if k == ord("r"):
-                counter.reset()
+                action.reset()
 
     cam.stop()
     cv2.destroyAllWindows()
