@@ -192,6 +192,38 @@ def test_peak_judgment():
     print("  ✅ 判定看本轮峰值，而不是「刚过计数线那一帧」的角度\n")
 
 
+def test_depth_judgment():
+    print("=== 测试 9：蹲下深度判定（用下蹲阶段谷值，准确不滞后） ===")
+    vis = [1.0] * 33
+
+    def knee_pts(offset):
+        """3≈174°（站直）, 40≈113°（只蹲一点）, 60≈90°（蹲够深）"""
+        p = [(0, 0)] * 33
+        p[23] = (100, 100)
+        p[25] = (100 + offset, 160)
+        p[27] = (100, 220)
+        return p
+
+    # 场景 1：蹲到 90° -> 深度够，不该报
+    a = load_action("configs/squat.json")
+    a.update(knee_pts(3), vis, now=0.0)                          # 站着
+    _, _, sig_down, _, _ = a.update(knee_pts(60), vis, now=1.0)  # 蹲下
+    c, s, sig, hits, _ = a.update(knee_pts(3), vis, now=2.0)     # 站起
+    print(f"  蹲到 {sig_down:.0f}° 再站起 -> 报错 {[h['name'] for h in hits]}（应为空）")
+    assert c == 1, "应计 1 次"
+    assert not hits, "蹲够深了不该报"
+
+    # 场景 2：只蹲到 113° -> 深度不够，应报
+    a2 = load_action("configs/squat.json")
+    a2.update(knee_pts(3), vis, now=0.0)
+    _, _, sig_down2, _, _ = a2.update(knee_pts(40), vis, now=1.0)
+    c, s, sig, hits, _ = a2.update(knee_pts(3), vis, now=2.0)
+    print(f"  只蹲到 {sig_down2:.0f}° 再站起 -> 报错 {[h['name'] for h in hits]}")
+    assert c == 1, "蹲了一点也算一次（计数宽松）"
+    assert any(h["name"] == "not_deep_enough" for h in hits), "应报「蹲得不够深」"
+    print("  ✅ 下蹲深度判定准确（谷值在计数那一刻已完整）\n")
+
+
 if __name__ == "__main__":
     test_rep_counter()
     test_hysteresis()
@@ -201,4 +233,5 @@ if __name__ == "__main__":
     test_load_and_update()
     test_no_count_without_person()
     test_peak_judgment()
+    test_depth_judgment()
     print("全部通过 ✅")

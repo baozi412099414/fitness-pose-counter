@@ -96,7 +96,8 @@ class QualityChecker:
         self.rules = quality_cfgs or []
         self.min_visibility = min_visibility
 
-    def check(self, points, visibilities=None, stage="any", just_counted=False, peak=None):
+    def check(self, points, visibilities=None, stage="any", just_counted=False,
+              peak=None, valley=None):
         """
         逐条检查，返回明细列表，每项含：
           name / tip / value(实测值) / limit(阈值) / ok(是否达标)
@@ -157,6 +158,17 @@ class QualityChecker:
                 value = peak if peak is not None else 0.0
                 limit = rule.get("max", 180)
                 ok = value <= limit
+            elif kind == "valley_max":
+                # 用「动作阶段里信号达到过的最小值」判定。
+                # 例：「有没有蹲下去」—— 看这一轮蹲到最低时是多少度。
+                # 谷值只在下蹲阶段采集，所以计数那一刻就已经完整了，判定准确、不滞后。
+                value = valley if valley is not None else 999.0
+                limit = rule.get("max", 180)
+                ok = value <= limit
+            elif kind == "valley_min":
+                value = valley if valley is not None else 999.0
+                limit = rule.get("min", 0)
+                ok = value >= limit
             checks.append({
                 "name": rule.get("name", "动作不标准"),
                 "tip": rule.get("tip", rule.get("name", "动作不标准")),
@@ -190,6 +202,7 @@ class Action:
         self.quality = QualityChecker(cfg.get("quality", []),
                                       min_visibility=self.min_visibility)
         self.sig_peak = None            # 本轮动作里信号达到过的最大值（供 peak_* 判定）
+        self.depth_valley = None        # 动作阶段里信号的最小值（供 valley_* 判定）
 
     def signal(self, points):
         """从 33 个关键点算出当前判定信号值。"""
@@ -219,12 +232,19 @@ class Action:
         else:
             count, stage = self.counter.count, self.counter.stage
 
-        # peak 传进去，让 peak_min / peak_max 用「本轮最高值」判定
-        checks = self.quality.check(points, visibilities, stage, just_counted, self.sig_peak)
+        # 下蹲阶段的谷值（这一轮蹲到最低多少度）—— 只在 active 阶段采集，
+        # 所以等计数那一刻（离开 active）它已经完整了，判定准确、不滞后。
+        if stage == "active":
+            self.depth_valley = sig if self.depth_valley is None else min(self.depth_valley, sig)
+
+        # peak / valley 传进去，让 peak_* / valley_* 类约束用「本轮极值」判定
+        checks = self.quality.check(points, visibilities, stage, just_counted,
+                                    self.sig_peak, self.depth_valley)
         hits = self.quality.hits(checks)
 
         if just_counted:
             self.sig_peak = None                # 结算完，开新的一轮
+            self.depth_valley = None
 
         return count, stage, sig, hits, checks
 

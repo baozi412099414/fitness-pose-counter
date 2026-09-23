@@ -5,12 +5,19 @@
   "counter": {
     "signal": "angle",
     "points": [23, 25, 27],
-    "lo": 100,
+    "lo": 115,
     "hi": 155,
     "first": "lo",
     "min_interval": 0.40
   },
   "quality": [
+    {
+      "name": "not_deep_enough",
+      "check": "valley_max",
+      "max": 95,
+      "when": "on_rep",
+      "tip": "蹲得不够深，再往下蹲"
+    },
     {
       "name": "not_standing_straight",
       "check": "peak_min",
