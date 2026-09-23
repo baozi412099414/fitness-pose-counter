@@ -35,6 +35,11 @@ from pose_logic import load_action
 MODEL_PATH = "pose_landmarker_lite.task"
 CONFIG_DIR = "configs"
 
+# 站立基线自动校准用的偏移量（见 main 里的校准逻辑）
+LO_DROP = 25.0      # 下蹲门槛 = 站立基线 - 25°
+HI_DROP = 8.0       # 还原线   = 站立基线 - 8°
+STRAIGHT_DROP = 10.0  # 「站起伸直」标准 = 站立基线 - 10°
+
 # MediaPipe Pose 33 关键点里常用的几个（画骨架用）
 L_SHOULDER, R_SHOULDER = 11, 12
 L_ELBOW,    R_ELBOW    = 13, 14
@@ -242,6 +247,9 @@ def main():
     # 启动后头 2 秒画面还在稳定（相机自动曝光、人还在站位），这期间 MediaPipe
     # 容易输出乱跳的关键点，会造成「凭空多计一次」→ 所以先不计数。
     warmup_until = time.time() + 2.0
+    warmup_samples = []                 # 启动头 2 秒的信号采样（用来估算站立基线）
+    baseline = None                     # 站立基线（自动校准结果）
+    calib_done = False                  # 校准是否已判定完（成功或放弃）
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -278,6 +286,29 @@ def main():
                 conf = min(vis[i] for i in action.signal_points)
                 person_ok = conf >= action.min_visibility
 
+                # ---- 站立基线自动校准 ----
+                # 启动头 2 秒你应该是站着的，用这段时间信号的中位数当「站立基线」，
+                # 再自动定门槛：下蹲门槛 = 基线-25°，还原线 = 基线-8°，
+                # 「站起伸直」标准 = 基线-10°。换个人 / 换机位都不必回来改配置。
+                if not calib_done and person_ok:
+                    if time.time() < warmup_until:
+                        warmup_samples.append(action.signal(pts))
+                    elif len(warmup_samples) >= 8:
+                        warmup_samples.sort()
+                        baseline = warmup_samples[len(warmup_samples) // 2]
+                        action.counter.lo = baseline - LO_DROP
+                        action.counter.hi = baseline - HI_DROP
+                        for r in action.quality.rules:
+                            if r.get("check") == "peak_min":
+                                r["min"] = baseline - STRAIGHT_DROP
+                        calib_done = True
+                        print(f"  自动校准：站立基线 {baseline:.0f}° → 下蹲门槛 "
+                              f"{action.counter.lo:.0f}° / 还原线 {action.counter.hi:.0f}° / "
+                              f"站直标准 {baseline - STRAIGHT_DROP:.0f}°")
+                    elif time.time() > warmup_until + 4.0:
+                        calib_done = True       # 采样太少（一直没拍全），放弃校准
+                        print("  （站立基线采样不足，改用配置里的固定门槛）")
+
                 # 骨架照画（可信度低时画成灰色，一眼看出「这是猜的」）
                 skel_color = (0, 220, 180) if person_ok else (110, 110, 110)
                 for a, b in SKELETON:
@@ -304,7 +335,7 @@ def main():
             fps = sum(fps_hist) / len(fps_hist)
 
             # HUD（OpenCV 画不了中文，用英文；中文交给 say 语音念）
-            cv2.rectangle(frame, (0, 0), (360, 128), (32, 32, 32), -1)
+            cv2.rectangle(frame, (0, 0), (400, 152), (32, 32, 32), -1)
             cv2.putText(frame, f"REPS {count}", (12, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
             cv2.putText(frame, f"{action.id.upper():9s} {stage.upper():6s} sig {sig_txt}", (12, 68),
@@ -314,12 +345,17 @@ def main():
             det_color = (120, 230, 120) if person_ok else (60, 60, 255)
             cv2.putText(frame, det_txt, (12, 92),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, det_color, 2)
-            cv2.putText(frame, f"{fps:4.1f} fps", (12, 116),
+            # 校准信息：站立基线 + 本轮最低点（帮你判断门槛该定多少）
+            base_txt = f"{baseline:.0f}" if baseline else "calib.."
+            low_txt = f"{action.depth_valley:.0f}" if action.depth_valley is not None else "--"
+            cv2.putText(frame, f"base {base_txt}  lowest {low_txt}", (12, 116),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 120), 2)
+            cv2.putText(frame, f"{fps:4.1f} fps", (12, 140),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1)
 
             # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
             #   OK 绿=达标   !! 红=不达标   ? 灰=点没拍全   -- 灰=本阶段不判
-            y = 158
+            y = 180
             hidden = False
             for c in checks:
                 if not c["visible"]:
