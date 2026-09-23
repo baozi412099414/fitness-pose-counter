@@ -241,6 +241,9 @@ class Action:
             # 可选：归一化参考点对（一般传「两肩」= 用肩宽当尺子，站远站近数值都稳定）
             self.unit_points = counter_cfg.get("unit_points")
         self.counter = RepCounter(counter_cfg)
+        # 是否允许「站立基线自动校准」。校准用「基线 − 偏移」的公式，只适合
+        # 「角度变小」的动作（深蹲），对「角度变大」的动作（开合跳举手）必须关掉。
+        self.calibrate = cfg.get("calibrate", True)
         self.min_visibility = cfg.get("min_visibility", 0.5)
         self.quality = QualityChecker(cfg.get("quality", []),
                                       min_visibility=self.min_visibility)

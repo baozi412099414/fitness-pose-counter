@@ -2,11 +2,12 @@
   "id": "jumping_jack",
   "name": "开合跳",
   "camera_side": "正",
+  "calibrate": false,
   "counter": {
     "signal": "angle",
     "points": [13, 11, 23],
     "lo": 30,
-    "hi": 60,
+    "hi": 90,
     "first": "hi",
     "min_interval": 0.40
   },

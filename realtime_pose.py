@@ -299,10 +299,13 @@ def main():
                 # 「站起伸直」标准 = 基线-10°。换个人 / 换机位都不必回来改配置。
                 # 注意：只对「角度类」动作有效；距离类（如开合跳的脚距/肩宽比值）
                 # 单位不是度，用不了这套减法，所以直接跳过、用配置里的固定阈值。
+                # 注意：自动校准的公式是「基线 − 偏移」，只适合「角度变小」的动作（如深蹲下蹲）。
+                # 开合跳是「角度变大」（举手），套这个公式会把门槛设到站立值以下 ——
+                # 站着就满足「手举起」，手机一晃就计数。所以配置里可以关掉校准。
                 if not calib_done and person_ok:
-                    if action.signal_type != "angle":
+                    if not getattr(action, "calibrate", True) or action.signal_type != "angle":
                         calib_done = True
-                        print(f"  （{action.name} 是距离类信号，跳过角度基线校准，用配置阈值）")
+                        print(f"  （{action.name} 用配置里的固定门槛，不做角度基线校准）")
                     elif time.time() < warmup_until:
                         warmup_samples.append(action.signal(pts))
                     elif len(warmup_samples) >= 8:
@@ -311,7 +314,9 @@ def main():
                         action.counter.lo = baseline - args.lo_drop
                         action.counter.hi = baseline - HI_DROP
                         for r in action.quality.rules:
-                            if r.get("check") == "peak_min":
+                            # 只校准「用计数信号」的约束；带自己 signal 的约束
+                            # （如开合跳的「腿没张开」用的是距离比值）不能被角度基线污染
+                            if r.get("check") == "peak_min" and "signal" not in r:
                                 r["min"] = baseline - STRAIGHT_DROP
                         calib_done = True
                         print(f"  自动校准：站立基线 {baseline:.0f}° → 下蹲门槛 "
