@@ -256,6 +256,7 @@ def main():
     shown_until = 0.0
     last_err_say = 0.0                  # 错误播报节流（独立于报数）
     last_cnt_say = 0.0                  # 报数节流
+    last_logged_count = 0               # 上次打印过判定明细的计数（终端诊断用）
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -415,6 +416,14 @@ def main():
                 banner = "   ".join("! " + (h["name"] or "?").upper() for h in shown_hits)
                 cv2.putText(frame, banner, (12, y + 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (60, 60, 255), 3)
+
+            # 终端也打印每次计数的判定明细 —— HUD 看不清时可以直接把输出复制回来
+            if count > last_logged_count:
+                last_logged_count = count
+                parts = [f"{c['name']}={(c['value'] or 0):.2f}/{c['limit']:.2f}"
+                         f"{'OK' if c['ok'] else '!!'}"
+                         for c in checks if c.get("limit") is not None]
+                print(f"  第 {count} 次： " + "   ".join(parts), flush=True)
 
             # 语音播报：报错优先。同一次动作既计数又报错时合并成一句
             # （两个 say 会互相打断）；报错与报数各有独立节流，避免错误提示被报数挤掉。
