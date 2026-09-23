@@ -252,6 +252,10 @@ def main():
     warmup_samples = []                 # 启动头 2 秒的信号采样（用来估算站立基线）
     baseline = None                     # 站立基线（自动校准结果）
     calib_done = False                  # 校准是否已判定完（成功或放弃）
+    shown_hits = []                     # 最近命中的错误（保持显示一会儿，免得只闪一帧看不清）
+    shown_until = 0.0
+    last_err_say = 0.0                  # 错误播报节流（独立于报数）
+    last_cnt_say = 0.0                  # 报数节流
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -390,18 +394,32 @@ def main():
                 cv2.putText(frame, "! POINTS HIDDEN  ->  step back, keep whole body in frame",
                             (12, y + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (60, 200, 255), 2)
 
-            # 语音播报：报错优先，并且和报数合并成一句话。
-            # （同一次动作既计数又报错时，两个 say 会互相打断，所以不能连着说两次）
-            if hits and now - last_say >= 2.0:
+            # 错误提示保持：on_rep 类约束只在「计数那一帧」命中，只闪一帧根本看不清，
+            # 所以把命中的提示留住 2 秒再撤。
+            if hits:
+                shown_hits = hits
+                shown_until = now + 2.0
+            elif now > shown_until:
+                shown_hits = []
+
+            if shown_hits:
+                banner = "   ".join("! " + h["name"].upper() for h in shown_hits)
+                cv2.putText(frame, banner, (12, y + 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (60, 60, 255), 3)
+
+            # 语音播报：报错优先。同一次动作既计数又报错时合并成一句
+            # （两个 say 会互相打断）；报错与报数各有独立节流，避免错误提示被报数挤掉。
+            if hits and now - last_err_say >= 1.5:
                 tip = hits[0]["tip"]
                 if count > last_count:
                     tip += f"，{count}"
                     last_count = count
                 say(tip)
-                last_say = now
-            elif count > last_count:
-                # 没有错误提示时，单独念数字（做动作时不用盯屏幕也知道数上了）
+                last_err_say = now
+            elif count > last_count and now - last_cnt_say >= 1.0:
+                # 没有错误提示时才单独念数字（做动作时不用盯屏幕也知道数上了）
                 say(str(count))
+                last_cnt_say = now
                 last_count = count
 
             cv2.imshow("realtime pose", frame)
