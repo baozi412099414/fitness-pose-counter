@@ -160,29 +160,36 @@ def test_no_count_without_person():
     print("  ✅ 没人不加数，有人正常加数\n")
 
 
-def test_on_rep_timing():
-    print("=== 测试 8：约束绑定到计数事件（只在站起那一刻判） ===")
-    action = load_action("configs/squat.json")
+def test_peak_judgment():
+    print("=== 测试 8：峰值判定（看本轮最高站到多少，不看计数那一刻） ===")
     vis = [1.0] * 33
 
     def knee_pts(offset):
-        """构造膝角由 offset 决定的姿态：offset 越大，膝角越小。"""
+        """offset 越大膝角越小：3≈174°（站直）, 10≈161°（差一点）, 60≈90°（蹲下）"""
         p = [(0, 0)] * 33
         p[23] = (100, 100)
         p[25] = (100 + offset, 160)
         p[27] = (100, 220)
         return p
 
-    action.update(knee_pts(60), vis, now=0.0)                        # 蹲下 -> active
-    c, s, sig, hits, _ = action.update(knee_pts(10), vis, now=1.0)   # 站起，但没伸直到位
-    print(f"  站起膝角 {sig:.1f}° -> REPS {c}  报错 {[h['name'] for h in hits]}")
-    assert c == 1, "应该计 1 次"
-    assert hits, "没伸直到位应报（和计数同时发生是正确的）"
+    # 场景 1：先站到 174° 再蹲 -> 本轮峰值 174°，站起计数时不该报
+    a = load_action("configs/squat.json")
+    a.update(knee_pts(3), vis, now=0.0)                              # 站着 174°
+    a.update(knee_pts(60), vis, now=1.0)                             # 蹲下
+    c, s, sig, hits, _ = a.update(knee_pts(10), vis, now=2.0)        # 站起到刚过计数线
+    print(f"  站在 174° 后深蹲：计数时 sig={sig:.1f}°  报错 {[h['name'] for h in hits]}")
+    assert c == 1, "应计 1 次"
+    assert not hits, "本轮峰值 174° >= 162°，不该报「没伸直」"
 
-    c, s, sig, hits, _ = action.update(knee_pts(45), vis, now=2.0)   # 下蹲过程中
-    print(f"  下蹲膝角 {sig:.1f}° -> REPS {c}  报错 {[h['name'] for h in hits]}（应为空）")
-    assert not hits, "下蹲过程中不该报「站起时没伸直」"
-    print("  ✅ 只在站起那一刻判，下蹲过程不误报\n")
+    # 场景 2：全程只站到 161° -> 峰值不够，应该报
+    a2 = load_action("configs/squat.json")
+    a2.update(knee_pts(10), vis, now=0.0)                            # 站着只有 161°
+    a2.update(knee_pts(60), vis, now=1.0)                            # 蹲下
+    c, s, sig, hits, _ = a2.update(knee_pts(10), vis, now=2.0)
+    print(f"  只站到 161° 后深蹲：计数时 sig={sig:.1f}°  报错 {[h['name'] for h in hits]}")
+    assert c == 1, "应计 1 次"
+    assert hits, "本轮峰值只有 161° < 162°，应报「没伸直」"
+    print("  ✅ 判定看本轮峰值，而不是「刚过计数线那一帧」的角度\n")
 
 
 if __name__ == "__main__":
@@ -193,5 +200,5 @@ if __name__ == "__main__":
     test_stage_filter()
     test_load_and_update()
     test_no_count_without_person()
-    test_on_rep_timing()
+    test_peak_judgment()
     print("全部通过 ✅")

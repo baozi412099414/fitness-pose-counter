@@ -96,36 +96,39 @@ class QualityChecker:
         self.rules = quality_cfgs or []
         self.min_visibility = min_visibility
 
-    def check(self, points, visibilities=None, stage="any", just_counted=False):
+    def check(self, points, visibilities=None, stage="any", just_counted=False, peak=None):
         """
         逐条检查，返回明细列表，每项含：
           name / tip / value(实测值) / limit(阈值) / ok(是否达标)
           visible  关键点是否拍全（拍不到 → 不判定，避免误报）
           checked  本次是否参与判定（"when" 可选 any / ready / active / on_rep）
+        peak: 本轮动作里「计数信号」达到过的最大值，供 peak_min / peak_max 用。
         """
         checks = []
         for rule in self.rules:
-            idx = rule["points"]
-            pts = [points[i] for i in idx]
-
-            # 关键点可见性：拍不到就不判（MediaPipe 会瞎猜位置，算出来是乱值）
-            visible = True
-            if visibilities is not None:
-                visible = min(visibilities[i] for i in idx) >= self.min_visibility
-
-            # 阶段过滤：例如「手臂没伸直」只在还原阶段判 ——
-            # 否则动作过程中肘角本来就小，会像「总说塌腰」那样一直误报
+            # ---- 判定时机 ----
             when = rule.get("when", "any")
             if when == "any":
                 checked = True
             elif when == "on_rep":
-                # 只在「刚刚完成一次计数」的那一帧判。
-                # 例：「站起时腿没伸直」—— 下蹲过程中膝角小是正常的，不该判。
                 checked = just_counted
             else:
                 checked = (when == stage)
 
             kind = rule.get("check")
+
+            # ---- 关键点可见性（peak_* 类不依赖关键点，跳过）----
+            need_points = kind in ("collinear", "angle_min", "angle_max")
+            if need_points:
+                idx = rule["points"]
+                pts = [points[i] for i in idx]
+                visible = True
+                if visibilities is not None:
+                    visible = min(visibilities[i] for i in idx) >= self.min_visibility
+            else:
+                visible = True
+
+            # ---- 算实测值与是否达标 ----
             value, limit, ok = None, None, True
             if kind == "collinear":
                 # 三点共线度：算中间点的夹角，180 度为完全直线（塌腰/撅臀时变小）
@@ -140,6 +143,18 @@ class QualityChecker:
             elif kind == "angle_max":
                 # 某个角要 <= max（例如弯起时肘角 <= 70 才算弯到位）
                 value = angle_between(pts[0], pts[1], pts[2])
+                limit = rule.get("max", 180)
+                ok = value <= limit
+            elif kind == "peak_min":
+                # 用「本轮动作里信号达到过的最大值」判定。
+                # 例：「站起时腿没伸直」不能用计数瞬间的角度（那时刚好刚过计数线），
+                # 要看这一轮最高站到多少度。
+                value = peak if peak is not None else 0.0
+                limit = rule.get("min", 0)
+                ok = value >= limit
+            elif kind == "peak_max":
+                # 同理，用峰值判「有没有到位（角度够小）」
+                value = peak if peak is not None else 0.0
                 limit = rule.get("max", 180)
                 ok = value <= limit
             checks.append({
@@ -174,6 +189,7 @@ class Action:
         self.min_visibility = cfg.get("min_visibility", 0.5)
         self.quality = QualityChecker(cfg.get("quality", []),
                                       min_visibility=self.min_visibility)
+        self.sig_peak = None            # 本轮动作里信号达到过的最大值（供 peak_* 判定）
 
     def signal(self, points):
         """从 33 个关键点算出当前判定信号值。"""
@@ -190,6 +206,11 @@ class Action:
         conf = 1.0
         if visibilities is not None:
             conf = min(visibilities[i] for i in self.signal_points)
+
+        # 追踪本轮峰值：peak_min / peak_max 类约束要用它，
+        # 因为「刚过计数线那一帧」的角度不能代表这一轮的实际幅度。
+        self.sig_peak = sig if self.sig_peak is None else max(self.sig_peak, sig)
+
         just_counted = False
         if conf >= self.min_visibility:
             before = self.counter.count
@@ -197,9 +218,14 @@ class Action:
             just_counted = count > before       # 这一帧刚数上一个
         else:
             count, stage = self.counter.count, self.counter.stage
-        # just_counted 传给质量检查，让 when="on_rep" 的约束只在计数那一刻判
-        checks = self.quality.check(points, visibilities, stage, just_counted)
+
+        # peak 传进去，让 peak_min / peak_max 用「本轮最高值」判定
+        checks = self.quality.check(points, visibilities, stage, just_counted, self.sig_peak)
         hits = self.quality.hits(checks)
+
+        if just_counted:
+            self.sig_peak = None                # 结算完，开新的一轮
+
         return count, stage, sig, hits, checks
 
     def reset(self):
