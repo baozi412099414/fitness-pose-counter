@@ -3,19 +3,29 @@
   "name": "开合跳",
   "camera_side": "正",
   "counter": {
-    "signal": "distance",
-    "points": [27, 28],
+    "signal": "dy",
+    "points": [11, 15],
     "unit_points": [11, 12],
-    "lo": 0.35,
-    "hi": 0.85,
+    "lo": -0.8,
+    "hi": 0.3,
     "first": "hi",
     "min_interval": 0.30
   },
   "quality": [
     {
-      "name": "legs_not_apart",
+      "name": "hand_not_up",
       "check": "peak_min",
-      "min": 0.95,
+      "min": 0.6,
+      "when": "on_rep",
+      "tip": "手没举过头顶"
+    },
+    {
+      "name": "legs_not_apart",
+      "signal": "distance",
+      "points": [27, 28],
+      "unit_points": [11, 12],
+      "check": "peak_min",
+      "min": 0.8,
       "when": "on_rep",
       "tip": "腿没张开，跳开一点"
     }

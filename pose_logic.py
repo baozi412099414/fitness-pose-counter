@@ -97,13 +97,17 @@ class QualityChecker:
         self.min_visibility = min_visibility
 
     def check(self, points, visibilities=None, stage="any", just_counted=False,
-              peak=None, valley=None):
+              peak=None, valley=None, rule_ext=None):
         """
         逐条检查，返回明细列表，每项含：
           name / tip / value(实测值) / limit(阈值) / ok(是否达标)
           visible  关键点是否拍全（拍不到 → 不判定，避免误报）
           checked  本次是否参与判定（"when" 可选 any / ready / active / on_rep）
-        peak: 本轮动作里「计数信号」达到过的最大值，供 peak_min / peak_max 用。
+
+        peak / valley : 「计数信号」本轮的峰值 / 谷值
+        rule_ext      : {规则名: {"peak":…, "valley":…}} —— 给「自带 signal」的规则用。
+                        一条约束可以看自己的信号，不必和计数信号相同。
+                        例：开合跳计数看手腕高度，而「腿没张开」看脚距/肩宽。
         """
         checks = []
         for rule in self.rules:
@@ -117,17 +121,22 @@ class QualityChecker:
                 checked = (when == stage)
 
             kind = rule.get("check")
+            has_own_signal = "signal" in rule
 
-            # ---- 关键点可见性（peak_* 类不依赖关键点，跳过）----
-            need_points = kind in ("collinear", "angle_min", "angle_max")
-            if need_points:
-                idx = rule["points"]
-                pts = [points[i] for i in idx]
-                visible = True
-                if visibilities is not None:
-                    visible = min(visibilities[i] for i in idx) >= self.min_visibility
+            # ---- 本规则要用的极值：自带信号用自己的，否则用计数信号的 ----
+            if has_own_signal:
+                ext = (rule_ext or {}).get(rule.get("name"), {})
+                r_peak, r_valley = ext.get("peak"), ext.get("valley")
             else:
-                visible = True
+                r_peak, r_valley = peak, valley
+
+            # ---- 关键点可见性（纯 peak_* 且不带信号的规则不依赖关键点）----
+            idx = rule.get("points")
+            need_points = kind in ("collinear", "angle_min", "angle_max")
+            pts = [points[i] for i in idx] if idx else None
+            visible = True
+            if (need_points or has_own_signal) and idx and visibilities is not None:
+                visible = min(visibilities[i] for i in idx) >= self.min_visibility
 
             # ---- 算实测值与是否达标 ----
             value, limit, ok = None, None, True
@@ -150,23 +159,23 @@ class QualityChecker:
                 # 用「本轮动作里信号达到过的最大值」判定。
                 # 例：「站起时腿没伸直」不能用计数瞬间的角度（那时刚好刚过计数线），
                 # 要看这一轮最高站到多少度。
-                value = peak if peak is not None else 0.0
+                value = r_peak if r_peak is not None else 0.0
                 limit = rule.get("min", 0)
                 ok = value >= limit
             elif kind == "peak_max":
                 # 同理，用峰值判「有没有到位（角度够小）」
-                value = peak if peak is not None else 0.0
+                value = r_peak if r_peak is not None else 0.0
                 limit = rule.get("max", 180)
                 ok = value <= limit
             elif kind == "valley_max":
                 # 用「动作阶段里信号达到过的最小值」判定。
                 # 例：「有没有蹲下去」—— 看这一轮蹲到最低时是多少度。
                 # 谷值只在下蹲阶段采集，所以计数那一刻就已经完整了，判定准确、不滞后。
-                value = valley if valley is not None else 999.0
+                value = r_valley if r_valley is not None else 999.0
                 limit = rule.get("max", 180)
                 ok = value <= limit
             elif kind == "valley_min":
-                value = valley if valley is not None else 999.0
+                value = r_valley if r_valley is not None else 999.0
                 limit = rule.get("min", 0)
                 ok = value >= limit
             checks.append({
@@ -206,17 +215,36 @@ class Action:
                                       min_visibility=self.min_visibility)
         self.sig_peak = None            # 本轮动作里信号达到过的最大值（供 peak_* 判定）
         self.depth_valley = None        # 动作阶段里信号的最小值（供 valley_* 判定）
+        self.rule_ext = {}              # {规则名: {peak, valley}} 自带 signal 的规则各自记极值
 
     def signal(self, points):
-        """从 33 个关键点算出当前判定信号值。"""
-        pts = [points[i] for i in self.signal_points]
-        if self.signal_type == "distance":
-            d = distance_between(pts[0], pts[1])
-            if self.unit_points:
-                u = [points[i] for i in self.unit_points]
-                d = d / (distance_between(u[0], u[1]) + 1e-6)   # 归一化（除以肩宽）
-            return d
-        return angle_between(pts[0], pts[1], pts[2])
+        """从 33 个关键点算出当前计数信号值。"""
+        return self._calc_signal(self.signal_type, points,
+                                 self.signal_points, self.unit_points)
+
+    @staticmethod
+    def _calc_signal(sig_type, points, idx, unit_points=None):
+        """
+        算一个信号值。计数信号和「规则自带信号」共用这套算法：
+          angle    三点夹角（度）
+          distance 两点欧氏距离
+          dy       两点的竖直差（图像 y 向下，所以「上面的点 − 下面的点」为正）
+        给了 unit_points 就再除以这对点的距离做归一化（一般传两肩 —— 用肩宽当尺子，
+        这样站远站近数值都稳定）。
+        """
+        pts = [points[i] for i in idx]
+        if sig_type == "angle":
+            return angle_between(pts[0], pts[1], pts[2])
+        if sig_type == "distance":
+            v = distance_between(pts[0], pts[1])
+        elif sig_type == "dy":
+            v = pts[0][1] - pts[1][1]
+        else:
+            return None
+        if unit_points:
+            u = [points[i] for i in unit_points]
+            v = v / (distance_between(u[0], u[1]) + 1e-6)
+        return v
 
     def update(self, points, visibilities=None, now=None):
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
@@ -244,14 +272,33 @@ class Action:
         if stage == "active":
             self.depth_valley = sig if self.depth_valley is None else min(self.depth_valley, sig)
 
-        # peak / valley 传进去，让 peak_* / valley_* 类约束用「本轮极值」判定
+        # 自带 signal 的规则：为每条规则维护「它自己信号」的峰值 / 谷值
+        # （例：开合跳的「腿没张开」看脚距/肩宽，和计数用的手腕高度不是同一个信号）
+        for rule in self.quality.rules:
+            st = rule.get("signal")
+            r_idx = rule.get("points")
+            if not st or not r_idx:
+                continue
+            v = self._calc_signal(st, points, r_idx, rule.get("unit_points"))
+            if v is None:
+                continue
+            name = rule.get("name")
+            ext = self.rule_ext.get(name)
+            if ext is None:
+                self.rule_ext[name] = {"peak": v, "valley": v}
+            else:
+                ext["peak"] = max(ext["peak"], v)
+                ext["valley"] = min(ext["valley"], v)
+
+        # peak / valley / rule_ext 传进去，让各类约束用「本轮极值」判定
         checks = self.quality.check(points, visibilities, stage, just_counted,
-                                    self.sig_peak, self.depth_valley)
+                                    self.sig_peak, self.depth_valley, self.rule_ext)
         hits = self.quality.hits(checks)
 
         if just_counted:
             self.sig_peak = None                # 结算完，开新的一轮
             self.depth_valley = None
+            self.rule_ext = {}
 
         return count, stage, sig, hits, checks
 

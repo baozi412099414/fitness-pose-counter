@@ -225,39 +225,47 @@ def test_depth_judgment():
 
 
 def test_jumping_jack():
-    print("=== 测试 10：开合跳（距离类信号 + 肩宽归一化） ===")
+    print("=== 测试 10：开合跳（手腕高度计数 + 手/腿两条独立约束） ===")
     action = load_action("configs/jumping_jack.json")
-    print(f"  信号类型 {action.signal_type}，归一化参考点 {action.unit_points}（两肩）")
+    print(f"  计数信号 = {action.signal_type}（肩腕竖直差 ÷ 肩宽），质量约束 {len(action.quality.rules)} 条")
 
-    def pose(foot_half):
-        """foot_half = 每只脚离中心点的水平像素距离；肩宽固定 100px"""
+    def pose(hand_y, foot_half):
+        """hand_y = 手腕 y（越小越高）；foot_half = 每只脚离中线的水平距离。肩宽固定 100px"""
         p = [(0, 0)] * 33
-        p[11] = (100, 100)               # 左肩
-        p[12] = (200, 100)               # 右肩（肩宽 = 100）
-        p[27] = (150 - foot_half, 400)   # 左踝
-        p[28] = (150 + foot_half, 400)   # 右踝
+        p[11] = (100, 100)                 # 左肩
+        p[12] = (200, 100)                 # 右肩（肩宽 = 100）
+        p[15] = (100, hand_y)              # 左腕
+        p[27] = (150 - foot_half, 400)     # 左踝
+        p[28] = (150 + foot_half, 400)     # 右踝
         return p
 
     vis = [1.0] * 33
 
-    # 并拢(比值0.04) → 张开(比值1.0) → 并拢：应计 1 次且不报错
-    action.update(pose(2), vis, now=0.0)
-    _, _, sig_open, _, _ = action.update(pose(50), vis, now=0.5)
-    c, s, sig, hits, _ = action.update(pose(2), vis, now=1.0)
-    print(f"  张开时比值 {sig_open:.2f}（脚距/肩宽）→ 并拢回来 REPS {c}，报错 "
-          f"{[h['name'] for h in hits]}（应为空）")
+    # 标准动作：手放下(dy=-2.0) → 手举过头(y=30→dy=0.7) + 脚张开(比值1.0) → 手放下
+    action.update(pose(300, 2), vis, now=0.0)
+    _, _, sig_up, _, _ = action.update(pose(30, 50), vis, now=0.5)
+    c, s, sig, hits, _ = action.update(pose(300, 2), vis, now=1.0)
+    print(f"  手举起时 dy={sig_up:.2f} → 计数 {c}，报错 {[h['name'] for h in hits]}（应为空）")
     assert c == 1, "应该计 1 次"
-    assert not hits, "张开到位了不该报错"
+    assert not hits, "标准动作不该报错"
 
-    # 只张开一点点（比值 0.94：过了计数线 0.9，但没到 1.0）→ 应报「腿没张开」
+    # 手没举过头（dy=0.55：过了计数线 0.3，但没到 0.6）→ 应报
     a2 = load_action("configs/jumping_jack.json")
-    a2.update(pose(2), vis, now=0.0)
-    a2.update(pose(46), vis, now=0.5)
-    c, s, sig, hits, _ = a2.update(pose(2), vis, now=1.0)
-    print(f"  只张开一点点 → REPS {c}，报错 {[h['name'] for h in hits]}")
+    a2.update(pose(300, 2), vis, now=0.0)
+    a2.update(pose(45, 50), vis, now=0.5)
+    c, s, sig, hits, _ = a2.update(pose(300, 2), vis, now=1.0)
+    print(f"  手只举到 dy=0.55 → 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert c == 1, "过了计数线也算一次（计数宽松）"
+    assert any(h["name"] == "hand_not_up" for h in hits), "应报「手没举过头顶」"
+
+    # 手举到位、但腿没张开（脚距比值 0.6）→ 应报
+    a3 = load_action("configs/jumping_jack.json")
+    a3.update(pose(300, 2), vis, now=0.0)
+    a3.update(pose(30, 30), vis, now=0.5)      # 脚距 60 → 比值 0.6
+    c, s, sig, hits, _ = a3.update(pose(300, 2), vis, now=1.0)
+    print(f"  腿只张开到 0.60 → 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert any(h["name"] == "legs_not_apart" for h in hits), "应报「腿没张开」"
-    print("  ✅ 距离类信号 + 肩宽归一化 + 峰值判定 都正常\n")
+    print("  ✅ 手腕计数 + 手/腿两条独立约束 都正常\n")
 
 
 if __name__ == "__main__":
