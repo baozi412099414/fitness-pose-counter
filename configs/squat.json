@@ -76,7 +76,8 @@
       "check": "valley_min",
       "min": -0.1,
       "priority": 90,
-      "tip": "膝盖超过脚尖了，试着把髋部向后坐"
+      "tip": "膝盖超过脚尖了，试着把髋部向后坐",
+      "when": "any"
     },
     {
       "name": "torso_shin_mismatch",

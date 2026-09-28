@@ -8,6 +8,7 @@ MediaPipe/Metal 初始化失败，控制台本身也不会一起崩溃。
 """
 
 import json
+import os
 import queue
 import re
 import subprocess
@@ -131,6 +132,9 @@ class FitnessTestUI:
         self.rest_var = tk.StringVar(value="30")
         self.goal_var = tk.StringVar(value="0")
         self.goal_status_var = tk.StringVar(value="")
+        self.progress_var = tk.StringVar(value="未设目标")
+        self.top_errors_var = tk.StringVar(value="暂无训练记录")
+        self._report_paths = []          # 报告列表当前显示的路径（与 Listbox 行一一对应）
         self.status_var = tk.StringVar(value="准备就绪")
         self.reps_var = tk.StringVar(value="0")
         self.rate_var = tk.StringVar(value="--")
@@ -146,6 +150,7 @@ class FitnessTestUI:
         self._build()
         self._sync_source()
         self._sync_goal()
+        self._refresh_stats()
         self.root.after(100, self._poll_messages)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -297,6 +302,44 @@ class FitnessTestUI:
         ttk.Label(result, textvariable=self.errors_var, wraplength=260,
                   justify="center").grid(row=1, column=2, pady=5)
 
+        # ---- 历史与统计：全部只读本地文件，不需要摄像头 ----
+        stats = ttk.LabelFrame(outer, text="历史与统计（不依赖摄像头）", padding=12)
+        stats.pack(fill="x", pady=(0, 12))
+        stats.columnconfigure(1, weight=1)
+
+        ttk.Label(stats, text="目标进度").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.goal_bar = ttk.Progressbar(stats, orient="horizontal", length=220,
+                                        mode="determinate", maximum=100)
+        self.goal_bar.grid(row=0, column=1, sticky="w")
+        ttk.Label(stats, textvariable=self.progress_var,
+                  foreground="#2f80ed").grid(row=0, column=2, sticky="w", padx=10)
+
+        ttk.Label(stats, text="最常犯的错").grid(row=1, column=0, sticky="nw", pady=(8, 0))
+        ttk.Label(stats, textvariable=self.top_errors_var, wraplength=440,
+                  foreground="#c0392b", justify="left").grid(
+            row=1, column=1, columnspan=2, sticky="w", pady=(8, 0))
+
+        ttk.Label(stats, text="历史报告").grid(row=2, column=0, sticky="nw", pady=(8, 0))
+        list_frame = ttk.Frame(stats)
+        list_frame.grid(row=2, column=1, sticky="ew", pady=(8, 0))
+        self.report_list = tk.Listbox(list_frame, height=5, activestyle="dotbox",
+                                      font=("Menlo", 10))
+        self.report_list.pack(side="left", fill="x", expand=True)
+        rscroll = ttk.Scrollbar(list_frame, orient="vertical",
+                                command=self.report_list.yview)
+        self.report_list.configure(yscrollcommand=rscroll.set)
+        rscroll.pack(side="right", fill="y")
+        rbtns = ttk.Frame(stats)
+        rbtns.grid(row=2, column=2, sticky="nw", padx=10, pady=(8, 0))
+        ttk.Button(rbtns, text="刷新", width=10,
+                   command=self._refresh_stats).pack(pady=2)
+        ttk.Button(rbtns, text="查看详情", width=10,
+                   command=self._show_report_detail).pack(pady=2)
+        ttk.Button(rbtns, text="打开目录", width=10,
+                   command=self._open_reports_dir).pack(pady=2)
+        ttk.Button(rbtns, text="校验配置", width=10,
+                   command=self._validate_configs).pack(pady=2)
+
         log_box = ttk.LabelFrame(outer, text="运行日志", padding=8)
         log_box.pack(fill="both", expand=True)
         self.log = tk.Text(log_box, height=13, wrap="word", state="disabled",
@@ -306,6 +349,149 @@ class FitnessTestUI:
         self.log.configure(yscrollcommand=scroll.set)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
+
+    # ---------------- 历史与统计（不依赖摄像头）----------------
+    def _error_tip_map(self):
+        """把「约束名 → 中文提示」收集起来，用于把英文错误名显示成中文。"""
+        from pose_logic import load_action
+        tips = {}
+        for _name, aid in self.actions:
+            try:
+                act = load_action(CONFIG_DIR / f"{aid}.json")
+                for rule in act.quality.rules:
+                    tips[rule.get("name")] = rule.get("tip", rule.get("name"))
+            except Exception:
+                continue
+        return tips
+
+    def _refresh_stats(self):
+        """刷新目标进度、最常犯的错、历史报告列表。全部只读本地 JSON。"""
+        from training_manager import Goals, History
+        user = self.store.current_user()
+        aid = self.action_id()
+        hist = History(self.store, user)
+
+        # ① 今日目标进度
+        prog = Goals(self.store, user).progress(aid, hist)
+        if prog["target"]:
+            self.goal_bar["value"] = prog["ratio"] * 100
+            mark = "已达成 ✅" if prog["reached"] else f"还差 {prog['remaining']} 次"
+            self.progress_var.set(f"{prog['done']}/{prog['target']} 次　{mark}")
+        else:
+            self.goal_bar["value"] = 0
+            self.progress_var.set("未设目标")
+
+        # ② 最常犯的错（按所有动作汇总，中文提示）
+        errs = hist.error_summary()
+        if errs:
+            tips = self._error_tip_map()
+            top = "、".join(f"{tips.get(k, k)} ×{v}" for k, v in list(errs.items())[:3])
+            self.top_errors_var.set(top)
+        else:
+            self.top_errors_var.set("暂无训练记录（用视频或摄像头跑一次就有了）")
+
+        # ③ 历史报告列表
+        report_dir = ROOT / "captures/reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        found = sorted(report_dir.glob("*.json"), reverse=True)
+        self._report_paths = [p for p in found if not p.name.startswith("control-")]
+        self.report_list.delete(0, "end")
+        shown = 0
+        for p in self._report_paths:
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if "reps" not in d:            # 控制文件之类的跳过
+                continue
+            label = (f"{str(d.get('action_name') or d.get('action'))[:5]:　<5} "
+                     f"{d.get('reps', 0):>3} 次　"
+                     f"检出 {d.get('detection_rate', 0) * 100:>5.1f}%　{p.name[6:21]}")
+            self.report_list.insert("end", label)
+            shown += 1
+            if shown >= 60:
+                break
+
+    def _show_report_detail(self):
+        """把选中的报告读出来，用人能看懂的方式展示。"""
+        sel = self.report_list.curselection()
+        if not sel:
+            messagebox.showinfo("未选择", "先在列表里点一条历史报告。")
+            return
+        idx = sel[0]
+        if idx >= len(self._report_paths):
+            return
+        p = self._report_paths[idx]
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            messagebox.showerror("读取失败", f"{p.name}\n{e}")
+            return
+        lines = [
+            f"文件　　{d.get('action_name')}（{d.get('action')}）　{p.name}",
+            f"来源　　{d.get('source')}",
+            f"次数　　{d.get('reps')}",
+            f"帧数　　{d.get('total_frames')} 帧，检出关键点 "
+            f"{d.get('detected_frames')} 帧（{d.get('detection_rate', 0) * 100:.1f}%）",
+            f"结束　　{d.get('stopped_reason')}",
+        ]
+        if d.get("user"):
+            lines.append(f"用户　　{d['user']}")
+        if d.get("goal"):
+            g = d["goal"]
+            lines.append(f"目标　　{g.get('done')}/{g.get('target')}"
+                         f"（{'已达成' if g.get('reached') else '未达成'}）")
+        errs = d.get("errors") or {}
+        if errs:
+            tips = d.get("error_tips") or {}
+            lines.append("")
+            lines.append("错误事件：")
+            for k, v in sorted(errs.items(), key=lambda kv: -kv[1]):
+                lines.append(f"　　{tips.get(k, k)}　{v} 次")
+        messagebox.showinfo("报告详情", "\n".join(lines))
+
+    def _validate_configs(self):
+        """
+        校验 configs/ 下所有动作配置，结果显示在日志区。
+
+        这是「自定义动作」的第一道防线：写错关键点编号、阈值方向、check 名字
+        这类问题在运行前就能发现，不用架好摄像头做完动作才发现不生效。
+        """
+        from validate_config import validate_file
+        files = sorted(CONFIG_DIR.glob("*.json"))
+        if not files:
+            messagebox.showwarning("没有配置", f"{CONFIG_DIR} 下没有 json 文件")
+            return
+        self._append_log("\n===== 动作配置校验 =====\n")
+        total_err = total_warn = 0
+        for p in files:
+            rep = validate_file(p)
+            total_err += len(rep.errors)
+            total_warn += len(rep.warns)
+            self._append_log(f"[{'通过' if rep.ok else '有问题'}] {p.name}\n")
+            for e in rep.errors:
+                self._append_log(f"    错误  {e}\n")
+            for w in rep.warns:
+                self._append_log(f"    警告  {w}\n")
+        summary = f"共 {len(files)} 个配置，错误 {total_err} 条、警告 {total_warn} 条"
+        self._append_log(summary + "\n")
+        self.status_var.set(summary)
+        if total_err:
+            messagebox.showwarning("配置有问题", summary + "\n详情见下方运行日志。")
+
+    def _open_reports_dir(self):
+        """在访达里打开报告目录。"""
+        path = ROOT / "captures/reports"
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", str(path)])
+            elif sys.platform.startswith("win"):
+                os.startfile(str(path))          # noqa: S606 (Windows only)
+            else:
+                subprocess.Popen(["xdg-open", str(path)])
+        except Exception as e:
+            messagebox.showerror("打开失败", str(e))
 
     # ---------------- 窗口焦点（解决 macOS 点击不灵敏）----------------
     def _grab_focus(self):
@@ -380,6 +566,8 @@ class FitnessTestUI:
         self.goal_var.set(str(goal))
         self.goal_status_var.set(
             f"今日已完成 {done} 次" + (f" / 目标 {goal}" if goal else "（未设目标）"))
+        if hasattr(self, "report_list"):
+            self._refresh_stats()       # 换用户/换动作后，进度条和报告列表一起刷新
 
     def _save_goal(self):
         from training_manager import Goals
@@ -585,6 +773,8 @@ class FitnessTestUI:
                 self.status_var.set(f"报告读取失败：{exc}")
         else:
             self.status_var.set("已停止" if return_code < 0 else f"未生成报告（{return_code}）")
+        if hasattr(self, "report_list"):
+            self._refresh_stats()       # 刚跑完：历史列表多一条，目标进度也要更新
         if self.restart_pending:
             self.restart_pending = False
             self.root.after(250, self.start)

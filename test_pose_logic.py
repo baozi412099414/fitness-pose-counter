@@ -8,6 +8,7 @@
 """
 
 import json
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -682,6 +683,50 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_config_validator():
+    print("=== 测试 27：动作配置校验器（自定义动作的第一道防线） ===")
+    from validate_config import validate_file
+
+    # ① 三个正式配置必须干净通过（有错就说明正式配置本身有问题）
+    for name in ("squat", "pushup", "jumping_jack"):
+        rep = validate_file(f"configs/{name}.json")
+        print(f"  {name:14s} 错误 {len(rep.errors)} 警告 {len(rep.warns)}")
+        assert rep.ok, f"{name} 不该有错误：{rep.errors}"
+
+    # ② 各类写错的配置都要能被定位
+    def probe(cfg, *keywords):
+        p = os.path.join(tempfile.gettempdir(), "validate_probe.json")
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False)
+        rep = validate_file(p)
+        text = " ".join(rep.errors + rep.warns)
+        for kw in keywords:
+            assert kw in text, f"应该报出「{kw}」，实际报的是：{text}"
+        return rep
+
+    base = {"signal": "angle", "points": [13, 11, 23], "lo": 30, "hi": 60}
+    probe({"id": "x", "counter": dict(base, points=[13, 11])}, "需要 3 个关键点")
+    probe({"id": "x", "counter": dict(base, points=[13, 11, 99])}, "越界")
+    probe({"id": "x", "counter": dict(base, lo=60, hi=30)}, "必须小于")
+    probe({"id": "x", "counter": dict(base, signal="angel")}, "不支持")
+    probe({"id": "x", "counter": base,
+           "quality": [{"name": "t", "check": "peak_minn", "min": 5}]}, "不支持")
+    probe({"id": "x", "counter": base,
+           "quality": [{"check": "peak_min", "min": 5}]}, "缺少 name")
+    probe({"id": "x", "counter": base,
+           "quality": [{"name": "t", "check": "peak_min"}]}, "需要 min")
+    print("  7 类常见写错都能被定位（关键点数量/越界/阈值方向/拼错/缺 name/缺阈值…）")
+
+    # ③ JSON 语法错误也要给出行列位置，而不是直接抛异常
+    bad_path = os.path.join(tempfile.gettempdir(), "validate_bad.json")
+    with open(bad_path, "w", encoding="utf-8") as f:
+        f.write("{ 这不是合法 JSON")
+    rep = validate_file(bad_path)
+    assert not rep.ok and "JSON 语法错误" in rep.errors[0]
+    print(f"  坏 JSON 也能定位：{rep.errors[0]}")
+    print("  ✅ 校验器覆盖常见配置错误\n")
+
+
 def test_ui_discovers_actions_from_configs():
     print("=== 测试 24：UI 从 configs/ 动态发现动作（新增动作不用改 UI 代码） ===")
     from fitness_ui import (COMPUTER_CAMERA_INDEX, PHONE_CAMERA_INDEX, build_command,
@@ -785,5 +830,6 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_config_validator()
     test_ui_discovers_actions_from_configs()
     print("全部通过 ✅")
