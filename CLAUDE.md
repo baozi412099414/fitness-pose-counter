@@ -83,6 +83,7 @@
 | `training_manager.py` | **训练管理**：训练组间歇 / 历史与目标 / 多用户（模块 7/8/10） | ✅ 6 项测试全绿 |
 | `test_training_manager.py` | 训练管理模块测试（不依赖摄像头，可完整跑） | ✅ 全绿 |
 | `plot_trend.py` | 训练趋势图（matplotlib：周柱状 + 日折线 + 目标线 + 错误排行） | ✅ 可生成 |
+| `fitness_ui.py` | 三动作测试台（**动作按钮动态扫描 configs/**，子进程隔离） | ✅ 配置驱动闭环 |
 | `camera_probe.py` | 摄像头能力探测（能否调 zoom / 视野） | 可用（备用） |
 | `setup_env.sh` | 环境一键配置脚本（已固定 `mediapipe==0.10.35`） | 已执行完 |
 | `摄像头接入教程.md` | 面向用户的操作教程 | 尚未创建 |
@@ -493,6 +494,63 @@ macOS 摄像头权限按**谁该为这个进程负责**算，不是按 python �
 | 9 视频回放与错误片段标记 | 已砍（价值降级吸收进质量判定的日志） |
 
 **9 个模块全部落地**，达到最初「做 9 个」的目标。
+
+## 2026-09-29 UI 动态扫描 configs/（补上「配置驱动」最后一环）
+
+### 之前的问题（答辩会被问住）
+
+「新增动作只写 JSON、不改代码」这个核心卖点，**在 UI 层是假的**：
+
+```python
+# fitness_ui.py 旧代码
+ACTION_IDS = {"俯卧撑": "pushup", "深蹲": "squat", "开合跳": "jumping_jack"}
+REFERENCE_VIDEOS = {"俯卧撑": ROOT / "...pushup_standard.ogv", ...}
+```
+
+命令行 `realtime_pose.py --action X` 确实是从 `configs/X.json` 动态加载的，
+但**界面里的动作按钮是写死的** —— 往 `configs/` 里丢一份新 JSON，界面不会有任何变化。
+一旦被问「那你加个动作给我看看」，就会露馅。
+
+### 现在改成了什么
+
+```python
+def discover_actions(config_dir=None):
+    """扫描 configs/*.json，返回 [(显示名, 动作id), ...]"""
+```
+
+- 界面动作按钮**由扫描结果动态生成**，新增动作 = 丢一份 JSON，界面自动多一个按钮。
+- 参考视频也改成**按 id 自动匹配** `captures/reference/<id>_standard.*`，不再写死文件名。
+- `build_command()` 改为接收**动作 id**（之前接收显示名，中间还要查一次字典）。
+- 新增 `action_id()` 方法负责「显示名 → id」的换算，UI 内部只认 id。
+
+### 容错设计
+
+`discover_actions()` 遇到**无法解析的 JSON 会跳过它自己并打印提示**，
+而不是让整个界面起不来 —— 写错一份配置不该导致测试台完全不可用。
+测试里专门丢了半份坏 JSON 验证这一点。
+
+### 验证
+
+测试 24 重写为 `test_ui_discovers_actions_from_configs`，直接验证这个闭环：
+
+```
+扫描 configs/ -> [('开合跳','jumping_jack'), ('俯卧撑','pushup'), ('深蹲','squat')]
+丢进一份新 JSON -> UI 发现 [('侧平举','lateral_raise')]      ← 无需改代码
+再丢一份坏 JSON -> 仍然只有 [('侧平举','lateral_raise')]      ← 坏配置被安全跳过
+深蹲参考视频自动匹配：squat_standard.webm
+```
+
+- `test_pose_logic.py` 26 项全绿；UI 动态扫描版本已实际启动确认（进程存活、无报错）。
+- ⚠ 界面按钮的视觉呈现仍需在有图形上下文的环境里肉眼确认，本环境无屏幕录制权限。
+
+### 现在「配置驱动」是完整闭环了
+
+| 环节 | 是否配置驱动 |
+|---|---|
+| 判定逻辑（信号/阈值/约束/时机） | ✅ `pose_logic.py` 解释器 |
+| 命令行选动作 | ✅ `--action X` 读 `configs/X.json` |
+| 界面动作按钮 | ✅ **本轮补上**，扫描 `configs/` 动态生成 |
+| 参考视频匹配 | ✅ **本轮补上**，按 id 找 `<id>_standard.*` |
 
 ## 调参方法论（重要）
 
