@@ -121,6 +121,8 @@ class FitnessTestUI:
         #   摄像头画面、消息框、文件对话框都会被它挡住，用户根本点不到 ——
         #   这正是「点击提示出现在 UI 后面、摄像头画面也上不来」的根因。
         self._flash_topmost()
+        self._last_wheel = 0.0          # 滚轮节流用
+        self._scrollregion_pending = False
         self.process = None
         self.report_path = None
         self.control_path = None
@@ -164,7 +166,10 @@ class FitnessTestUI:
         # 而识别子进程启动会抢走焦点 → 表现就是「按钮不灵敏、要点两次」。
         # 解决：鼠标只要在控制台里移动，就把键盘焦点抢回来（每秒最多一次）。
         self._last_focus_grab = 0.0
-        self.root.bind("<Motion>", self._maybe_grab_focus, add="+")
+        # ⚠ 这里**只绑 <Enter>，不绑 <Motion>**。
+        # <Motion> 会在鼠标每移动一点时触发一次 Python 回调，快速划过时可达数百 Hz，
+        # tkinter 的 Python 回调开销大 —— 实测会让整个界面滚动起来发卡。
+        # <Enter> 只在鼠标进入窗口边界时触发一次，足够解决「第一次点击只激活窗口」的问题。
         self.root.bind("<Enter>", self._maybe_grab_focus, add="+")
 
         self._build()
@@ -192,15 +197,16 @@ class FitnessTestUI:
         self._canvas_win = self.canvas.create_window((0, 0), window=outer, anchor="nw")
 
         # 内容变高 → 更新可滚动范围；画布变宽 → 让内容跟着变宽（否则底部会出现横向滚动条）
-        outer.bind("<Configure>", lambda _e: self.canvas.configure(
-            scrollregion=self.canvas.bbox("all")))
+        outer.bind("<Configure>", self._on_outer_configure)
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
             self._canvas_win, width=e.width))
+        # 固定每次滚动的像素量：省掉 tk 每次重新计算滚动单位
+        self.canvas.configure(yscrollincrement=18)
         # 鼠标滚轮。macOS 上滚轮/触控板都走 <MouseWheel>，delta 是小数；
-        # 这里只取方向，避免不同平台的量纲差异导致一滚就飞到底。
+        # Linux 是 Button-4/5。两者都走带节流的处理方法。
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
-        self.canvas.bind_all("<Button-4>", lambda _e: self.canvas.yview_scroll(-1, "units"))
-        self.canvas.bind_all("<Button-5>", lambda _e: self.canvas.yview_scroll(1, "units"))
+        self.canvas.bind_all("<Button-4>", self._on_wheel_linux)
+        self.canvas.bind_all("<Button-5>", self._on_wheel_linux)
 
         ttk.Label(outer, text="健身动作识别测试台",
                   font=("Helvetica", 22, "bold")).pack(anchor="w")
@@ -436,10 +442,51 @@ class FitnessTestUI:
         return getattr(messagebox, kind)(title, message, **kw)
 
     # ---------------- 滚动 ----------------
-    def _on_wheel(self, event):
-        """鼠标滚轮滚动主内容区（只取方向，规避各平台 delta 量纲不同）。"""
+    def _on_outer_configure(self, _event=None):
+        """
+        内容尺寸变化 → 更新可滚动范围。
+
+        用 after_idle 合并连续事件：`bbox("all")` 相对慢，而布局过程中
+        <Configure> 会被触发很多次，每次都算一遍会明显拖慢启动和重排。
+        """
+        if self._scrollregion_pending:
+            return
+        self._scrollregion_pending = True
+        self.root.after_idle(self._update_scrollregion)
+
+    def _update_scrollregion(self):
+        self._scrollregion_pending = False
         try:
-            self.canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        except tk.TclError:
+            pass
+
+    def _on_wheel(self, event):
+        """
+        鼠标滚轮滚动主内容区。
+
+        两处优化（鼠标滚轮在触控板上会以很高的频率触发，逐个处理会卡）：
+          · **节流**：16ms 内只响应一次（约 60fps 上限）
+          · **放大步长**：一次滚 3 个单位，事件数直接降到 1/3
+        只取 delta 的符号，规避各平台量纲差异。
+        """
+        now = time.time()
+        if now - self._last_wheel < 0.016:
+            return
+        self._last_wheel = now
+        try:
+            self.canvas.yview_scroll(-3 if event.delta > 0 else 3, "units")
+        except tk.TclError:
+            pass
+
+    def _on_wheel_linux(self, event):
+        """Linux 上滚轮是 Button-4 / Button-5。"""
+        now = time.time()
+        if now - self._last_wheel < 0.016:
+            return
+        self._last_wheel = now
+        try:
+            self.canvas.yview_scroll(-3 if event.num == 4 else 3, "units")
         except tk.TclError:
             pass
 
