@@ -39,6 +39,7 @@ SIGNAL_ARITY = {
     "dx": 2,
     "dxs": 2,
     "dy": 2,
+    "tilt": 2,
     "angle_pair_diff": 6,      # 两组三点，比较左右两侧夹角是否同步
     "segment_angle_diff": 4,   # 两条线段方向差
 }

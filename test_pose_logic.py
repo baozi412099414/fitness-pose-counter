@@ -683,6 +683,56 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_motion_synth():
+    print("=== 测试 28：合成轨迹回归（不依赖任何视频素材） ===")
+    from motion_synth import CASES, Synth, run_sequence
+
+    synth = Synth()
+
+    # ① 标准动作：应计数、且不该报任何错
+    res = run_sequence("squat", synth.squat_sequence(depth=95, reps=3))
+    print(f"  标准深蹲     -> 计数 {res['reps']}，错误 {res['errors'] or '无'}")
+    assert res["reps"] == 3 and not res["errors"], "标准深蹲不该报错"
+
+    res = run_sequence("pushup", synth.pushup_sequence(bottom=95, reps=3))
+    print(f"  标准俯卧撑   -> 计数 {res['reps']}，错误 {res['errors'] or '无'}")
+    assert res["reps"] == 3 and not res["errors"]
+
+    res = run_sequence("jumping_jack", synth.jumping_jack_sequence(reps=3))
+    print(f"  标准开合跳   -> 计数 {res['reps']}，错误 {res['errors'] or '无'}")
+    assert res["reps"] == 3 and not res["errors"]
+
+    # ② 典型错误：应计数、且报出对应错误
+    res = run_sequence("squat", synth.squat_sequence(depth=130, reps=3))
+    print(f"  浅蹲         -> 计数 {res['reps']}，错误 {list(res['errors'])}")
+    assert res["reps"] == 3 and "not_deep_enough" in res["errors"], "浅蹲应被抓住"
+
+    res = run_sequence("squat", synth.squat_sequence(depth=95, reps=3, lean_deg=55))
+    assert "torso_lean_excessive" in res["errors"], "上身前倾应被抓住"
+
+    res = run_sequence("pushup", synth.pushup_sequence(bottom=95, reps=3, body_sag_deg=18))
+    assert "low_back" in res["errors"], "塌腰应被抓住"
+
+    res = run_sequence("jumping_jack",
+                       synth.jumping_jack_sequence(up_shoulder=100, up_foot=2.2, reps=3))
+    assert "hand_not_up" in res["errors"], "手没举过头顶应被抓住"
+
+    # ③ 内置用例全表（标准 + 错误），任何一条不符合预期都算失败
+    bad = []
+    for action_id, cases in CASES.items():
+        for desc, params, want_count, want_err in cases:
+            r = run_sequence(action_id, synth.build(action_id, reps=2, **params))
+            names = set(r["errors"])
+            count_ok = (r["reps"] > 0) == want_count
+            err_ok = (want_err in names) if want_err else (not names)
+            if not (count_ok and err_ok):
+                bad.append(f"{action_id}/{desc}")
+    print(f"  内置用例 {sum(len(v) for v in CASES.values())} 条，不符合预期 {len(bad)} 条"
+          + (f"：{bad}" if bad else ""))
+    assert not bad, f"这些用例与预期不符：{bad}"
+    print("  ✅ 合成轨迹能稳定复现标准动作与典型错误（且不依赖视频）\n")
+
+
 def test_config_validator():
     print("=== 测试 27：动作配置校验器（自定义动作的第一道防线） ===")
     from validate_config import validate_file
@@ -830,6 +880,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_motion_synth()
     test_config_validator()
     test_ui_discovers_actions_from_configs()
     print("全部通过 ✅")

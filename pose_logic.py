@@ -322,6 +322,7 @@ class Action:
           distance 两点欧氏距离
           dx       两点的水平差（开合跳判「脚左右张开」，能区分走路的前后迈步）
           dxs      带符号的水平差（深蹲判「膝是否超过脚尖」，绝对值版分不清前后）
+          tilt     两点连线相对竖直方向的夹角（判「上身前倾程度」）
           dy       两点的竖直差（图像 y 向下，所以「上面的点 − 下面的点」为正）
           angle_pair_diff  两个三点角的绝对差（检查左右肢体是否明显不同步）
           segment_angle_diff 两条线段方向的夹角差（检查躯干与小腿是否协调）
@@ -368,6 +369,16 @@ class Action:
             v = pts[0][0] - pts[1][0]
         elif sig_type == "dy":
             v = pts[0][1] - pts[1][1]
+        elif sig_type == "tilt":
+            # 两点连线相对「竖直方向」的夹角（0° = 竖直，90° = 水平，恒为非负）。
+            # 用途：判断躯干前倾程度 —— 注意不能用「躯干与小腿的方向差」代替，
+            # 因为深蹲时躯干和小腿会**同步前倾**，方向差很小，抓不到上身前倾。
+            dx = pts[0][0] - pts[1][0]
+            dy = abs(pts[0][1] - pts[1][1])
+            if dx == 0 and dy == 0:
+                return None
+            v = abs(math.degrees(math.atan2(dx, dy)))
+            return v
         else:
             return None
         if unit_points:

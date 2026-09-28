@@ -89,10 +89,23 @@
         27
       ],
       "check": "peak_max",
-      "max": 50,
+      "max": 60,
       "when": "on_rep",
       "priority": 80,
-      "tip": "上身前倾明显，挺胸并保持核心稳定"
+      "tip": "躯干与小腿角度严重失配，动作变形明显"
+    },
+    {
+      "name": "torso_lean_excessive",
+      "signal": "tilt",
+      "points": [
+        23,
+        11
+      ],
+      "check": "peak_max",
+      "max": 45,
+      "when": "on_rep",
+      "priority": 80,
+      "tip": "上身前倾太多，挺胸并保持核心稳定"
     }
   ]
 }
