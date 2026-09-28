@@ -137,6 +137,7 @@ class FitnessTestUI:
         self._report_paths = []          # 报告列表当前显示的路径（与 Listbox 行一一对应）
         self.status_var = tk.StringVar(value="准备就绪")
         self.reps_var = tk.StringVar(value="0")
+        self.score_var = tk.StringVar(value="—")
         self.rate_var = tk.StringVar(value="--")
         self.errors_var = tk.StringVar(value="暂无")
 
@@ -290,17 +291,21 @@ class FitnessTestUI:
 
         result = ttk.LabelFrame(outer, text="最近一次测试结果", padding=12)
         result.pack(fill="x", pady=(0, 12))
-        for col in range(3):
+        for col in range(4):
             result.columnconfigure(col, weight=1)
         ttk.Label(result, text="次数", foreground="#666").grid(row=0, column=0)
-        ttk.Label(result, text="关键点检出率", foreground="#666").grid(row=0, column=1)
-        ttk.Label(result, text="错误事件", foreground="#666").grid(row=0, column=2)
+        ttk.Label(result, text="动作评分", foreground="#666").grid(row=0, column=1)
+        ttk.Label(result, text="关键点检出率", foreground="#666").grid(row=0, column=2)
+        ttk.Label(result, text="错误事件", foreground="#666").grid(row=0, column=3)
         ttk.Label(result, textvariable=self.reps_var,
                   font=("Helvetica", 20, "bold")).grid(row=1, column=0, pady=5)
+        ttk.Label(result, textvariable=self.score_var,
+                  font=("Helvetica", 20, "bold"), foreground="#B5651D").grid(
+            row=1, column=1, pady=5)
         ttk.Label(result, textvariable=self.rate_var,
-                  font=("Helvetica", 16, "bold")).grid(row=1, column=1, pady=5)
-        ttk.Label(result, textvariable=self.errors_var, wraplength=260,
-                  justify="center").grid(row=1, column=2, pady=5)
+                  font=("Helvetica", 16, "bold")).grid(row=1, column=2, pady=5)
+        ttk.Label(result, textvariable=self.errors_var, wraplength=220,
+                  justify="center").grid(row=1, column=3, pady=5)
 
         # ---- 历史与统计：全部只读本地文件，不需要摄像头 ----
         stats = ttk.LabelFrame(outer, text="历史与统计（不依赖摄像头）", padding=12)
@@ -762,6 +767,10 @@ class FitnessTestUI:
             try:
                 data = json.loads(self.report_path.read_text(encoding="utf-8"))
                 self.reps_var.set(str(data.get("reps", 0)))
+                score = data.get("score")
+                self.score_var.set(
+                    f"{score:.0f} 分" if isinstance(score, (int, float))
+                    else "—（未评分）")
                 self.rate_var.set(f"{data.get('detection_rate', 0) * 100:.1f}%")
                 errors = data.get("errors") or {}
                 tips = data.get("error_tips") or {}

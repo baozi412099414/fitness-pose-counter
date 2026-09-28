@@ -29,7 +29,8 @@
       "min_angle": 160,
       "confirm_frames": 3,
       "priority": 100,
-      "tip": "收紧核心，头肩髋踝保持一条直线"
+      "tip": "收紧核心，头肩髋踝保持一条直线",
+      "ideal": 172
     },
     {
       "name": "right_body_line",
@@ -43,7 +44,8 @@
       "min": 160,
       "confirm_frames": 3,
       "priority": 100,
-      "tip": "收紧核心，身体保持一条直线"
+      "tip": "收紧核心，身体保持一条直线",
+      "ideal": 172
     },
     {
       "name": "not_low_enough",
@@ -51,7 +53,8 @@
       "max": 105,
       "when": "on_rep",
       "priority": 80,
-      "tip": "下压不够深，胸口再贴近地面"
+      "tip": "下压不够深，胸口再贴近地面",
+      "ideal": 88
     },
     {
       "name": "right_not_low_enough",
@@ -65,7 +68,8 @@
       "max": 105,
       "when": "on_rep",
       "priority": 80,
-      "tip": "右臂下压不够深"
+      "tip": "右臂下压不够深",
+      "ideal": 88
     },
     {
       "name": "arm_not_straight",
@@ -73,7 +77,8 @@
       "min": 155,
       "when": "on_rep",
       "priority": 60,
-      "tip": "撑起时手臂没伸直"
+      "tip": "撑起时手臂没伸直",
+      "ideal": 168
     },
     {
       "name": "right_arm_not_straight",
@@ -87,7 +92,8 @@
       "min": 155,
       "when": "on_rep",
       "priority": 60,
-      "tip": "撑起时右臂没伸直"
+      "tip": "撑起时右臂没伸直",
+      "ideal": 168
     },
     {
       "name": "arm_asymmetry",
@@ -104,7 +110,8 @@
       "max": 35,
       "when": "on_rep",
       "priority": 70,
-      "tip": "两侧手臂不同步，保持同时下压和撑起"
+      "tip": "两侧手臂不同步，保持同时下压和撑起",
+      "ideal": 8
     }
   ]
 }

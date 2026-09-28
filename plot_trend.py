@@ -78,7 +78,7 @@ def plot(user, action=None, weeks=8, days=14, out=None, show=True):
         allg = goals.all_goals()
         daily_goal = sum(allg.values()) if allg else 0
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.6))
+    fig, axes = plt.subplots(1, 3, figsize=(17.5, 4.6))
 
     # ---- 左：每周次数 ----
     ax = axes[0]
@@ -107,12 +107,31 @@ def plot(user, action=None, weeks=8, days=14, out=None, show=True):
                    label=f"每日目标 {daily_goal}")
         ax.legend()
 
+    # ---- 右：每日平均评分（0~100）----
+    ax = axes[2]
+    st = hist.score_trend(action=action, days=days)
+    sx = [t["date"][5:] for t in st]
+    sy = [t["score"] for t in st]
+    # 没有数据的那些点保持 None —— matplotlib 会自动断开，正好表示「那天没练」，
+    # 比补 0 分诚实得多（补 0 会看起来像「那天做得极差」）。
+    ax.plot(sx, sy, marker="o", color="#B5651D", linewidth=2)
+    ax.axhline(60, color="#E07A5F", linestyle="--", linewidth=1.3, label="及格线 60")
+    ax.axhline(85, color="#4C9F70", linestyle=":", linewidth=1.3, label="良好线 85")
+    ax.set_ylim(0, 105)
+    ax.set_title(f"每日动作评分（最近 {days} 天）", fontsize=13)
+    ax.set_ylabel("评分")
+    ax.grid(axis="y", alpha=0.3)
+    ax.tick_params(axis="x", rotation=60, labelsize=8)
+    ax.legend(fontsize=9)
+
     # ---- 标题 + 最常犯的错 ----
     total = sum(v for v in d_values)
     errs = hist.error_summary(action=action)
     top = "、".join(f"{k}×{v}" for k, v in list(errs.items())[:3]) or "无记录"
+    avg = hist.avg_score(action=action, days=days)
+    avg_txt = f"；近期平均评分 {avg} 分" if avg is not None else ""
     fig.suptitle(f"训练趋势 —— 用户：{user}　动作：{action or '全部'}　"
-                 f"（近期共 {total} 次；最常出现的提示：{top}）", fontsize=13)
+                 f"（近期共 {total} 次{avg_txt}；最常出现的提示：{top}）", fontsize=13)
 
     fig.tight_layout(rect=(0, 0, 1, 0.94))
 

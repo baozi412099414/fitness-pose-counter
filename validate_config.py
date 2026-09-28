@@ -247,6 +247,26 @@ def validate_file(path):
                      f"（动作做完再判）。若确实要实时提示，请显式写 \"when\": \"{when}\""
                      f" 表明这是有意选择")
 
+        # ideal（满分线）必须比及格线「更好」，否则评分曲线是反的
+        ideal = rule.get("ideal")
+        if ideal is not None:
+            if not isinstance(ideal, (int, float)):
+                rep.error(f"{where}：ideal 要是数字（满分线）")
+            elif kind.endswith("_max") or kind == "max":
+                lim = rule.get("max")
+                if lim is not None and ideal > lim:
+                    rep.error(f"{where}：ideal={ideal} 应 ≤ max={lim}"
+                              f"（这类约束「越小越好」，满分线要比及格线更小）")
+            elif kind == "collinear":
+                lim = rule.get("min_angle")
+                if lim is not None and ideal < lim:
+                    rep.error(f"{where}：ideal={ideal} 应 ≥ min_angle={lim}")
+            elif kind.endswith("_min"):
+                lim = rule.get("min")
+                if lim is not None and ideal < lim:
+                    rep.error(f"{where}：ideal={ideal} 应 ≥ min={lim}"
+                              f"（这类约束「越大越好」，满分线要比及格线更大）")
+
         pr = rule.get("priority")
         if pr is not None and not isinstance(pr, (int, float)):
             rep.error(f"{where}：priority 要是数字（越大越优先播报）")

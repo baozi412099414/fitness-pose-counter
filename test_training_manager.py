@@ -201,6 +201,41 @@ def test_persistence():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_score_tracking():
+    print("=== 测试 8：动作评分的历史统计（0~100 分） ===")
+    tmp = tempfile.mkdtemp()
+    try:
+        store = UserStore(root=os.path.join(tmp, "users"))
+        store.switch_user("评分用户")
+        hist = History(store, "评分用户")
+        now = datetime.now()
+
+        for off, sc in ((4, 61.0), (3, 72.5), (2, 80.0), (1, 88.5), (0, 91.0)):
+            hist.add_session("squat", 30, score=sc, when=now - timedelta(days=off))
+        hist.add_session("squat", 25, when=now)          # 混一条没有分数的记录
+
+        trend = hist.score_trend("squat", days=6)
+        print(f"  评分趋势：{[(t['date'][5:], t['score']) for t in trend]}")
+        assert trend[-1]["score"] == 91.0
+        assert trend[0]["score"] is None, "第一天没记录应返回 None（不是 0）"
+
+        avg = hist.avg_score("squat", days=7)
+        expect = round((61 + 72.5 + 80 + 88.5 + 91) / 5, 1)
+        print(f"  近 7 天平均分：{avg}（期望 {expect}）")
+        assert avg == expect, "无分数的记录必须被跳过，不能拉低均值"
+
+        # 完全没有分数的动作 → None（区别于「0 分」）
+        hist.add_session("pushup", 20)
+        print(f"  全无分数的动作平均分：{hist.avg_score('pushup')}")
+        assert hist.avg_score("pushup") is None
+
+        # 分数取值范围
+        assert all(t["score"] is None or 0 <= t["score"] <= 100 for t in trend)
+        print("  ✅ 评分趋势、均值、无分数容忍、范围约束都正确\n")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_delete_user():
     print("=== 测试 7：删除用户（保护规则 + 数据清理 + 自动切换） ===")
     tmp = tempfile.mkdtemp()
@@ -278,6 +313,7 @@ if __name__ == "__main__":
     test_user_store()
     test_history_and_goals()
     test_persistence()
+    test_score_tracking()
     test_delete_user()
     test_plot_trend()
     print("全部通过 ✅")

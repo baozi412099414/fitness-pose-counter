@@ -683,6 +683,51 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_action_scoring():
+    print("=== 测试 29：动作评分（0~100 分，及格线 60 / 满分线 100） ===")
+    from motion_synth import Synth
+    from pose_logic import QualityChecker as Q
+
+    synth = Synth()
+
+    def score_of(action_id, **params):
+        a = load_action(f"configs/{action_id}.json")
+        for i, pts in enumerate(synth.build(action_id, reps=3, **params)):
+            a.update(pts, [1.0] * 33, now=i / 30.0)
+        return a.last_score
+
+    # ① 越标准分越高（浅蹲必须明显低于标准蹲）
+    std = score_of("squat", depth=90)
+    shallow = score_of("squat", depth=130)
+    print(f"  标准深蹲（90°）{std} 分　浅蹲（130°）{shallow} 分")
+    assert 0 <= shallow < std <= 100, "越标准的动作分数应该越高"
+
+    # ② 单调性：蹲得越深，分数单调不降
+    series = [score_of("squat", depth=d) for d in (135, 120, 105, 95, 90)]
+    print(f"  深度 135→90 的分数序列：{series}")
+    assert series == sorted(series), "蹲得越深，分数应该单调上升"
+
+    # ③ 明显变形要显著低分（而不是只扣一点点）
+    lean = score_of("squat", depth=95, lean_deg=55)
+    knee = score_of("squat", depth=95, knee_travel_deg=26)
+    print(f"  上身前倾 55° {lean} 分　膝明显超脚尖 {knee} 分")
+    assert lean < 65, "上身前倾严重应该掉到及格线以下"
+    assert knee < 45, "膝明显超脚尖应该低分"
+
+    # ④ 标准动作要拿到高分
+    jack = score_of("jumping_jack", up_shoulder=168, up_foot=2.2)
+    push = score_of("pushup", bottom=95)
+    print(f"  标准开合跳 {jack} 分　标准俯卧撑 {push} 分")
+    assert jack >= 90 and push >= 75, "标准动作应该拿高分"
+
+    # ⑤ 等级映射 + 分数不越界
+    assert Q.grade(95) == "优秀" and Q.grade(80) == "良好"
+    assert Q.grade(65) == "及格" and Q.grade(30) == "待改进" and Q.grade(None) == "—"
+    for s in (std, shallow, lean, knee, jack, push):
+        assert s is None or 0 <= s <= 100, f"分数越界：{s}"
+    print("  ✅ 单调性、低分惩罚、等级映射、范围约束都正确\n")
+
+
 def test_motion_synth():
     print("=== 测试 28：合成轨迹回归（不依赖任何视频素材） ===")
     from motion_synth import CASES, Synth, run_sequence
@@ -880,6 +925,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_action_scoring()
     test_motion_synth()
     test_config_validator()
     test_ui_discovers_actions_from_configs()

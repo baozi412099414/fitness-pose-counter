@@ -257,8 +257,96 @@ class QualityChecker:
                 "visible": visible,
                 "checked": checked,
                 "priority": int(rule.get("priority", 0)),
+                # 0~100 分：及格线 60 分、满分线（ideal）100 分
+                "score": self._score(value, limit, kind, rule.get("ideal")),
             })
         return checks
+
+    # ------------------------------------------------------------------
+    # 评分：把「合格 / 不合格」升级成 0~100 分
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _score(value, limit, kind, ideal=None):
+        """
+        把「实测值 vs 阈值」折算成 0~100 分。
+
+        约定：**及格线（limit）= 60 分，满分线（ideal）= 100 分**，之间线性插值；
+        不及格按偏离程度线性衰减到 0。
+
+        为什么这样做：原来的判定只有合格/不合格两种结果，「刚好压线」和「做得很好」
+        完全分不出来。有了分数就能看出趋势（今天平均 72 分，上周 85 分）——
+        这也是训练历史里唯一能画成曲线的东西。
+
+        kind 决定方向：
+          · min / collinear / *_min 类 → 值**越大**越好
+          · max / *_max 类           → 值**越小**越好
+        ideal 没配时按阈值自动外推 15%（角度、比值都适用）。
+        """
+        if value is None or limit is None:
+            return 100.0                      # 判不了就不扣分，避免误伤
+        worse_when_larger = kind.endswith("_max") or kind == "max"
+
+        if worse_when_larger:
+            if ideal is None:
+                ideal = limit * 0.85
+            if value <= ideal:
+                return 100.0
+            if value <= limit:
+                span = max(limit - ideal, 1e-6)
+                return 60.0 + 40.0 * (limit - value) / span
+            # 不及格：按超出阈值的比例衰减，**偏离 50% 即归零**。
+            # 原来用 60*limit/value，衰减太慢 —— 蹲到 130° 还有 48 分，不合理。
+            over = (value - limit) / max(abs(limit), 1e-6)
+            return max(0.0, 60.0 * (1.0 - over / 0.5))
+        else:
+            if ideal is None:
+                # 自动外推 15%；但角度不可能超过 180°，否则「站起伸直」这类约束
+                # 会永远拿不到满分（160×1.15=184 就已经越界了）。
+                ideal = min(limit * 1.15, 179.0) if limit > 20 else limit * 1.15
+            if value >= ideal:
+                return 100.0
+            if value >= limit:
+                span = max(ideal - limit, 1e-6)
+                return 60.0 + 40.0 * (value - limit) / span
+            # 不及格：低于阈值 50% 即归零（同理，衰减要够快）
+            under = (limit - value) / max(abs(limit), 1e-6)
+            return max(0.0, 60.0 * (1.0 - under / 0.5))
+
+    @staticmethod
+    def total_score(checks):
+        """
+        汇总总分（0~100）。
+
+        **不单纯用加权平均** —— 那会把「一条严重不合格」稀释掉：
+        例如浅蹲的人幅度分只有 30，但其他几条姿态都没毛病（满分），平均下来还有 80 分，
+        完全体现不出「蹲不到位」这个核心问题。
+
+        所以总分 = 0.5 × 加权平均 + 0.5 × 最低分（木桶效应）：
+        任何一条明显不合格都会直接把总分拉下来，同时保留整体水平的区分度。
+
+        没有任何可判定的约束时返回 None（这次算不出分数）。
+        """
+        pool = [c for c in checks if c.get("visible") and c.get("checked")]
+        if not pool:
+            return None
+        num = sum(c["score"] * max(1, c.get("priority", 50)) for c in pool)
+        den = sum(max(1, c.get("priority", 50)) for c in pool)
+        avg = num / den
+        worst = min(c["score"] for c in pool)
+        return round(0.5 * avg + 0.5 * worst, 1)
+
+    @staticmethod
+    def grade(score):
+        """把分数翻译成等级，方便直接显示。"""
+        if score is None:
+            return "—"
+        if score >= 90:
+            return "优秀"
+        if score >= 75:
+            return "良好"
+        if score >= 60:
+            return "及格"
+        return "待改进"
 
     @staticmethod
     def hits(checks):
@@ -301,6 +389,7 @@ class Action:
         self.rule_ext = {}              # {规则名: {peak, valley}} 自带 signal 的规则各自记极值
         self.violation_streaks = {}      # 连续错误确认：过滤单帧关键点抖动造成的误提醒
         self.last_values = []           # 最近一帧各条件的信号值（供 HUD 显示）
+        self.last_score = None          # 最近一次动作「完成那一刻」的得分（0~100）
         self.unit_smooth = None         # 归一化基准（肩宽）的平滑值，避免抖动被放大
 
     def signals(self, points):
@@ -491,6 +580,9 @@ class Action:
         hits.sort(key=lambda c: c.get("priority", 0), reverse=True)
 
         if just_counted:
+            # 评分必须在「动作完成那一刻」结算：on_rep 类约束只在计数那一帧才 checked，
+            # 拿别的帧去算会把它们漏掉（浅蹲也曾因此拿到满分）。
+            self.last_score = self.quality.total_score(checks)
             self.sig_peak = None                # 结算完，开新的一轮
             self.depth_valley = None
             self.rule_ext = {}
@@ -499,6 +591,11 @@ class Action:
 
     def reset(self):
         self.counter.reset()
+        self.sig_peak = None
+        self.depth_valley = None
+        self.rule_ext = {}
+        self.last_values = []
+        self.last_score = None
         # 清零必须同时结束当前动作周期；否则按 r 后，清零前留下的峰值/谷值
         # 会参与下一次动作的质量判定，出现「计数清了但判定没清」的串轮问题。
         self.sig_peak = None

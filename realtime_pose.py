@@ -40,7 +40,7 @@ try:
 except Exception:
     _PIL_OK = False
 
-from pose_logic import load_action
+from pose_logic import load_action, QualityChecker
 
 MODEL_PATH = "pose_landmarker_lite.task"
 CONFIG_DIR = "configs"
@@ -622,7 +622,10 @@ def main():
             # （cv2.putText 画不了中文，改用 PIL 渲染 + 缓存贴图）
             fh = frame.shape[0]
             stage_cn = {"ready": "准备", "active": "动作中"}.get(stage, stage)
-            frame = blit_cn(frame, f"{action.name} · {stage_cn} · {count} 次",
+            score_txt = ""
+            if action.last_score is not None:
+                score_txt = f" · {action.last_score:.0f} 分（{QualityChecker.grade(action.last_score)}）"
+            frame = blit_cn(frame, f"{action.name} · {stage_cn} · {count} 次{score_txt}",
                             (12, fh - 100), size=26,
                             color=(190, 255, 210), bg=(24, 30, 26))
             if shown_hits:
@@ -711,6 +714,9 @@ def main():
         "error_tips": {r.get("name"): r.get("tip", r.get("name"))
                        for r in action.quality.rules if r.get("name") in error_counts},
         "stopped_reason": stopped_reason,
+        # 动作评分：最近一次动作完成时的 0~100 分
+        "score": action.last_score,
+        "grade": QualityChecker.grade(action.last_score),
     }
     # ---- 写入训练历史 + 结算今日目标（任务书模块 8）----
     # 跑离线视频属于「调参」而不是「训练」，所以那种情况默认不记进个人历史
@@ -722,6 +728,7 @@ def main():
                 errors=error_counts,
                 duration_sec=time.time() - t0,
                 source=str(source),
+                score=action.last_score,
             )
             gp = goals.progress(action.id, history)
             summary["user"] = user
@@ -729,6 +736,9 @@ def main():
             if gp["target"]:
                 mark = "已达成" if gp["reached"] else f"还差 {gp['remaining']} 次"
                 print(f"  今日目标：{gp['done']}/{gp['target']}　{mark}")
+            if action.last_score is not None:
+                print(f"  动作评分：{action.last_score:.0f} 分"
+                      f"（{QualityChecker.grade(action.last_score)}）")
             print(f"  已写入训练历史（用户：{user}）")
         except Exception as e:
             print(f"  （写训练历史失败，不影响本次结果：{e}）")

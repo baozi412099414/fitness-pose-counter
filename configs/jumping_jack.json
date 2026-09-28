@@ -54,7 +54,8 @@
       "min": 140,
       "when": "on_rep",
       "priority": 70,
-      "tip": "左手再举高一点，举过头顶"
+      "tip": "左手再举高一点，举过头顶",
+      "ideal": 168
     },
     {
       "name": "right_hand_not_up",
@@ -68,7 +69,8 @@
       "min": 140,
       "when": "on_rep",
       "priority": 70,
-      "tip": "右手再举高一点，举过头顶"
+      "tip": "右手再举高一点，举过头顶",
+      "ideal": 168
     },
     {
       "name": "legs_not_apart",
@@ -85,7 +87,8 @@
       "min": 1.2,
       "when": "on_rep",
       "priority": 60,
-      "tip": "腿没张开，跳开一点"
+      "tip": "腿没张开，跳开一点",
+      "ideal": 1.9
     },
     {
       "name": "arm_asymmetry",
@@ -102,7 +105,8 @@
       "max": 35,
       "when": "on_rep",
       "priority": 80,
-      "tip": "双臂不同步，尽量同时举起"
+      "tip": "双臂不同步，尽量同时举起",
+      "ideal": 8
     }
   ]
 }

@@ -279,7 +279,7 @@ class History:
         return self.store._read_json(self._path(), [])
 
     def add_session(self, action, reps, sets=None, errors=None,
-                    duration_sec=None, source=None, when=None):
+                    duration_sec=None, source=None, when=None, score=None):
         """
         记一次训练。返回写入的那条记录。
 
@@ -297,6 +297,8 @@ class History:
             "errors": errors or {},
             "duration_sec": round(float(duration_sec), 1) if duration_sec else None,
             "source": source,
+            # 动作评分（0~100）；老记录可能没有这个字段，读取方要能容忍
+            "score": round(float(score), 1) if score is not None else None,
         }
         data = self.all_sessions()
         data.append(rec)
@@ -343,6 +345,26 @@ class History:
                 until=end.strftime("%Y-%m-%d")))
             out.append({"week_start": start.strftime("%Y-%m-%d"), "reps": reps})
         return out
+
+    def score_trend(self, action=None, days=14, now=None):
+        """
+        最近 N 天的**平均评分**，返回 [{"date": "YYYY-MM-DD", "score": 82.5 或 None}, ...]。
+        没有分数的那些天返回 None（而不是 0），画图时自然断开，不会误导成「那天很差」。
+        """
+        now = now or datetime.now()
+        out = []
+        for i in range(days - 1, -1, -1):
+            d = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+            vals = [r["score"] for r in self.sessions(action=action, since=d, until=d)
+                    if r.get("score") is not None]
+            out.append({"date": d,
+                        "score": round(sum(vals) / len(vals), 1) if vals else None})
+        return out
+
+    def avg_score(self, action=None, days=7, now=None):
+        """最近 N 天的平均评分（没有数据返回 None）。"""
+        vals = [x["score"] for x in self.score_trend(action, days, now) if x["score"] is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
 
     def error_summary(self, action=None):
         """把所有记录里的错误统计合并，用于「我最常犯的错是什么」。"""
