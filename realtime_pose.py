@@ -313,7 +313,9 @@ def main():
                         calib_done = True
                         print(f"  （{action.name} 用配置里的固定门槛，不做角度基线校准）")
                     elif time.time() < warmup_until:
-                        warmup_samples.append(action.signal(pts))
+                        sample = action.signal(pts)
+                        if sample is not None:
+                            warmup_samples.append(sample)
                     elif len(warmup_samples) >= 8:
                         warmup_samples.sort()
                         baseline = warmup_samples[len(warmup_samples) // 2]

@@ -17,16 +17,59 @@
     {
       "name": "not_deep_enough",
       "check": "valley_max",
-      "max": 105,
+      "max": 115,
       "when": "on_rep",
+      "priority": 70,
       "tip": "蹲得不够深，再往下蹲"
+    },
+    {
+      "name": "right_not_deep_enough",
+      "signal": "angle",
+      "points": [24, 26, 28],
+      "check": "valley_max",
+      "max": 115,
+      "when": "on_rep",
+      "priority": 70,
+      "tip": "右腿下蹲幅度不足"
     },
     {
       "name": "not_standing_straight",
       "check": "peak_min",
       "min": 160,
       "when": "on_rep",
+      "priority": 50,
       "tip": "站起时腿没伸直"
+    },
+    {
+      "name": "right_not_standing_straight",
+      "signal": "angle",
+      "points": [24, 26, 28],
+      "check": "peak_min",
+      "min": 155,
+      "when": "on_rep",
+      "priority": 50,
+      "tip": "站起时右腿没伸直"
+    },
+    {
+      "name": "excessive_knee_travel",
+      "signal": "dx",
+      "points": [25, 31],
+      "unit_points": [11, 12],
+      "check": "peak_max",
+      "max": 0.75,
+      "when": "on_rep",
+      "priority": 90,
+      "tip": "膝盖前移明显，试着把髋部向后坐"
+    },
+    {
+      "name": "torso_shin_mismatch",
+      "signal": "segment_angle_diff",
+      "points": [11, 23, 25, 27],
+      "check": "peak_max",
+      "max": 50,
+      "when": "on_rep",
+      "priority": 80,
+      "tip": "上身前倾明显，挺胸并保持核心稳定"
     }
   ]
 }

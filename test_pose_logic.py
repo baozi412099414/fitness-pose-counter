@@ -101,6 +101,8 @@ def test_load_and_update():
     pts[15] = (100, 200)
     pts[23] = (150, 150)
     pts[27] = (200, 200)
+    pts[12], pts[14], pts[16] = (300, 100), (300, 120), (300, 200)
+    pts[24], pts[28] = (350, 150), (400, 200)
     sig = action.signal(pts)
     print(f"  肘角 = {sig:.1f}°（预期 180°）")
     assert abs(sig - 180) < 0.5, f"肘角应接近 180，实际 {sig}"
@@ -143,11 +145,17 @@ def test_no_count_without_person():
     down[23] = (100, 100)
     down[25] = (160, 140)
     down[27] = (100, 220)
+    down[11], down[12] = (100, 40), (300, 40)
+    down[24], down[26], down[28] = (300, 100), (360, 140), (300, 220)
+    down[31], down[32] = (100, 220), (300, 220)
     # 站起姿态：三点竖直共线 => 膝角 180°
     up = [(0, 0)] * 33
     up[23] = (100, 100)
     up[25] = (100, 160)
     up[27] = (100, 220)
+    up[11], up[12] = (100, 40), (300, 40)
+    up[24], up[26], up[28] = (300, 100), (300, 160), (300, 220)
+    up[31], up[32] = (100, 220), (300, 220)
 
     vis_bad = [0.1] * 33      # 人没拍到 / 目标跟丢
     vis_ok = [1.0] * 33       # 人在画面里
@@ -175,6 +183,9 @@ def test_peak_judgment():
         p[23] = (100, 100)
         p[25] = (100 + offset, 160)
         p[27] = (100, 220)
+        p[11], p[12] = (100, 40), (300, 40)
+        p[24], p[26], p[28] = (300, 100), (300 + offset, 160), (300, 220)
+        p[31], p[32] = (100, 220), (300, 220)
         return p
 
     # 场景 1：先站到 174° 再蹲 -> 本轮峰值 174°，站起计数时不该报
@@ -206,11 +217,14 @@ def test_depth_judgment():
     vis = [1.0] * 33
 
     def knee_pts(offset):
-        """3≈174°（站直）, 40≈113°（只蹲一点）, 60≈90°（蹲够深）"""
+        """3≈174°（站直）, 35≈120°（只蹲一点）, 60≈90°（蹲够深）"""
         p = [(0, 0)] * 33
         p[23] = (100, 100)
         p[25] = (100 + offset, 160)
         p[27] = (100, 220)
+        p[11], p[12] = (100, 40), (300, 40)
+        p[24], p[26], p[28] = (300, 100), (300 + offset, 160), (300, 220)
+        p[31], p[32] = (100, 220), (300, 220)
         return p
 
     # 场景 1：蹲到 90° -> 深度够，不该报
@@ -224,11 +238,11 @@ def test_depth_judgment():
     assert c == 1, "应计 1 次"
     assert not hits, "蹲够深了不该报"
 
-    # 场景 2：只蹲到 113° -> 深度不够，应报
+    # 场景 2：只蹲到约 120° -> 深度不够，应报
     a2 = load_action("configs/squat.json")
     a2.update(knee_pts(3), vis, now=0.0)
-    _, _, sig_down2, _, _ = a2.update(knee_pts(40), vis, now=1.0)
-    a2.update(knee_pts(40), vis, now=1.1)
+    _, _, sig_down2, _, _ = a2.update(knee_pts(35), vis, now=1.0)
+    a2.update(knee_pts(35), vis, now=1.1)
     a2.update(knee_pts(3), vis, now=1.5)
     c, s, sig, hits, _ = a2.update(knee_pts(3), vis, now=1.6)
     print(f"  只蹲到 {sig_down2:.0f}° 再站起 -> 报错 {[h['name'] for h in hits]}")
@@ -489,6 +503,72 @@ def test_partial_motion_does_not_contaminate_next_rep_quality():
     print("  前一次单纯举手未替后一次幅度不足动作通过质量检查")
 
 
+def test_live_quality_requires_consecutive_bad_frames():
+    print("=== 测试 19：实时姿态错误需连续出现，单帧抖动不提醒 ===")
+    a = load_action("configs/pushup.json")
+    p = [(0, 0)] * 33
+    # 左侧明显塌腰；右侧保持直线。肘部保持伸直，避免计数状态变化。
+    p[11], p[13], p[15] = (100, 100), (150, 100), (200, 100)
+    p[23], p[27] = (150, 190), (200, 200)
+    p[12], p[14], p[16] = (100, 300), (150, 300), (200, 300)
+    p[24], p[28] = (150, 300), (200, 300)
+    vis = [1.0] * 33
+    assert not a.update(p, vis, now=0.0)[3]
+    assert not a.update(p, vis, now=0.04)[3]
+    hits = a.update(p, vis, now=0.08)[3]
+    assert any(h["name"] == "low_back" for h in hits)
+    print("  前两帧不误报，第 3 个连续错误帧快速确认")
+
+
+def test_quality_priority_and_degenerate_geometry():
+    print("=== 测试 20：严重问题优先提示，重合关键点不误判 ===")
+    q = QualityChecker([
+        {"name": "minor", "check": "angle_min", "points": [0, 1, 2],
+         "min": 170, "priority": 10},
+        {"name": "major", "check": "angle_min", "points": [0, 1, 2],
+         "min": 170, "priority": 100},
+    ])
+    pts = [(0, 0)] * 33
+    pts[0], pts[1], pts[2] = (0, 0), (1, 0), (1, 1)  # 90°，两条都失败
+    hits = q.hits(q.check(pts, [1.0] * 33))
+    assert [h["name"] for h in hits] == ["major", "minor"]
+    pts[0] = pts[1]  # 线段长度为 0，不应伪造一个 90°错误
+    checks = q.check(pts, [1.0] * 33)
+    assert not q.hits(checks) and all(not c["visible"] for c in checks)
+    print("  高优先级先播报；无效角度被标为不可判定")
+
+
+def test_bilateral_asymmetry_signals():
+    print("=== 测试 21：左右动作明显不同步可被检测 ===")
+    a = load_action("configs/pushup.json")
+    p = [(0, 0)] * 33
+    # 左肘 180°，右肘 90°。
+    p[11], p[13], p[15] = (0, 0), (1, 0), (2, 0)
+    p[12], p[14], p[16] = (0, 2), (1, 2), (1, 3)
+    diff = a._calc_signal("angle_pair_diff", p, [11, 13, 15, 12, 14, 16])
+    assert abs(diff - 90.0) < 0.1
+    p[16] = (2, 2)
+    diff_ok = a._calc_signal("angle_pair_diff", p, [11, 13, 15, 12, 14, 16])
+    assert diff_ok < 0.1
+    print("  90°左右差异被识别，同步动作差异接近 0°")
+
+
+def test_squat_quality_extra_signals():
+    print("=== 测试 22：深蹲明显膝前移与躯干-小腿失配信号 ===")
+    a = load_action("configs/squat.json")
+    p = [(0, 0)] * 33
+    p[11], p[12] = (100, 40), (300, 40)       # 肩宽 200
+    p[23], p[25], p[27] = (100, 100), (160, 160), (100, 220)
+    p[31] = (-20, 220)                         # 膝-脚尖水平差 180 = 0.9肩宽
+    travel = a._calc_signal("dx", p, [25, 31], [11, 12])
+    assert travel > 0.75
+    # 水平躯干配竖直小腿，是明显不协调的极端姿态。
+    p[11], p[23], p[25], p[27] = (0, 100), (100, 100), (100, 160), (100, 220)
+    mismatch = a._calc_signal("segment_angle_diff", p, [11, 23, 25, 27])
+    assert mismatch > 80
+    print(f"  膝前移比 {travel:.2f}、线段夹角差 {mismatch:.0f}° 均越过宽松阈值")
+
+
 
 if __name__ == "__main__":
     test_rep_counter()
@@ -509,4 +589,8 @@ if __name__ == "__main__":
     test_transition_hold_rejects_single_frame_glitch()
     test_jumping_jack_rejects_walking_and_partial_moves()
     test_partial_motion_does_not_contaminate_next_rep_quality()
+    test_live_quality_requires_consecutive_bad_frames()
+    test_quality_priority_and_degenerate_geometry()
+    test_bilateral_asymmetry_signals()
+    test_squat_quality_extra_signals()
     print("全部通过 ✅")

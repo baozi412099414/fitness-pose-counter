@@ -26,7 +26,11 @@ def angle_between(a, b, c):
     """以 b 为顶点，返回 a-b-c 的夹角（0~180 度）。180 度 = 三点成直线。"""
     ba = np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)
     bc = np.asarray(c, dtype=np.float64) - np.asarray(b, dtype=np.float64)
-    denom = np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-9
+    denom = np.linalg.norm(ba) * np.linalg.norm(bc)
+    # 关键点重合时不存在有意义的关节角。以前加一个极小数会得到 90°，
+    # 反而把异常骨架当成真实错误；返回 None 让上层丢弃该帧。
+    if denom < 1e-9:
+        return None
     cos = np.clip(np.dot(ba, bc) / denom, -1.0, 1.0)
     return math.degrees(math.acos(cos))
 
@@ -207,17 +211,20 @@ class QualityChecker:
                 # 三点共线度：算中间点的夹角，180 度为完全直线（塌腰/撅臀时变小）
                 value = angle_between(pts[0], pts[1], pts[2])
                 limit = rule.get("min_angle", 160)
-                ok = value >= limit
+                visible = visible and value is not None
+                ok = True if value is None else value >= limit
             elif kind == "angle_min":
                 # 某个角要 >= min（例如还原时肘角 >= 150 才叫伸直）
                 value = angle_between(pts[0], pts[1], pts[2])
                 limit = rule.get("min", 0)
-                ok = value >= limit
+                visible = visible and value is not None
+                ok = True if value is None else value >= limit
             elif kind == "angle_max":
                 # 某个角要 <= max（例如弯起时肘角 <= 70 才算弯到位）
                 value = angle_between(pts[0], pts[1], pts[2])
                 limit = rule.get("max", 180)
-                ok = value <= limit
+                visible = visible and value is not None
+                ok = True if value is None else value <= limit
             elif kind == "peak_min":
                 # 用「本轮动作里信号达到过的最大值」判定。
                 # 例：「站起时腿没伸直」不能用计数瞬间的角度（那时刚好刚过计数线），
@@ -249,13 +256,15 @@ class QualityChecker:
                 "ok": ok,
                 "visible": visible,
                 "checked": checked,
+                "priority": int(rule.get("priority", 0)),
             })
         return checks
 
     @staticmethod
     def hits(checks):
-        """挑出「关键点可见 + 本阶段该判 + 不达标」的，作为要报的错误。"""
-        return [c for c in checks if c["visible"] and c["checked"] and not c["ok"]]
+        """挑出有效错误，并让高优先级问题先提示。"""
+        hits = [c for c in checks if c["visible"] and c["checked"] and not c["ok"]]
+        return sorted(hits, key=lambda c: c.get("priority", 0), reverse=True)
 
 
 # --------------------------------------------------------------------------
@@ -290,6 +299,7 @@ class Action:
         self.sig_peak = None            # 本轮动作里信号达到过的最大值（供 peak_* 判定）
         self.depth_valley = None        # 动作阶段里信号的最小值（供 valley_* 判定）
         self.rule_ext = {}              # {规则名: {peak, valley}} 自带 signal 的规则各自记极值
+        self.violation_streaks = {}      # 连续错误确认：过滤单帧关键点抖动造成的误提醒
         self.last_values = []           # 最近一帧各条件的信号值（供 HUD 显示）
         self.unit_smooth = None         # 归一化基准（肩宽）的平滑值，避免抖动被放大
 
@@ -312,6 +322,8 @@ class Action:
           distance 两点欧氏距离
           dx       两点的水平差（开合跳判「脚左右张开」，能区分走路的前后迈步）
           dy       两点的竖直差（图像 y 向下，所以「上面的点 − 下面的点」为正）
+          angle_pair_diff  两个三点角的绝对差（检查左右肢体是否明显不同步）
+          segment_angle_diff 两条线段方向的夹角差（检查躯干与小腿是否协调）
         给了 unit_points 就再除以这对点的距离做归一化（一般传两肩 —— 用肩宽当尺子，
         这样站远站近数值都稳定）。
 
@@ -322,6 +334,25 @@ class Action:
         pts = [points[i] for i in idx]
         if sig_type == "angle":
             return angle_between(pts[0], pts[1], pts[2])
+        if sig_type == "angle_pair_diff":
+            if len(pts) != 6:
+                return None
+            left = angle_between(*pts[:3])
+            right = angle_between(*pts[3:])
+            if left is None or right is None:
+                return None
+            return abs(left - right)
+        if sig_type == "segment_angle_diff":
+            if len(pts) != 4:
+                return None
+            a = np.asarray(pts[1], dtype=np.float64) - np.asarray(pts[0], dtype=np.float64)
+            b = np.asarray(pts[3], dtype=np.float64) - np.asarray(pts[2], dtype=np.float64)
+            denom = np.linalg.norm(a) * np.linalg.norm(b)
+            if denom < 1e-9:
+                return None
+            # 线段没有正反方向，取 0~90° 的最小夹角。
+            raw = math.degrees(math.acos(np.clip(np.dot(a, b) / denom, -1.0, 1.0)))
+            return min(raw, 180.0 - raw)
         if sig_type == "distance":
             v = distance_between(pts[0], pts[1])
         elif sig_type == "dx":
@@ -420,7 +451,26 @@ class Action:
         # peak / valley / rule_ext 传进去，让各类约束用「本轮极值」判定
         checks = self.quality.check(points, visibilities, stage, just_counted,
                                     self.sig_peak, self.depth_valley, self.rule_ext)
-        hits = self.quality.hits(checks)
+        raw_hits = self.quality.hits(checks)
+        hits = []
+        by_name = {r.get("name"): r for r in self.quality.rules}
+        failed_names = {c["name"] for c in raw_hits}
+        # 连续若干帧都不合格才实时提醒，标准动作偶发一帧越界不会被打扰；on_rep
+        # 是整个周期极值结算，已经天然防抖，因此立即给结果。
+        for c in checks:
+            name = c["name"]
+            rule = by_name.get(name, {})
+            if name not in failed_names:
+                self.violation_streaks[name] = 0
+                continue
+            if rule.get("when") == "on_rep":
+                hits.append(c)
+                continue
+            streak = self.violation_streaks.get(name, 0) + 1
+            self.violation_streaks[name] = streak
+            if streak >= int(rule.get("confirm_frames", 3)):
+                hits.append(c)
+        hits.sort(key=lambda c: c.get("priority", 0), reverse=True)
 
         if just_counted:
             self.sig_peak = None                # 结算完，开新的一轮
@@ -436,6 +486,7 @@ class Action:
         self.sig_peak = None
         self.depth_valley = None
         self.rule_ext = {}
+        self.violation_streaks = {}
         self.last_values = []
         self.unit_smooth = None
 

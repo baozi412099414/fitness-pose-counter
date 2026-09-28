@@ -37,8 +37,9 @@
     {
       "name": "hand_not_up",
       "check": "peak_min",
-      "min": 140,
+      "min": 135,
       "when": "on_rep",
+      "priority": 70,
       "tip": "左手再举高一点"
     },
     {
@@ -46,8 +47,9 @@
       "signal": "angle",
       "points": [14, 12, 24],
       "check": "peak_min",
-      "min": 140,
+      "min": 135,
       "when": "on_rep",
+      "priority": 70,
       "tip": "右手再举高一点"
     },
     {
@@ -56,9 +58,20 @@
       "points": [27, 28],
       "unit_points": [11, 12],
       "check": "peak_min",
-      "min": 1.25,
+      "min": 1.20,
       "when": "on_rep",
+      "priority": 60,
       "tip": "腿没张开，跳开一点"
+    },
+    {
+      "name": "arm_asymmetry",
+      "signal": "angle_pair_diff",
+      "points": [13, 11, 23, 14, 12, 24],
+      "check": "peak_max",
+      "max": 35,
+      "when": "on_rep",
+      "priority": 80,
+      "tip": "双臂不同步，尽量同时举起"
     }
   ]
 }

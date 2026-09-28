@@ -19,21 +19,64 @@
       "check": "collinear",
       "points": [11, 23, 27],
       "min_angle": 155,
-      "tip": "身体没绷直，塌腰了"
+      "confirm_frames": 3,
+      "priority": 100,
+      "tip": "收紧核心，身体保持一条直线"
+    },
+    {
+      "name": "right_body_line",
+      "check": "collinear",
+      "points": [12, 24, 28],
+      "min_angle": 155,
+      "confirm_frames": 3,
+      "priority": 100,
+      "tip": "收紧核心，身体保持一条直线"
     },
     {
       "name": "not_low_enough",
       "check": "valley_max",
-      "max": 110,
+      "max": 115,
       "when": "on_rep",
+      "priority": 80,
       "tip": "下压不够深，再低一点"
+    },
+    {
+      "name": "right_not_low_enough",
+      "signal": "angle",
+      "points": [12, 14, 16],
+      "check": "valley_max",
+      "max": 115,
+      "when": "on_rep",
+      "priority": 80,
+      "tip": "右臂下压不够深"
     },
     {
       "name": "arm_not_straight",
       "check": "peak_min",
-      "min": 160,
+      "min": 155,
       "when": "on_rep",
+      "priority": 60,
       "tip": "撑起时手臂没伸直"
+    },
+    {
+      "name": "right_arm_not_straight",
+      "signal": "angle",
+      "points": [12, 14, 16],
+      "check": "peak_min",
+      "min": 155,
+      "when": "on_rep",
+      "priority": 60,
+      "tip": "撑起时右臂没伸直"
+    },
+    {
+      "name": "arm_asymmetry",
+      "signal": "angle_pair_diff",
+      "points": [11, 13, 15, 12, 14, 16],
+      "check": "peak_max",
+      "max": 35,
+      "when": "on_rep",
+      "priority": 70,
+      "tip": "两侧手臂不同步，保持同时下压和撑起"
     }
   ]
 }

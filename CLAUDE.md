@@ -428,3 +428,51 @@ macOS 摄像头权限按**谁该为这个进程负责**算，不是按 python �
 - https://commons.wikimedia.org/wiki/File:Navy-seal-buds-training-push-ups.ogv
 - https://commons.wikimedia.org/wiki/File:Jumping_jack_movimiento.ogg
 - https://www.pexels.com/video/young-woman-exercising-6525519/
+
+## 2026-09-28 模块 3（动作质量判定）完整强化
+
+本轮目标是让质量判定做到“标准动作不过度挑剔，明显错误快速发现”，而不是简单堆阈值。
+实现范围覆盖当前可运行的三个动作：俯卧撑、深蹲、开合跳。
+
+### 已完成的判定能力
+
+1. **双侧判定**：俯卧撑同时检查左右身体直线、左右下压深度、左右撑起伸直；
+   深蹲同时检查左右深度和左右站直。不会再只看靠近镜头的一条胳膊/腿。
+2. **左右同步性**：新增 `angle_pair_diff` 几何信号；俯卧撑可发现两臂不同步，
+   开合跳可发现两臂明显不同步。阈值为宽松的 35°，小幅自然差异不会报警。
+3. **深蹲明显变形**：新增膝盖相对脚尖的归一化水平位移兜底，以及
+   `segment_angle_diff`（躯干与小腿方向差）。两者只在完成一次动作时用整个周期极值结算。
+4. **错误确认防抖**：实时姿态错误默认连续 3 帧不合格才提示；单帧关键点漂移不报警。
+   `on_rep` 类型已经使用整个动作周期极值，计数完成时立即反馈，不再额外拖延。
+5. **严重问题优先**：每条规则支持 `priority`；同时出现多个问题时先显示、播报高优先级项。
+6. **异常几何丢弃**：关节两点重合时角度没有意义，现在返回不可判定，不再伪造成 90°错误。
+7. **宽松阈值**：俯卧撑/深蹲到位线较计数线严格、但较教科书理想值留有余量；
+   开合跳举臂标准降为 135°、腿距标准为 1.20 倍肩宽，避免对正常动作过严。
+
+### 专业依据与边界
+
+- ACE 俯卧撑强调头、肩、髋、膝、踝保持整体对齐，并控制下降到胸或下巴接近地面。
+- NASM 深蹲资料强调膝盖沿第二/第三脚趾方向、避免膝内扣，保持中立脊柱和稳定脚掌；
+  深度应服从个人活动度和控制能力，并非所有人必须达到同一个绝对深度。
+- “膝盖绝不能超过脚尖”不是适用于所有体型和深度的绝对标准。因此程序仅对**非常明显**的
+  前移给宽松提示，不把轻微过脚尖直接判错。
+- 单侧摄像头不能同时高质量观察所有问题：侧视适合深度、躯干和膝前移；膝内扣应从前方观察。
+  当前不把二维侧视无法可靠推断的旋转、关节受力或伤病风险包装成精确诊断。
+- 这是运动姿态反馈，不是医疗诊断。
+
+依据页面：
+
+- https://www.acefitness.org/resources/everyone/exercise-library/41/push-up/
+- https://www.acefitness.org/resources/everyone/exercise-library/135/bodyweight-squat/
+- https://www.nasm.org/resource-center/blog/training/biomechanics-of-the-squat
+- https://www.nasm.org/resource-center/blog/training/how-to-perform-an-overhead-squat-assessment-osa
+- https://blog.nasm.org/fitness/exercise-progressions-and-regressions-how-tos-of-scaling-movement
+
+### 验证结果
+
+- `test_pose_logic.py` 从 18 项扩展到 **22 项**，全部通过。
+- 新增回归覆盖：连续错误确认、提示优先级、关键点重合、左右角度差、明显膝前移、
+  躯干与小腿极端失配；原有计数、防重复、走路不算开合跳等测试继续通过。
+- 尝试在当前 Codex 沙箱内抽样跑三段参考视频时，MediaPipe 的 macOS Metal 图形上下文初始化
+  失败并终止（`Service is unavailable`）。这属于当前无 GUI 执行环境限制，不是规则测试失败；
+  因此真人视频检出率仍标记为待在系统终端环境复核，不能写成“已经实拍验收”。
