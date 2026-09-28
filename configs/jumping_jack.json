@@ -4,20 +4,51 @@
   "camera_side": "正",
   "calibrate": false,
   "counter": {
-    "signal": "angle",
-    "points": [13, 11, 23],
-    "lo": 30,
-    "hi": 90,
-    "first": "hi",
-    "min_interval": 0.40
+    "conditions": [
+      {
+        "signal": "angle",
+        "points": [13, 11, 23],
+        "direction": "hi",
+        "on": 75,
+        "off": 45
+      },
+      {
+        "signal": "angle",
+        "points": [14, 12, 24],
+        "direction": "hi",
+        "on": 75,
+        "off": 45
+      },
+      {
+        "signal": "dx",
+        "points": [27, 28],
+        "unit_points": [11, 12],
+        "direction": "hi",
+        "on": 0.95,
+        "off": 0.75
+      }
+    ],
+    "min_interval": 0.40,
+    "enter_hold": 0.06,
+    "exit_hold": 0.06,
+    "min_active_duration": 0.20
   },
   "quality": [
     {
       "name": "hand_not_up",
       "check": "peak_min",
-      "min": 150,
+      "min": 140,
       "when": "on_rep",
-      "tip": "手没举过头顶"
+      "tip": "左手再举高一点"
+    },
+    {
+      "name": "right_hand_not_up",
+      "signal": "angle",
+      "points": [14, 12, 24],
+      "check": "peak_min",
+      "min": 140,
+      "when": "on_rep",
+      "tip": "右手再举高一点"
     },
     {
       "name": "legs_not_apart",
@@ -25,7 +56,7 @@
       "points": [27, 28],
       "unit_points": [11, 12],
       "check": "peak_min",
-      "min": 1.5,
+      "min": 1.25,
       "when": "on_rep",
       "tip": "腿没张开，跳开一点"
     }

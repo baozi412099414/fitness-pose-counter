@@ -232,6 +232,7 @@ def main():
         num_poses=1,
         # 调高一点，减少「跟丢后还在输出幽灵骨架」的情况（另一道防线是 visibility 过滤）
         min_pose_detection_confidence=0.6,
+        min_pose_presence_confidence=0.6,
         min_tracking_confidence=0.6,
         result_callback=bus.put,
     )
@@ -292,7 +293,10 @@ def main():
                 # 关键点可信度：人没拍到 / 跟丢时 MediaPipe 会输出「幽灵骨架」，
                 # 计数和质量判定都必须先看这个，否则会凭空加数、凭空报警
                 vis = [p.visibility for p in lm]
-                conf = min(vis[i] for i in action.signal_points)
+                counter_idxs = set()
+                for condition in (action.conditions or [{"points": action.signal_points}]):
+                    counter_idxs.update(condition["points"])
+                conf = min(vis[i] for i in counter_idxs)
                 person_ok = conf >= action.min_visibility
 
                 # ---- 站立基线自动校准 ----

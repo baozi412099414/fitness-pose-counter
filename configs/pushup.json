@@ -8,27 +8,30 @@
     "lo": 140,
     "hi": 160,
     "first": "lo",
-    "min_interval": 0.35
+    "min_interval": 0.35,
+    "enter_hold": 0.06,
+    "exit_hold": 0.06,
+    "min_active_duration": 0.25
   },
   "quality": [
     {
       "name": "low_back",
       "check": "collinear",
       "points": [11, 23, 27],
-      "min_angle": 165,
+      "min_angle": 155,
       "tip": "身体没绷直，塌腰了"
     },
     {
       "name": "not_low_enough",
       "check": "valley_max",
-      "max": 100,
+      "max": 110,
       "when": "on_rep",
       "tip": "下压不够深，再低一点"
     },
     {
       "name": "arm_not_straight",
       "check": "peak_min",
-      "min": 165,
+      "min": 160,
       "when": "on_rep",
       "tip": "撑起时手臂没伸直"
     }

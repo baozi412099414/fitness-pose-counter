@@ -156,8 +156,10 @@ def test_no_count_without_person():
     print(f"  可信度 0.1（没人）+ 蹲下姿态 -> REPS {c1}  阶段 {s1}（应保持 0 / ready）")
     assert c1 == 0 and s1 == "ready", "人没拍到时不该改变计数状态"
 
-    action.update(down, vis_ok, now=1.0)                        # 有人：蹲下 -> active
-    c2, s2, sig2, _, _ = action.update(up, vis_ok, now=2.0)     # 有人：站起 -> 计 1
+    action.update(down, vis_ok, now=1.0)                         # 持续蹲下，过滤单帧跳变
+    action.update(down, vis_ok, now=1.1)                         # -> active
+    action.update(up, vis_ok, now=1.5)                           # 持续站起
+    c2, s2, sig2, _, _ = action.update(up, vis_ok, now=1.6)      # -> 计 1
     print(f"  可信度 1.0（有人）+ 蹲下再站起 -> REPS {c2}  阶段 {s2}  膝角 {sig2:.0f}°")
     assert c2 == 1, f"有人时一次完整深蹲应计 1，实际 {c2}"
     print("  ✅ 没人不加数，有人正常加数\n")
@@ -178,20 +180,24 @@ def test_peak_judgment():
     # 场景 1：先站到 174° 再蹲 -> 本轮峰值 174°，站起计数时不该报
     a = load_action("configs/squat.json")
     a.update(knee_pts(3), vis, now=0.0)                              # 站着 174°
-    a.update(knee_pts(60), vis, now=1.0)                             # 蹲下
-    c, s, sig, hits, _ = a.update(knee_pts(10), vis, now=2.0)        # 站起到刚过计数线
+    a.update(knee_pts(60), vis, now=1.0)
+    a.update(knee_pts(60), vis, now=1.1)                             # 持续蹲下 -> active
+    a.update(knee_pts(10), vis, now=1.5)
+    c, s, sig, hits, _ = a.update(knee_pts(10), vis, now=1.6)        # 持续站起 -> 计数
     print(f"  站在 174° 后深蹲：计数时 sig={sig:.1f}°  报错 {[h['name'] for h in hits]}")
     assert c == 1, "应计 1 次"
     assert not hits, "本轮峰值 174° >= 162°，不该报「没伸直」"
 
-    # 场景 2：全程只站到 161° -> 峰值不够，应该报
+    # 场景 2：全程只站到约 158° -> 能越过宽松计数线，但没有达到质量标准
     a2 = load_action("configs/squat.json")
-    a2.update(knee_pts(10), vis, now=0.0)                            # 站着只有 161°
-    a2.update(knee_pts(60), vis, now=1.0)                            # 蹲下
-    c, s, sig, hits, _ = a2.update(knee_pts(10), vis, now=2.0)
-    print(f"  只站到 161° 后深蹲：计数时 sig={sig:.1f}°  报错 {[h['name'] for h in hits]}")
+    a2.update(knee_pts(12), vis, now=0.0)
+    a2.update(knee_pts(60), vis, now=1.0)
+    a2.update(knee_pts(60), vis, now=1.1)
+    a2.update(knee_pts(12), vis, now=1.5)
+    c, s, sig, hits, _ = a2.update(knee_pts(12), vis, now=1.6)
+    print(f"  只站到 {sig:.0f}° 后深蹲：报错 {[h['name'] for h in hits]}")
     assert c == 1, "应计 1 次"
-    assert hits, "本轮峰值只有 161° < 162°，应报「没伸直」"
+    assert hits, "越过计数线但没达到 160° 质量标准，应报「没伸直」"
     print("  ✅ 判定看本轮峰值，而不是「刚过计数线那一帧」的角度\n")
 
 
@@ -210,8 +216,10 @@ def test_depth_judgment():
     # 场景 1：蹲到 90° -> 深度够，不该报
     a = load_action("configs/squat.json")
     a.update(knee_pts(3), vis, now=0.0)                          # 站着
-    _, _, sig_down, _, _ = a.update(knee_pts(60), vis, now=1.0)  # 蹲下
-    c, s, sig, hits, _ = a.update(knee_pts(3), vis, now=2.0)     # 站起
+    _, _, sig_down, _, _ = a.update(knee_pts(60), vis, now=1.0)
+    a.update(knee_pts(60), vis, now=1.1)
+    a.update(knee_pts(3), vis, now=1.5)
+    c, s, sig, hits, _ = a.update(knee_pts(3), vis, now=1.6)
     print(f"  蹲到 {sig_down:.0f}° 再站起 -> 报错 {[h['name'] for h in hits]}（应为空）")
     assert c == 1, "应计 1 次"
     assert not hits, "蹲够深了不该报"
@@ -220,7 +228,9 @@ def test_depth_judgment():
     a2 = load_action("configs/squat.json")
     a2.update(knee_pts(3), vis, now=0.0)
     _, _, sig_down2, _, _ = a2.update(knee_pts(40), vis, now=1.0)
-    c, s, sig, hits, _ = a2.update(knee_pts(3), vis, now=2.0)
+    a2.update(knee_pts(40), vis, now=1.1)
+    a2.update(knee_pts(3), vis, now=1.5)
+    c, s, sig, hits, _ = a2.update(knee_pts(3), vis, now=1.6)
     print(f"  只蹲到 {sig_down2:.0f}° 再站起 -> 报错 {[h['name'] for h in hits]}")
     assert c == 1, "蹲了一点也算一次（计数宽松）"
     assert any(h["name"] == "not_deep_enough" for h in hits), "应报「蹲得不够深」"
@@ -228,60 +238,60 @@ def test_depth_judgment():
 
 
 def test_jumping_jack():
-    print("=== 测试 10：开合跳（肩角计数 + 手/腿两条质量约束） ===")
+    print("=== 测试 10：开合跳（双臂 + 双腿同步计数与质量约束） ===")
     action = load_action("configs/jumping_jack.json")
-    print(f"  计数信号 {action.signal_type}（肩-肘-髋夹角），质量约束 {len(action.quality.rules)} 条")
-    # 肩(11)=(200,300)、髋(23)=(200,400)。肩角 = 角(肘,肩,髋)：
-    #   手垂身侧 肘(200,400) -> 0 度；手举到肩高 肘(300,300) -> 90 度；手举过头 肘(200,100) -> 180 度
-    SHOULDER, HIP = (200, 300), (200, 400)
-    DOWN, SHOULDER_HIGH, UP = (200, 400), (300, 300), (200, 100)
-    CLOSE, OPEN, HALF_OPEN = 5, 200, 100
+    print(f"  计数条件 {len(action.conditions)} 个，质量约束 {len(action.quality.rules)} 条")
+    L_SHOULDER, R_SHOULDER = (200, 300), (350, 300)
+    L_HIP, R_HIP = (200, 400), (350, 400)
+    L_DOWN, L_SHOULDER_HIGH, L_UP = (200, 400), (300, 300), (200, 100)
+    R_DOWN, R_SHOULDER_HIGH, R_UP = (350, 400), (250, 300), (350, 100)
+    CLOSE, OPEN, HALF_OPEN = 25, 100, 75
 
-    def pose(elbow, foot_half=CLOSE, foot_dy=0):
+    def pose(left_elbow, right_elbow, foot_half=CLOSE):
         p = [(0, 0)] * 33
-        p[11] = SHOULDER
-        p[12] = (SHOULDER[0] + 150, SHOULDER[1])
-        p[13] = elbow
-        p[23] = HIP
-        p[27] = (275 - foot_half, 700 + foot_dy)
-        p[28] = (275 + foot_half, 700 - foot_dy)
+        p[11], p[12] = L_SHOULDER, R_SHOULDER
+        p[13], p[14] = left_elbow, right_elbow
+        p[23], p[24] = L_HIP, R_HIP
+        p[27] = (275 - foot_half, 700)
+        p[28] = (275 + foot_half, 700)
         return p
 
     vis = [1.0] * 33
 
+    def rep(a, opened):
+        closed = pose(L_DOWN, R_DOWN)
+        a.update(closed, vis, now=0.0)
+        _, _, opened_sig, _, _ = a.update(opened, vis, now=0.5)
+        a.update(opened, vis, now=0.6)
+        a.update(closed, vis, now=1.0)
+        result = a.update(closed, vis, now=1.1)
+        return opened_sig, result
+
     # 1 标准开合跳（手举过头 + 脚张开）
-    action.update(pose(DOWN), vis, now=0.0)
-    _, _, sig_up, _, _ = action.update(pose(UP, OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = action.update(pose(DOWN), vis, now=1.0)
+    sig_up, (c, s, sig, hits, _) = rep(action, pose(L_UP, R_UP, OPEN))
     print(f"  1 标准开合跳（肩角 {sig_up:.0f} 度）-> 计数 {c}，报错 {[h['name'] for h in hits]}（应为空）")
     assert c == 1, "标准动作应计 1 次"
     assert not hits, "标准动作不该报错"
 
     # 2 手只举到肩膀高度（90 度：过了进入门槛 60 度，但没到举过头标准 150 度）
     a2 = load_action("configs/jumping_jack.json")
-    a2.update(pose(DOWN), vis, now=0.0)
-    a2.update(pose(SHOULDER_HIGH, OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a2.update(pose(DOWN), vis, now=1.0)
-    print(f"  2 手只举到肩高（肩角 {sig:.0f} 度）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    shoulder_sig, (c, s, sig, hits, _) = rep(a2, pose(L_SHOULDER_HIGH, R_SHOULDER_HIGH, OPEN))
+    print(f"  2 手只举到肩高（肩角 {shoulder_sig:.0f} 度）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert c == 1, "过了进入门槛也算一次"
     assert any(h["name"] == "hand_not_up" for h in hits), "应报「手没举过头顶」"
 
     # 3 手举过头、但腿没张开
     a3 = load_action("configs/jumping_jack.json")
-    a3.update(pose(DOWN), vis, now=0.0)
-    a3.update(pose(UP, HALF_OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a3.update(pose(DOWN), vis, now=1.0)
+    _, (c, s, sig, hits, _) = rep(a3, pose(L_UP, R_UP, HALF_OPEN))
     print(f"  3 手举过头但腿只张开一半 -> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert any(h["name"] == "legs_not_apart" for h in hits), "应报「腿没张开」"
 
     # 4 手只抬到胸前（约 30 度，没过进入门槛 60 度）-> 不算一次动作
     a4 = load_action("configs/jumping_jack.json")
-    a4.update(pose(DOWN), vis, now=0.0)
-    a4.update(pose((250, 387), OPEN), vis, now=0.5)
-    c, s, sig, hits, _ = a4.update(pose(DOWN), vis, now=1.0)
+    _, (c, s, sig, hits, _) = rep(a4, pose((250, 387), (300, 387), OPEN))
     print(f"  4 手只抬到胸前 -> 计数 {c}（应为 0，不算一次动作）")
     assert c == 0, "没举过肩不该算一次动作"
-    print("  肩角计数稳定；手没举过头、腿没张开 都能报出来")
+    print("  双臂和双腿必须同步；幅度不足仍可计数并给出明确提醒")
 
 
 
@@ -385,6 +395,100 @@ def test_camera_thread_stops_cleanly():
     print("  stop() 后线程退出、资源释放，未覆盖 Thread._stop()")
 
 
+def test_transition_hold_rejects_single_frame_glitch():
+    print("=== 测试 16：单帧跳变不触发动作阶段或计数 ===")
+    c = RepCounter({
+        "lo": 90, "hi": 160, "first": "lo", "min_interval": 0.3,
+        "enter_hold": 0.06, "exit_hold": 0.06, "min_active_duration": 0.2,
+    })
+    c.update(80, now=0.00)       # 只有一个异常低值
+    c.update(170, now=0.04)      # 未持续 60ms 就恢复
+    assert c.stage == "ready" and c.count == 0
+
+    c.update(80, now=0.10)
+    c.update(80, now=0.18)       # 已进入 active
+    c.update(170, now=0.20)
+    c.update(170, now=0.28)      # active 仅 20ms，整轮丢弃
+    assert c.stage == "ready" and c.count == 0
+
+    c.update(80, now=1.00)
+    c.update(80, now=1.08)       # 持续满足，进入 active
+    c.update(170, now=1.30)
+    c.update(170, now=1.38)      # 持续还原，计 1
+    assert c.stage == "ready" and c.count == 1
+    for t in (1.40, 1.50, 1.60):
+        c.update(170, now=t)     # 停在还原位不能重复计数
+    assert c.count == 1
+    print("  单帧异常被过滤，完整往返计一次，停在原位不重复")
+
+
+def test_jumping_jack_rejects_walking_and_partial_moves():
+    print("=== 测试 17：走路、单边摆臂和只张腿不算开合跳 ===")
+    vis = [1.0] * 33
+
+    def pose(left_up=False, right_up=False, legs_open=False):
+        p = [(0, 0)] * 33
+        p[11], p[12] = (200, 300), (350, 300)
+        p[23], p[24] = (200, 400), (350, 400)
+        p[13] = (200, 100) if left_up else (200, 400)
+        p[14] = (350, 100) if right_up else (350, 400)
+        half = 100 if legs_open else 25
+        p[27], p[28] = (275 - half, 700), (275 + half, 700)
+        return p
+
+    cases = {
+        "walking": [
+            pose(), pose(True, False, True), pose(True, False, True), pose(),
+            pose(False, True, True), pose(False, True, True), pose(),
+        ],
+        "arms_only": [pose(), pose(True, True, False), pose(True, True, False), pose()],
+        "legs_only": [pose(), pose(False, False, True), pose(False, False, True), pose()],
+    }
+    for name, frames in cases.items():
+        a = load_action("configs/jumping_jack.json")
+        for i, frame in enumerate(frames):
+            a.update(frame, vis, now=i * 0.1)
+        print(f"  {name:10s} -> 计数 {a.counter.count}")
+        assert a.counter.count == 0
+    print("  只有双臂抬起与双腿打开同步发生，才进入开合跳动作阶段")
+
+
+def test_partial_motion_does_not_contaminate_next_rep_quality():
+    print("=== 测试 18：未成形动作不污染下一次完整动作的质量判定 ===")
+    a = load_action("configs/jumping_jack.json")
+    vis = [1.0] * 33
+
+    def pose(arm_position, legs_open):
+        p = [(0, 0)] * 33
+        p[11], p[12] = (200, 300), (350, 300)
+        p[23], p[24] = (200, 400), (350, 400)
+        if arm_position == "up":
+            p[13], p[14] = (200, 100), (350, 100)
+        elif arm_position == "half":
+            p[13], p[14] = (300, 300), (250, 300)
+        else:
+            p[13], p[14] = (200, 400), (350, 400)
+        half = 100 if legs_open else 25
+        p[27], p[28] = (275 - half, 700), (275 + half, 700)
+        return p
+
+    # 先只举手、不张腿：不是一次开合跳，不应成为后续动作的质量峰值。
+    a.update(pose("down", False), vis, now=0.0)
+    a.update(pose("up", False), vis, now=0.2)
+    a.update(pose("up", False), vis, now=0.3)
+    a.update(pose("down", False), vis, now=0.4)
+
+    # 再完成一次幅度偏小但可计数的动作，应该报双手没有举高。
+    a.update(pose("half", True), vis, now=1.0)
+    a.update(pose("half", True), vis, now=1.1)
+    a.update(pose("down", False), vis, now=1.4)
+    count, _, _, hits, _ = a.update(pose("down", False), vis, now=1.5)
+    names = {h["name"] for h in hits}
+    assert count == 1
+    assert {"hand_not_up", "right_hand_not_up"}.issubset(names)
+    print("  前一次单纯举手未替后一次幅度不足动作通过质量检查")
+
+
 
 if __name__ == "__main__":
     test_rep_counter()
@@ -402,4 +506,7 @@ if __name__ == "__main__":
     test_low_confidence_does_not_pollute_counter_extrema()
     test_hidden_quality_points_do_not_pollute_rule_extrema()
     test_camera_thread_stops_cleanly()
+    test_transition_hold_rejects_single_frame_glitch()
+    test_jumping_jack_rejects_walking_and_partial_moves()
+    test_partial_motion_does_not_contaminate_next_rep_quality()
     print("全部通过 ✅")

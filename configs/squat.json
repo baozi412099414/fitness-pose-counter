@@ -8,20 +8,23 @@
     "lo": 140,
     "hi": 155,
     "first": "lo",
-    "min_interval": 0.40
+    "min_interval": 0.40,
+    "enter_hold": 0.06,
+    "exit_hold": 0.06,
+    "min_active_duration": 0.25
   },
   "quality": [
     {
       "name": "not_deep_enough",
       "check": "valley_max",
-      "max": 95,
+      "max": 105,
       "when": "on_rep",
       "tip": "蹲得不够深，再往下蹲"
     },
     {
       "name": "not_standing_straight",
       "check": "peak_min",
-      "min": 162,
+      "min": 160,
       "when": "on_rep",
       "tip": "站起时腿没伸直"
     }

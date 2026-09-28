@@ -66,15 +66,29 @@ class RepCounter:
             self.hi = float(counter_cfg["hi"])
             self.first = counter_cfg.get("first", "lo")
         self.min_interval = float(counter_cfg.get("min_interval", 0.35))
+        # 阈值必须连续满足一小段时间才允许换阶段。迟滞解决「阈值附近抖动」，
+        # hold 解决「单帧关键点跳变」；两者作用不同，缺一项仍可能误计数。
+        self.enter_hold = float(counter_cfg.get("enter_hold", 0.0))
+        self.exit_hold = float(counter_cfg.get("exit_hold", 0.0))
+        self.min_active_duration = float(counter_cfg.get("min_active_duration", 0.0))
         self.stage = "ready"        # ready=等待开始；active=已进入动作阶段
         self.count = 0
         self._last_t = -1e9
+        self._act_since = None
+        self._rest_since = None
+        self._active_since = None
 
     def _act_and_rest(self, values):
         """返回 (是否满足「进入动作」, 是否满足「回到还原」)。"""
         if self.conditions:
-            act = all(v >= c["on"] for v, c in zip(values, self.conditions))
-            rest = all(v <= c["off"] for v, c in zip(values, self.conditions))
+            def act_ok(v, c):
+                return v <= c["on"] if c.get("direction", "hi") == "lo" else v >= c["on"]
+
+            def rest_ok(v, c):
+                return v >= c["off"] if c.get("direction", "hi") == "lo" else v <= c["off"]
+
+            act = all(act_ok(v, c) for v, c in zip(values, self.conditions))
+            rest = all(rest_ok(v, c) for v, c in zip(values, self.conditions))
             return act, rest
         v = values[0]
         if self.first == "lo":
@@ -88,19 +102,45 @@ class RepCounter:
         now = time.time() if now is None else now
         act, rest = self._act_and_rest(values)
         if self.stage == "ready":
+            self._rest_since = None
             if act:
-                self.stage = "active"
+                if self._act_since is None:
+                    self._act_since = now
+                if now - self._act_since >= self.enter_hold:
+                    self.stage = "active"
+                    self._active_since = now
+                    self._act_since = None
+            else:
+                self._act_since = None
         else:  # active：等待还原
+            self._act_since = None
             if rest:
-                if now - self._last_t >= self.min_interval:
-                    self.count += 1
-                    self._last_t = now
-                self.stage = "ready"
+                if self._rest_since is None:
+                    self._rest_since = now
+                active_long_enough = (
+                    self._active_since is None
+                    or self._rest_since - self._active_since >= self.min_active_duration
+                )
+                if now - self._rest_since >= self.exit_hold:
+                    # active 持续太短说明只是一次快速关键点跳变：结束本轮但不计数。
+                    # 不能用当前 now 计算持续时间，否则人在还原位多站一会儿也会被补记一次。
+                    if active_long_enough and now - self._last_t >= self.min_interval:
+                        self.count += 1
+                        self._last_t = now
+                    self.stage = "ready"
+                    self._rest_since = None
+                    self._active_since = None
+            else:
+                self._rest_since = None
         return self.count, self.stage
 
     def reset(self):
         self.count = 0
         self.stage = "ready"
+        self._last_t = -1e9
+        self._act_since = None
+        self._rest_since = None
+        self._active_since = None
 
 
 # --------------------------------------------------------------------------
@@ -336,9 +376,17 @@ class Action:
             return self.counter.count, self.counter.stage, None, [], []
         just_counted = False
         self.sig_peak = sig if self.sig_peak is None else max(self.sig_peak, sig)
+        previous_stage = self.counter.stage
         before = self.counter.count
         count, stage = self.counter.update(values, now)
         just_counted = count > before           # 这一帧刚数上一个
+
+        # 真正进入 active 才算一轮动作开始。此前可能有挥手、走路等不满足全部
+        # 门控条件的零散运动，不能让这些旧峰值替下一次动作“作弊”。
+        if previous_stage == "ready" and stage == "active":
+            self.sig_peak = sig
+            self.depth_valley = None
+            self.rule_ext = {}
 
         # 下蹲阶段的谷值（这一轮蹲到最低多少度）—— 只在 active 阶段采集，
         # 所以等计数那一刻（离开 active）它已经完整了，判定准确、不滞后。
