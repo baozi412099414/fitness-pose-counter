@@ -4,11 +4,15 @@
   "camera_side": "侧",
   "counter": {
     "signal": "angle",
-    "points": [23, 25, 27],
+    "points": [
+      23,
+      25,
+      27
+    ],
     "lo": 140,
     "hi": 155,
     "first": "lo",
-    "min_interval": 0.40,
+    "min_interval": 0.4,
     "enter_hold": 0.06,
     "exit_hold": 0.06,
     "min_active_duration": 0.25
@@ -17,17 +21,21 @@
     {
       "name": "not_deep_enough",
       "check": "valley_max",
-      "max": 115,
+      "max": 105,
       "when": "on_rep",
       "priority": 70,
-      "tip": "蹲得不够深，再往下蹲"
+      "tip": "蹲得不够深，大腿接近与地面平行"
     },
     {
       "name": "right_not_deep_enough",
       "signal": "angle",
-      "points": [24, 26, 28],
+      "points": [
+        24,
+        26,
+        28
+      ],
       "check": "valley_max",
-      "max": 115,
+      "max": 105,
       "when": "on_rep",
       "priority": 70,
       "tip": "右腿下蹲幅度不足"
@@ -43,7 +51,11 @@
     {
       "name": "right_not_standing_straight",
       "signal": "angle",
-      "points": [24, 26, 28],
+      "points": [
+        24,
+        26,
+        28
+      ],
       "check": "peak_min",
       "min": 155,
       "when": "on_rep",
@@ -51,20 +63,30 @@
       "tip": "站起时右腿没伸直"
     },
     {
-      "name": "excessive_knee_travel",
-      "signal": "dx",
-      "points": [25, 31],
-      "unit_points": [11, 12],
-      "check": "peak_max",
-      "max": 0.75,
-      "when": "on_rep",
+      "name": "knee_over_toe",
+      "signal": "dxs",
+      "points": [
+        31,
+        25
+      ],
+      "unit_points": [
+        11,
+        12
+      ],
+      "check": "valley_min",
+      "min": -0.1,
       "priority": 90,
-      "tip": "膝盖前移明显，试着把髋部向后坐"
+      "tip": "膝盖超过脚尖了，试着把髋部向后坐"
     },
     {
       "name": "torso_shin_mismatch",
       "signal": "segment_angle_diff",
-      "points": [11, 23, 25, 27],
+      "points": [
+        11,
+        23,
+        25,
+        27
+      ],
       "check": "peak_max",
       "max": 50,
       "when": "on_rep",

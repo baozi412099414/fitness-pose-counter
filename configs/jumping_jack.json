@@ -7,58 +7,82 @@
     "conditions": [
       {
         "signal": "angle",
-        "points": [13, 11, 23],
+        "points": [
+          13,
+          11,
+          23
+        ],
         "direction": "hi",
         "on": 75,
         "off": 45
       },
       {
         "signal": "angle",
-        "points": [14, 12, 24],
+        "points": [
+          14,
+          12,
+          24
+        ],
         "direction": "hi",
         "on": 75,
         "off": 45
       },
       {
         "signal": "dx",
-        "points": [27, 28],
-        "unit_points": [11, 12],
+        "points": [
+          27,
+          28
+        ],
+        "unit_points": [
+          11,
+          12
+        ],
         "direction": "hi",
         "on": 0.95,
         "off": 0.75
       }
     ],
-    "min_interval": 0.40,
+    "min_interval": 0.4,
     "enter_hold": 0.06,
     "exit_hold": 0.06,
-    "min_active_duration": 0.20
+    "min_active_duration": 0.2
   },
   "quality": [
     {
       "name": "hand_not_up",
       "check": "peak_min",
-      "min": 135,
+      "min": 140,
       "when": "on_rep",
       "priority": 70,
-      "tip": "左手再举高一点"
+      "tip": "左手再举高一点，举过头顶"
     },
     {
       "name": "right_hand_not_up",
       "signal": "angle",
-      "points": [14, 12, 24],
+      "points": [
+        14,
+        12,
+        24
+      ],
       "check": "peak_min",
-      "min": 135,
+      "min": 140,
       "when": "on_rep",
       "priority": 70,
-      "tip": "右手再举高一点"
+      "tip": "右手再举高一点，举过头顶"
     },
     {
       "name": "legs_not_apart",
       "signal": "dx",
-      "points": [27, 28],
-      "unit_points": [11, 12],
+      "points": [
+        27,
+        28
+      ],
+      "unit_points": [
+        11,
+        12
+      ],
       "check": "peak_min",
-      "min": 1.20,
+      "min": 1.2,
       "when": "on_rep",
       "priority": 60,
       "tip": "腿没张开，跳开一点"
@@ -66,7 +90,14 @@
     {
       "name": "arm_asymmetry",
       "signal": "angle_pair_diff",
-      "points": [13, 11, 23, 14, 12, 24],
+      "points": [
+        13,
+        11,
+        23,
+        14,
+        12,
+        24
+      ],
       "check": "peak_max",
       "max": 35,
       "when": "on_rep",

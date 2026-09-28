@@ -4,7 +4,11 @@
   "camera_side": "侧",
   "counter": {
     "signal": "angle",
-    "points": [11, 13, 15],
+    "points": [
+      11,
+      13,
+      15
+    ],
     "lo": 140,
     "hi": 160,
     "first": "lo",
@@ -17,17 +21,26 @@
     {
       "name": "low_back",
       "check": "collinear",
-      "points": [11, 23, 27],
-      "min_angle": 155,
+      "points": [
+        11,
+        23,
+        27
+      ],
+      "min_angle": 160,
       "confirm_frames": 3,
       "priority": 100,
-      "tip": "收紧核心，身体保持一条直线"
+      "tip": "收紧核心，头肩髋踝保持一条直线"
     },
     {
       "name": "right_body_line",
-      "check": "collinear",
-      "points": [12, 24, 28],
-      "min_angle": 155,
+      "signal": "angle",
+      "points": [
+        12,
+        24,
+        28
+      ],
+      "check": "angle_min",
+      "min": 160,
       "confirm_frames": 3,
       "priority": 100,
       "tip": "收紧核心，身体保持一条直线"
@@ -35,17 +48,21 @@
     {
       "name": "not_low_enough",
       "check": "valley_max",
-      "max": 115,
+      "max": 105,
       "when": "on_rep",
       "priority": 80,
-      "tip": "下压不够深，再低一点"
+      "tip": "下压不够深，胸口再贴近地面"
     },
     {
       "name": "right_not_low_enough",
       "signal": "angle",
-      "points": [12, 14, 16],
+      "points": [
+        12,
+        14,
+        16
+      ],
       "check": "valley_max",
-      "max": 115,
+      "max": 105,
       "when": "on_rep",
       "priority": 80,
       "tip": "右臂下压不够深"
@@ -61,7 +78,11 @@
     {
       "name": "right_arm_not_straight",
       "signal": "angle",
-      "points": [12, 14, 16],
+      "points": [
+        12,
+        14,
+        16
+      ],
       "check": "peak_min",
       "min": 155,
       "when": "on_rep",
@@ -71,7 +92,14 @@
     {
       "name": "arm_asymmetry",
       "signal": "angle_pair_diff",
-      "points": [11, 13, 15, 12, 14, 16],
+      "points": [
+        11,
+        13,
+        15,
+        12,
+        14,
+        16
+      ],
       "check": "peak_max",
       "max": 35,
       "when": "on_rep",

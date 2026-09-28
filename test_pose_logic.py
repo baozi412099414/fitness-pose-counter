@@ -152,7 +152,7 @@ def test_no_count_without_person():
     down[27] = (100, 220)
     down[11], down[12] = (100, 40), (300, 40)
     down[24], down[26], down[28] = (300, 100), (360, 140), (300, 220)
-    down[31], down[32] = (100, 220), (300, 220)
+    down[31], down[32] = (180, 220), (380, 220)
     # 站起姿态：三点竖直共线 => 膝角 180°
     up = [(0, 0)] * 33
     up[23] = (100, 100)
@@ -160,7 +160,7 @@ def test_no_count_without_person():
     up[27] = (100, 220)
     up[11], up[12] = (100, 40), (300, 40)
     up[24], up[26], up[28] = (300, 100), (300, 160), (300, 220)
-    up[31], up[32] = (100, 220), (300, 220)
+    up[31], up[32] = (180, 220), (380, 220)
 
     vis_bad = [0.1] * 33      # 人没拍到 / 目标跟丢
     vis_ok = [1.0] * 33       # 人在画面里
@@ -190,7 +190,7 @@ def test_peak_judgment():
         p[27] = (100, 220)
         p[11], p[12] = (100, 40), (300, 40)
         p[24], p[26], p[28] = (300, 100), (300 + offset, 160), (300, 220)
-        p[31], p[32] = (100, 220), (300, 220)
+        p[31], p[32] = (180, 220), (380, 220)
         return p
 
     # 场景 1：先站到 174° 再蹲 -> 本轮峰值 174°，站起计数时不该报
@@ -229,7 +229,7 @@ def test_depth_judgment():
         p[27] = (100, 220)
         p[11], p[12] = (100, 40), (300, 40)
         p[24], p[26], p[28] = (300, 100), (300 + offset, 160), (300, 220)
-        p[31], p[32] = (100, 220), (300, 220)
+        p[31], p[32] = (180, 220), (380, 220)
         return p
 
     # 场景 1：蹲到 90° -> 深度够，不该报
@@ -564,14 +564,80 @@ def test_squat_quality_extra_signals():
     p = [(0, 0)] * 33
     p[11], p[12] = (100, 40), (300, 40)       # 肩宽 200
     p[23], p[25], p[27] = (100, 100), (160, 160), (100, 220)
-    p[31] = (-20, 220)                         # 膝-脚尖水平差 180 = 0.9肩宽
-    travel = a._calc_signal("dx", p, [25, 31], [11, 12])
-    assert travel > 0.75
+    # 脚尖放在 (100+80)=180（脚踝前方 0.4 肩宽）；膝在 160 时尚未超过脚尖
+    p[31] = (180, 220)
+    normal = a._calc_signal("dxs", p, [31, 25], [11, 12])
+    assert normal > 0, "膝在脚尖后方时，带符号水平差应为正"
+    # 把膝移到脚尖之前（200 > 180）→ dxs 变负 → 判为「膝超过脚尖」
+    p[25] = (230, 160)
+    over = a._calc_signal("dxs", p, [31, 25], [11, 12])
+    assert over < -0.10, f"膝越过脚尖时应为明显负值，实际 {over:.2f}"
+    travel = over
     # 水平躯干配竖直小腿，是明显不协调的极端姿态。
     p[11], p[23], p[25], p[27] = (0, 100), (100, 100), (100, 160), (100, 220)
     mismatch = a._calc_signal("segment_angle_diff", p, [11, 23, 25, 27])
     assert mismatch > 80
     print(f"  膝前移比 {travel:.2f}、线段夹角差 {mismatch:.0f}° 均越过宽松阈值")
+
+
+def test_knee_over_toe_judgment():
+    print("=== 测试 25：深蹲「膝超过脚尖」判定（带符号水平差走完整状态机） ===")
+    vis = [1.0] * 33
+    # 肩宽 200（肩点 100 / 300）。脚尖放在脚踝前方 80px = 0.4 倍肩宽（真实人体比例）
+    TOE = 180
+
+    def squat_pose(knee_x):
+        p = [(0, 0)] * 33
+        p[11], p[12] = (100, 40), (300, 40)
+        p[23] = (100, 100)
+        p[25] = (knee_x, 160)
+        p[27] = (100, 220)
+        p[24], p[26], p[28] = (300, 100), (300 + (knee_x - 100), 160), (300, 220)
+        p[31], p[32] = (TOE, 220), (TOE + 200, 220)
+        return p
+
+    def run(knee_x):
+        a = load_action("configs/squat.json")
+        a.update(squat_pose(105), vis, now=0.0)      # 站立（膝角≈174°）
+        a.update(squat_pose(knee_x), vis, now=1.0)   # 下蹲
+        a.update(squat_pose(knee_x), vis, now=1.1)   # 持续 -> active
+        a.update(squat_pose(105), vis, now=1.6)      # 站起
+        return a.update(squat_pose(105), vis, now=1.7)
+
+    # ① 正常深蹲：膝在脚尖后方，不该报
+    c, s, sig, hits, _ = run(140)
+    print(f"  ① 正常深蹲（膝 140 < 脚尖 {TOE}）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    assert c == 1, "应计 1 次"
+    assert not any(h["name"] == "knee_over_toe" for h in hits), "膝没越过脚尖，不该报"
+
+    # ② 膝明显越过脚尖（230 > 180）-> 应报
+    c, s, sig, hits, _ = run(230)
+    print(f"  ② 膝明显越过脚尖（膝 230 > 脚尖 {TOE}）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
+    assert c == 1, "应计 1 次"
+    assert any(h["name"] == "knee_over_toe" for h in hits), "膝越过脚尖应报"
+    print("  ✅ 带符号水平差能正确区分「膝在前」与「膝在后」\n")
+
+
+def test_chinese_overlay():
+    print("=== 测试 26：画面中文叠加（cv2.putText 画不了中文，改用 PIL 渲染 + 缓存） ===")
+    from realtime_pose import blit_cn, render_cn, _PIL_OK
+
+    if not _PIL_OK:
+        print("  （本机没有 Pillow，程序会自动降级为纯英文 HUD，跳过）")
+        return
+
+    frame = np.zeros((200, 400, 3), dtype=np.uint8)
+    before = frame.copy()
+    out = blit_cn(frame, "深蹲 · 准备 · 0 次", (8, 100), size=24)
+    changed = int((out != before).any(axis=2).sum())
+    print(f"  中文渲染改变了 {changed} 个像素")
+    assert changed > 200, "中文应该真的画到画面上了"
+
+    # 同一文案第二次调用必须命中缓存（否则每帧重渲染会掉帧）
+    t1 = render_cn("缓存命中测试", 24)
+    t2 = render_cn("缓存命中测试", 24)
+    assert t1 is t2, "重复文案应命中缓存"
+    print("  ✅ 中文可渲染且带缓存（不会拖慢主循环）\n")
 
 
 def test_video_source_consumes_each_frame_and_reaches_eof():
@@ -666,6 +732,8 @@ if __name__ == "__main__":
     test_quality_priority_and_degenerate_geometry()
     test_bilateral_asymmetry_signals()
     test_squat_quality_extra_signals()
+    test_knee_over_toe_judgment()
+    test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
     test_ui_builds_separate_action_commands()
     print("全部通过 ✅")

@@ -28,8 +28,17 @@ import time
 
 import cv2
 import mediapipe as mp
+import numpy as np
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
+
+# 中文叠加：cv2.putText 只认 ASCII，中文会画成「????」，所以用 PIL 渲染成小图再贴。
+# Pillow 缺失或字体加载失败时自动降级为「只显示英文 HUD」，不影响主流程。
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    _PIL_OK = True
+except Exception:
+    _PIL_OK = False
 
 from pose_logic import load_action
 
@@ -180,6 +189,83 @@ def say(text):
             subprocess.Popen(["say", text])
         except Exception:
             pass
+
+
+# --------------------------------------------------------------------------
+# 中文文字叠加（PIL 渲染一次 → 缓存成小图 → 每帧只做 numpy 贴图）
+# --------------------------------------------------------------------------
+# 系统自带中文字体，按优先级取第一个存在的
+CN_FONT_CANDIDATES = [
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/Songti.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+]
+_cn_font_cache = {}      # 字号 -> ImageFont
+_cn_img_cache = {}       # (文字, 字号, 颜色, 底色) -> numpy 小图
+_CN_CACHE_MAX = 64       # 提示文字组合有限，设上限防止内存膨胀
+
+
+def _cn_font(size):
+    """按字号取字体对象（加载字体有开销，缓存复用）。"""
+    if not _PIL_OK:
+        return None
+    if size not in _cn_font_cache:
+        font = None
+        for p in CN_FONT_CANDIDATES:
+            if os.path.exists(p):
+                try:
+                    font = ImageFont.truetype(p, size)
+                    break
+                except Exception:
+                    continue
+        _cn_font_cache[size] = font
+    return _cn_font_cache[size]
+
+
+def render_cn(text, size=26, color=(255, 255, 255), bg=(0, 0, 0), pad=6):
+    """
+    把一行中文渲染成一张 BGR numpy 小图，带缓存。
+
+    为什么要缓存：PIL 转整帧再转回来的开销不小，每帧都做会掉帧。
+    而提示文案的组合是有限的（几十种），渲染一次存下来，之后只做 numpy 贴图。
+    """
+    key = (text, size, tuple(color), tuple(bg))
+    if key in _cn_img_cache:
+        return _cn_img_cache[key]
+    font = _cn_font(size)
+    if font is None:
+        return None
+    try:
+        probe = Image.new("RGB", (8, 8))
+        box = ImageDraw.Draw(probe).textbbox((0, 0), text, font=font)
+        w = max(box[2] - box[0] + pad * 2, 1)
+        h = max(box[3] - box[1] + pad * 2, 1)
+        img = Image.new("RGB", (w, h), tuple(reversed(bg)))
+        ImageDraw.Draw(img).text((pad - box[0], pad - box[1]), text,
+                                 font=font, fill=tuple(reversed(color)))
+        arr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    except Exception:
+        return None
+    if len(_cn_img_cache) >= _CN_CACHE_MAX:
+        _cn_img_cache.clear()
+    _cn_img_cache[key] = arr
+    return arr
+
+
+def blit_cn(frame, text, org, size=26, color=(255, 255, 255), bg=(0, 0, 0)):
+    """把中文小图贴到 frame 上（纯 numpy 赋值，很快）。org = 左上角坐标。"""
+    tile = render_cn(text, size, color, bg)
+    if tile is None:
+        return frame
+    fh, fw = frame.shape[:2]
+    x, y = max(0, int(org[0])), max(0, int(org[1]))
+    if x >= fw or y >= fh:
+        return frame
+    h = min(tile.shape[0], fh - y)
+    w = min(tile.shape[1], fw - x)
+    frame[y:y + h, x:x + w] = tile[:h, :w]
+    return frame
 
 
 def bring_window_to_front():
@@ -502,6 +588,19 @@ def main():
                 banner = "   ".join("! " + (h["name"] or "?").upper() for h in shown_hits)
                 cv2.putText(frame, banner, (12, y + 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (60, 60, 255), 3)
+
+            # ---- 中文叠加：画面底部显示「动作 · 阶段 · 次数」和变形提示 ----
+            # （cv2.putText 画不了中文，改用 PIL 渲染 + 缓存贴图）
+            fh = frame.shape[0]
+            stage_cn = {"ready": "准备", "active": "动作中"}.get(stage, stage)
+            frame = blit_cn(frame, f"{action.name} · {stage_cn} · {count} 次",
+                            (12, fh - 100), size=26,
+                            color=(190, 255, 210), bg=(24, 30, 26))
+            if shown_hits:
+                # 只显示最高优先级的 1~2 条，避免文字太长铺满画面
+                tips = "；".join(h["tip"] for h in shown_hits[:2])
+                frame = blit_cn(frame, "⚠ " + tips, (12, fh - 54), size=30,
+                                color=(255, 90, 90), bg=(64, 18, 18))
 
             # 终端也打印每次计数的判定明细 —— HUD 看不清时可以直接把输出复制回来
             if count > last_logged_count:
