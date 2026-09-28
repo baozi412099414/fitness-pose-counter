@@ -394,3 +394,37 @@ macOS 摄像头权限按**谁该为这个进程负责**算，不是按 python �
 14. **改动后要防「修一个坏一个」**：异常帧过滤引入 `None` 后，
     HUD 里的 `f"{None:5.2f}"` 直接抛 TypeError 崩掉主循环（表现为「画面卡住」）。
     凡是有可能为空的值，格式化前都要保护。
+
+## 2026-09-28 在线参考视频采集（用户暂时无法自行录制）
+
+已将下面 3 段开放授权素材下载到 `captures/reference/`。`captures/` 已被
+`.gitignore` 排除，所以视频只作为本机调试素材，不进入 Git；来源、许可和筛选结论必须
+保留在本文件，避免以后无法追溯。
+
+| 本地文件 | 来源与许可 | 解码信息 | 算法适用性 |
+|---|---|---|---|
+| `squat_standard.webm` | Wikimedia Commons：`Squats Wikipedia.webm`，CC BY-SA 3.0 | 960×540，29.97 fps，53.7 s | **不宜直接调参**：大量膝、脚等特写和切镜，人体并非始终完整入镜；只能用于人工学习动作要点 |
+| `pushup_standard.ogv` | Wikimedia Commons：`Navy-seal-buds-training-push-ups.ogv`，美国政府作品/公有领域 | 720×480，29.97 fps，110.1 s | **部分可用**：讲解段和镜头切换很多，只有中段完整动作可截取；需先裁出固定机位片段再跑模型 |
+| `jumping_jack_standard.ogg` | Wikimedia Commons：`Jumping jack movimiento.ogg`，CC BY-SA 3.0 | 1920×1080，24 fps，8.0 s | **仅作状态机补充测试**：固定全身、动作周期清楚，但为 3D 动画，MediaPipe 对非真人轮廓的检出率不能代表真实摄像头 |
+
+另外筛到一个更符合姿态检测条件的候选：Pexels `Young Woman Exercising`（视频编号
+6525519），白底、固定机位、全身深蹲，页面标记为 free to use；当前站点阻止自动下载，
+所以只记录链接，不绕过站点验证。Pixabay 也有全身开合跳素材，但同样触发站点安全验证。
+
+本轮得到的关键结论：
+
+1. **不能只按标题选视频**。姿态模型需要固定机位、单人、全身持续入镜、无遮挡、少切镜；
+   权威教学视频经常为了讲解而拍特写，反而不适合自动计数测试。
+2. **标准示范与错误示范分开管理**。当前 3 段只能作为标准动作/流程素材，不能把未标注
+   的动作主观标成“错误动作”。明显错误检测仍需后续取得授权清楚且明确标注错误类型的素材。
+3. **动画不能替代真人验收**。它可以验证动作状态机、防重复和周期逻辑，但人体关键点模型
+   最终仍需真人视频验证检出率、遮挡和视角问题。
+4. 下一步先为离线视频补齐“读到结尾自动退出”和无窗口评测输出，再对可用区段裁剪、跑计数，
+   记录期望次数与实际次数；不要直接用包含切镜的整段视频判断算法好坏。
+
+来源页：
+
+- https://commons.wikimedia.org/wiki/File:Squats_Wikipedia.webm
+- https://commons.wikimedia.org/wiki/File:Navy-seal-buds-training-push-ups.ogv
+- https://commons.wikimedia.org/wiki/File:Jumping_jack_movimiento.ogg
+- https://www.pexels.com/video/young-woman-exercising-6525519/
