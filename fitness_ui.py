@@ -19,6 +19,12 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+# matplotlib 的字体缓存目录要指到可写位置（默认的 ~/.matplotlib 在这台机器上不可写，
+# 会导致每次启动都重建缓存 + 刷警告）。必须在 import matplotlib 之前设置。
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
+
 # 趋势图内嵌用的 matplotlib 画布。这里**只 import Figure + TkAgg 画布**，
 # 不调用 pyplot 的 matplotlib.use() —— 否则会和 plot_trend.py 设的 Agg 后端打架。
 try:

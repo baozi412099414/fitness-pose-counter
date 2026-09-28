@@ -25,6 +25,13 @@ import os
 import sys
 from datetime import datetime, timedelta
 
+# matplotlib 默认把字体缓存写到 ~/.matplotlib；这台机器上该目录不可写，
+# 于是**每次启动都要重建字体缓存**（慢）并刷一堆警告。
+# 指到项目内的目录，缓存持久化，启动也干净。
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
+
 import matplotlib
 
 # 没有图形环境（或在容器里跑测试）时用 Agg，只存文件不弹窗。
