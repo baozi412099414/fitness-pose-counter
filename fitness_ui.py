@@ -16,7 +16,7 @@ import threading
 import time
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 
 ROOT = Path(__file__).resolve().parent
@@ -59,7 +59,7 @@ def find_reference_video(action_id, ref_dir=None):
 
 
 def build_command(action_id, source_type, source_value, voice, report_path,
-                  control_path=None):
+                  control_path=None, user=None, sets=0, reps_per_set=10, rest=30.0):
     """生成参数列表；单独保留为纯函数，便于无 GUI 自动测试。"""
     cmd = [sys.executable, "-u", str(ROOT / "realtime_pose.py"),
            "--action", str(action_id), "--report", str(report_path)]
@@ -71,6 +71,13 @@ def build_command(action_id, source_type, source_value, voice, report_path,
         cmd.append("--no-voice")
     if control_path:
         cmd += ["--control-file", str(control_path)]
+    # 训练管理（任务书模块 7 训练组 / 8 历史与目标 / 10 多用户）
+    if user:
+        cmd += ["--user", str(user)]
+    if sets and int(sets) > 0:
+        cmd += ["--sets", str(int(sets)),
+                "--reps-per-set", str(int(reps_per_set)),
+                "--rest", str(float(rest))]
     return cmd
 
 
@@ -114,6 +121,16 @@ class FitnessTestUI:
         self.camera_var = tk.StringVar(value=str(PHONE_CAMERA_INDEX))
         self.custom_camera_var = tk.StringVar(value="2")
         self.voice_var = tk.BooleanVar(value=True)
+        # ---- 训练管理（模块 7/8/10）----
+        from training_manager import UserStore
+        self.store = UserStore()
+        self.user_var = tk.StringVar(value=self.store.current_user())
+        self.group_on_var = tk.BooleanVar(value=False)
+        self.sets_var = tk.StringVar(value="3")
+        self.reps_per_set_var = tk.StringVar(value="10")
+        self.rest_var = tk.StringVar(value="30")
+        self.goal_var = tk.StringVar(value="0")
+        self.goal_status_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="准备就绪")
         self.reps_var = tk.StringVar(value="0")
         self.rate_var = tk.StringVar(value="--")
@@ -121,6 +138,7 @@ class FitnessTestUI:
 
         self._build()
         self._sync_source()
+        self._sync_goal()
         self.root.after(100, self._poll_messages)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -184,6 +202,46 @@ class FitnessTestUI:
                         variable=self.voice_var).grid(row=3, column=1, columnspan=3,
                                                       sticky="w", pady=6)
 
+        # ---- 训练管理（任务书模块 7 训练组 / 8 历史与目标 / 10 多用户）----
+        train = ttk.LabelFrame(outer, text="训练管理（多用户 · 分组间歇 · 目标）", padding=12)
+        train.pack(fill="x", pady=(12, 0))
+
+        ttk.Label(train, text="用户").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.user_box = ttk.Combobox(train, textvariable=self.user_var,
+                                     values=self.store.list_users(), width=14)
+        self.user_box.grid(row=0, column=1, sticky="w", pady=5)
+        ttk.Button(train, text="切换", width=6, command=self._switch_user).grid(
+            row=0, column=2, sticky="w", padx=6, pady=5)
+        ttk.Button(train, text="新建用户…", width=11, command=self._new_user).grid(
+            row=0, column=3, sticky="w", pady=5)
+        ttk.Label(train, textvariable=self.goal_status_var,
+                  foreground="#2f80ed").grid(row=0, column=4, sticky="w", padx=12, pady=5)
+
+        ttk.Label(train, text="分组").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=5)
+        gframe = ttk.Frame(train)
+        gframe.grid(row=1, column=1, columnspan=4, sticky="w", pady=5)
+        ttk.Checkbutton(gframe, text="启用分组间歇", variable=self.group_on_var).pack(side="left")
+        ttk.Spinbox(gframe, from_=1, to=20, width=4,
+                    textvariable=self.sets_var).pack(side="left", padx=(10, 2))
+        ttk.Label(gframe, text="组 ×").pack(side="left")
+        ttk.Spinbox(gframe, from_=1, to=100, width=4,
+                    textvariable=self.reps_per_set_var).pack(side="left", padx=(6, 2))
+        ttk.Label(gframe, text="次，组间休息").pack(side="left")
+        ttk.Spinbox(gframe, from_=0, to=600, width=5,
+                    textvariable=self.rest_var).pack(side="left", padx=(6, 2))
+        ttk.Label(gframe, text="秒").pack(side="left")
+
+        ttk.Label(train, text="每日目标").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=5)
+        tframe = ttk.Frame(train)
+        tframe.grid(row=2, column=1, columnspan=4, sticky="w", pady=5)
+        ttk.Spinbox(tframe, from_=0, to=999, width=5,
+                    textvariable=self.goal_var).pack(side="left")
+        ttk.Label(tframe, text="次").pack(side="left", padx=(4, 10))
+        ttk.Button(tframe, text="保存目标", width=10,
+                   command=self._save_goal).pack(side="left")
+        ttk.Button(tframe, text="查看趋势图", width=12,
+                   command=self._show_trend).pack(side="left", padx=10)
+
         buttons = tk.Frame(outer)
         buttons.pack(fill="x", pady=14)
         button_style = {
@@ -240,6 +298,70 @@ class FitnessTestUI:
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
 
+    # ---------------- 训练管理（模块 7/8/10）----------------
+    def _refresh_users(self):
+        self.user_box["values"] = self.store.list_users()
+
+    def _switch_user(self):
+        name = (self.user_var.get() or "").strip()
+        if not name:
+            return
+        self.store.switch_user(name)
+        self._refresh_users()
+        self._sync_goal()
+        self.status_var.set(f"已切换到用户「{name}」")
+
+    def _new_user(self):
+        name = simpledialog.askstring("新建用户", "输入用户名：", parent=self.root)
+        if not name or not name.strip():
+            return
+        name = name.strip()
+        self.store.switch_user(name)
+        self.user_var.set(name)
+        self._refresh_users()
+        self._sync_goal()
+        self.status_var.set(f"已创建并切换到用户「{name}」")
+
+    def _sync_goal(self):
+        """把「当前用户 + 当前动作」的今日目标与完成量显示出来。"""
+        from training_manager import Goals, History
+        user = self.store.current_user()
+        action_id = self.action_id()
+        goal = Goals(self.store, user).get_goal(action_id)
+        done = History(self.store, user).today_reps(action_id)
+        self.goal_var.set(str(goal))
+        self.goal_status_var.set(
+            f"今日已完成 {done} 次" + (f" / 目标 {goal}" if goal else "（未设目标）"))
+
+    def _save_goal(self):
+        from training_manager import Goals
+        try:
+            value = int(float(self.goal_var.get() or 0))
+        except ValueError:
+            messagebox.showerror("目标无效", "每日目标要填整数次数")
+            return
+        Goals(self.store, self.store.current_user()).set_goal(self.action_id(), value)
+        self._sync_goal()
+        self.status_var.set(f"已保存目标：每天 {value} 次")
+
+    def _show_trend(self):
+        """生成并弹出趋势图（调用 plot_trend.py）。"""
+        from training_manager import History
+        user = self.store.current_user()
+        if not History(self.store, user).all_sessions():
+            messagebox.showinfo("暂无数据",
+                                f"用户「{user}」还没有训练记录。\n先做一次训练再来看趋势。")
+            return
+        out = ROOT / "captures" / f"trend_{user}.png"
+        try:
+            subprocess.Popen([sys.executable, str(ROOT / "plot_trend.py"),
+                              "--user", user, "--out", str(out)],
+                             cwd=str(ROOT))
+            self._append_log(f"$ 生成趋势图 -> {out}\n")
+            self.status_var.set("正在生成趋势图…")
+        except Exception as e:
+            messagebox.showerror("生成失败", str(e))
+
     def action_id(self):
         """当前选中动作的 id（对应 configs/<id>.json）。"""
         want = self.action_var.get()
@@ -259,6 +381,9 @@ class FitnessTestUI:
         self.browse_btn.grid_remove() if camera else self.browse_btn.grid()
         self.browse_btn.configure(state="normal" if source_type == "选择本地视频" else "disabled")
         self.file_entry.configure(state="normal" if source_type == "选择本地视频" else "readonly")
+        # 动作变了，今日目标/完成量也要跟着刷新
+        if hasattr(self, "goal_status_var"):
+            self._sync_goal()
 
     def _browse(self):
         path = filedialog.askopenfilename(
@@ -296,8 +421,14 @@ class FitnessTestUI:
         aid = self.action_id()
         self.report_path = report_dir / f"{aid}-{stamp}.json"
         self.control_path = report_dir / f"control-{aid}-{stamp}.json"
-        cmd = build_command(aid, self.source_type_var.get(), source_value,
-                            self.voice_var.get(), self.report_path, self.control_path)
+        use_group = bool(self.group_on_var.get())
+        cmd = build_command(
+            aid, self.source_type_var.get(), source_value,
+            self.voice_var.get(), self.report_path, self.control_path,
+            user=self.store.current_user(),
+            sets=(int(self.sets_var.get() or 0) if use_group else 0),
+            reps_per_set=int(self.reps_per_set_var.get() or 10),
+            rest=float(self.rest_var.get() or 0))
         self._append_log("\n$ " + " ".join(cmd) + "\n")
         try:
             self.process = subprocess.Popen(

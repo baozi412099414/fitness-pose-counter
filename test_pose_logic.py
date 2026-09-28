@@ -741,6 +741,19 @@ def test_ui_discovers_actions_from_configs():
         payload = json.loads(control_path.read_text(encoding="utf-8"))
         assert payload["command"] == "reset" and isinstance(payload["seq"], int)
 
+    # ⑥ 训练管理参数（模块 7/8/10）：用户、分组、间歇要能透传给识别进程
+    train_cmd = build_command("squat", "摄像头", 1, True, "/tmp/r.json", None,
+                              user="张三", sets=3, reps_per_set=10, rest=30)
+    assert train_cmd[train_cmd.index("--user") + 1] == "张三"
+    assert train_cmd[train_cmd.index("--sets") + 1] == "3"
+    assert train_cmd[train_cmd.index("--reps-per-set") + 1] == "10"
+    assert float(train_cmd[train_cmd.index("--rest") + 1]) == 30.0
+    # 不启用分组时不该传 --sets（自由训练模式）
+    free_cmd = build_command("squat", "摄像头", 1, True, "/tmp/r.json", None,
+                             user="张三", sets=0)
+    assert "--sets" not in free_cmd and "--user" in free_cmd
+    print("  训练管理参数（用户/分组/间歇）透传正确")
+
     print("  ✅ UI 动作列表由配置驱动，新增动作无需改 UI 代码")
 
 
