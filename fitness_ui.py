@@ -20,23 +20,49 @@ from tkinter import filedialog, messagebox, ttk
 
 
 ROOT = Path(__file__).resolve().parent
-ACTION_IDS = {"俯卧撑": "pushup", "深蹲": "squat", "开合跳": "jumping_jack"}
-REFERENCE_VIDEOS = {
-    "俯卧撑": ROOT / "captures/reference/pushup_standard.ogv",
-    "深蹲": ROOT / "captures/reference/squat_standard.webm",
-    "开合跳": ROOT / "captures/reference/jumping_jack_standard.ogg",
-}
+CONFIG_DIR = ROOT / "configs"
+REFERENCE_DIR = ROOT / "captures/reference"
+REFERENCE_EXTS = (".ogv", ".webm", ".mp4", ".mov", ".ogg", ".avi", ".mkv")
 SOURCE_TYPES = ("摄像头", "选择本地视频", "内置参考视频")
 PHONE_CAMERA_INDEX = 1
 COMPUTER_CAMERA_INDEX = 0
 
 
-def build_command(action_name, source_type, source_value, voice, report_path,
+def discover_actions(config_dir=None):
+    """
+    扫描 configs/*.json，返回 [(显示名, 动作id), ...]。
+
+    这是「配置驱动」闭环的最后一环：**新增动作只要往 configs/ 丢一份 JSON**，
+    界面会自动多出一个动作按钮，不需要改这里的代码。
+    单个配置损坏时跳过它，而不是让整个界面起不来。
+    """
+    config_dir = Path(config_dir or CONFIG_DIR)
+    out = []
+    for p in sorted(config_dir.glob("*.json")):
+        try:
+            cfg = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  （跳过无法解析的配置 {p.name}：{e}）")
+            continue
+        out.append((cfg.get("name") or p.stem, cfg.get("id") or p.stem))
+    return out
+
+
+def find_reference_video(action_id, ref_dir=None):
+    """按动作 id 找内置参考视频 <id>_standard.*；找不到返回 None。"""
+    ref_dir = Path(ref_dir or REFERENCE_DIR)
+    for ext in REFERENCE_EXTS:
+        p = ref_dir / f"{action_id}_standard{ext}"
+        if p.is_file():
+            return p
+    return None
+
+
+def build_command(action_id, source_type, source_value, voice, report_path,
                   control_path=None):
     """生成参数列表；单独保留为纯函数，便于无 GUI 自动测试。"""
-    action_id = ACTION_IDS[action_name]
     cmd = [sys.executable, "-u", str(ROOT / "realtime_pose.py"),
-           "--action", action_id, "--report", str(report_path)]
+           "--action", str(action_id), "--report", str(report_path)]
     if source_type == "摄像头":
         cmd += ["--cam", str(int(source_value))]
     else:
@@ -74,7 +100,13 @@ class FitnessTestUI:
         self.messages = queue.Queue()
         self.restart_pending = False
 
-        self.action_var = tk.StringVar(value="深蹲")
+        # 动作列表来自 configs/ 目录扫描：新增动作 = 丢一份 JSON，界面自动多一个按钮
+        self.actions = discover_actions()
+        if not self.actions:
+            raise RuntimeError(f"configs/ 下没有可用的动作配置：{CONFIG_DIR}")
+        default_action = ("深蹲" if any(n == "深蹲" for n, _ in self.actions)
+                          else self.actions[0][0])
+        self.action_var = tk.StringVar(value=default_action)
         # 日常使用默认直接开摄像头；参考视频只是调试时的可选输入。
         self.source_type_var = tk.StringVar(value="摄像头")
         self.file_var = tk.StringVar()
@@ -110,7 +142,7 @@ class FitnessTestUI:
         ttk.Label(form, text="动作").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=6)
         action_frame = ttk.Frame(form)
         action_frame.grid(row=0, column=1, columnspan=3, sticky="ew", pady=6)
-        for col, name in enumerate(ACTION_IDS):
+        for col, (name, _aid) in enumerate(self.actions):
             action_frame.columnconfigure(col, weight=1)
             tk.Radiobutton(
                 action_frame, text=name, variable=self.action_var, value=name,
@@ -208,11 +240,20 @@ class FitnessTestUI:
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
 
+    def action_id(self):
+        """当前选中动作的 id（对应 configs/<id>.json）。"""
+        want = self.action_var.get()
+        for name, aid in self.actions:
+            if name == want:
+                return aid
+        return self.actions[0][1] if self.actions else "pushup"
+
     def _sync_source(self):
         source_type = self.source_type_var.get()
         camera = source_type == "摄像头"
         if source_type == "内置参考视频":
-            self.file_var.set(str(REFERENCE_VIDEOS[self.action_var.get()]))
+            vid = find_reference_video(self.action_id())
+            self.file_var.set(str(vid) if vid else "")
         self.camera_frame.grid() if camera else self.camera_frame.grid_remove()
         self.file_entry.grid_remove() if camera else self.file_entry.grid()
         self.browse_btn.grid_remove() if camera else self.browse_btn.grid()
@@ -252,9 +293,10 @@ class FitnessTestUI:
         report_dir = ROOT / "captures/reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        self.report_path = report_dir / f"{ACTION_IDS[self.action_var.get()]}-{stamp}.json"
-        self.control_path = report_dir / f"control-{ACTION_IDS[self.action_var.get()]}-{stamp}.json"
-        cmd = build_command(self.action_var.get(), self.source_type_var.get(), source_value,
+        aid = self.action_id()
+        self.report_path = report_dir / f"{aid}-{stamp}.json"
+        self.control_path = report_dir / f"control-{aid}-{stamp}.json"
+        cmd = build_command(aid, self.source_type_var.get(), source_value,
                             self.voice_var.get(), self.report_path, self.control_path)
         self._append_log("\n$ " + " ".join(cmd) + "\n")
         try:

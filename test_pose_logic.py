@@ -682,30 +682,67 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
-def test_ui_builds_separate_action_commands():
-    print("=== 测试 24：UI 为三个动作生成正确且安全的启动参数 ===")
-    from fitness_ui import (ACTION_IDS, COMPUTER_CAMERA_INDEX, PHONE_CAMERA_INDEX,
-                            build_command, write_control_command)
+def test_ui_discovers_actions_from_configs():
+    print("=== 测试 24：UI 从 configs/ 动态发现动作（新增动作不用改 UI 代码） ===")
+    from fitness_ui import (COMPUTER_CAMERA_INDEX, PHONE_CAMERA_INDEX, build_command,
+                            discover_actions, find_reference_video,
+                            write_control_command)
 
-    for name, action_id in ACTION_IDS.items():
-        cmd = build_command(name, "选择本地视频", "/tmp/demo video.mp4", False,
-                            "/tmp/report.json")
-        assert cmd[cmd.index("--action") + 1] == action_id
-        assert cmd[cmd.index("--src") + 1] == "/tmp/demo video.mp4"
-        assert "--no-voice" in cmd and "--report" in cmd
-    camera_cmd = build_command("深蹲", "摄像头", 2, True, "/tmp/report.json")
+    # ① 真实 configs/ 目录：应扫出三个动作
+    actions = discover_actions()
+    names = [n for n, _ in actions]
+    ids = [i for _, i in actions]
+    print(f"  扫描 configs/ -> {list(zip(names, ids))}")
+    assert set(ids) == {"pushup", "squat", "jumping_jack"}, "应扫出三个动作"
+    assert all(names), "每个动作都要有显示名"
+
+    # ② 关键验证：往一个「新的」配置目录里丢一份 JSON，UI 不需要改代码就能发现它
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg_dir = Path(tmp)
+        (cfg_dir / "lateral_raise.json").write_text(json.dumps({
+            "id": "lateral_raise", "name": "侧平举",
+            "counter": {"signal": "angle", "points": [15, 11, 23],
+                        "lo": 30, "hi": 70, "first": "hi"},
+        }, ensure_ascii=False), encoding="utf-8")
+        got = discover_actions(cfg_dir)
+        print(f"  丢进一份新 JSON -> UI 发现 {got}")
+        assert got == [("侧平举", "lateral_raise")], "新动作应被自动发现，无需改代码"
+
+        # 坏掉的配置只跳过它自己，不该让界面起不来
+        (cfg_dir / "broken.json").write_text("{ 这不是合法 JSON", encoding="utf-8")
+        got2 = discover_actions(cfg_dir)
+        print(f"  再丢一份坏 JSON -> 仍然只有 {got2}（坏配置被安全跳过）")
+        assert got2 == [("侧平举", "lateral_raise")], "坏配置应被跳过而不是崩掉 UI"
+
+    # ③ build_command 用的是动作 id（不是显示名）
+    cmd = build_command("squat", "选择本地视频", "/tmp/demo video.mp4", False,
+                        "/tmp/report.json")
+    assert cmd[cmd.index("--action") + 1] == "squat"
+    assert cmd[cmd.index("--src") + 1] == "/tmp/demo video.mp4"
+    assert "--no-voice" in cmd and "--report" in cmd
+    camera_cmd = build_command("pushup", "摄像头", 2, True, "/tmp/report.json")
     assert camera_cmd[camera_cmd.index("--cam") + 1] == "2"
     assert "--no-voice" not in camera_cmd
     assert PHONE_CAMERA_INDEX == 1 and COMPUTER_CAMERA_INDEX == 0
-    controlled = build_command("深蹲", "摄像头", 0, True, "/tmp/report.json",
+    controlled = build_command("squat", "摄像头", 0, True, "/tmp/report.json",
                                "/tmp/control.json")
     assert controlled[controlled.index("--control-file") + 1] == "/tmp/control.json"
-    with tempfile.TemporaryDirectory() as temp_dir:
-        control_path = Path(temp_dir) / "control.json"
+
+    # ④ 参考视频按 id 自动匹配（不能写死文件名）
+    ref = find_reference_video("squat")
+    print(f"  深蹲参考视频自动匹配：{ref.name if ref else '（无）'}")
+    assert ref is None or ref.name.startswith("squat_standard")
+    assert find_reference_video("不存在的动作") is None
+
+    # ⑤ 控制文件原子写
+    with tempfile.TemporaryDirectory() as tmp:
+        control_path = Path(tmp) / "control.json"
         write_control_command(control_path, "reset")
         payload = json.loads(control_path.read_text(encoding="utf-8"))
         assert payload["command"] == "reset" and isinstance(payload["seq"], int)
-    print("  三动作、摄像头、语音及清零控制命令参数均正确")
+
+    print("  ✅ UI 动作列表由配置驱动，新增动作无需改 UI 代码")
+
 
 
 
@@ -735,5 +772,5 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
-    test_ui_builds_separate_action_commands()
+    test_ui_discovers_actions_from_configs()
     print("全部通过 ✅")
