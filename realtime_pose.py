@@ -19,6 +19,7 @@
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -98,7 +99,8 @@ class Camera(threading.Thread):
 
     def __init__(self, source, width=1280, height=720, fps=30):
         super().__init__(daemon=True)
-        if isinstance(source, int):
+        self.is_file = not isinstance(source, int)
+        if not self.is_file:
             self.cap = cv2.VideoCapture(source, _backend())
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -113,19 +115,38 @@ class Camera(threading.Thread):
         # 不要命名为 _stop：threading.Thread 内部有一个同名方法，join() 在线程
         # 结束时会调用它。用 Event 覆盖后，退出阶段可能报 "Event object is not callable"。
         self._stop_event = threading.Event()
+        self._eof_event = threading.Event()
+        source_fps = self.cap.get(cv2.CAP_PROP_FPS) if self.is_file else 0
+        self._frame_interval = 1.0 / source_fps if source_fps and source_fps > 1 else 0.0
 
     def run(self):
         while not self._stop_event.is_set():
             ok, f = self.cap.read()
             if not ok:
+                if self.is_file:
+                    self._eof_event.set()
+                    break
                 time.sleep(0.005)
                 continue
             with self._lock:
                 self._frame = f          # 覆盖式写入：旧帧直接扔掉
+            # 文件按原始帧率播放，避免线程瞬间读到结尾、主线程只拿到最后一帧。
+            if self.is_file and self._frame_interval:
+                time.sleep(self._frame_interval)
 
     def read(self):
         with self._lock:
-            return None if self._frame is None else self._frame.copy()
+            if self._frame is None:
+                return None
+            frame = self._frame.copy()
+            if self.is_file:
+                self._frame = None       # 文件每帧只消费一次；摄像头仍只取最新帧
+            return frame
+
+    @property
+    def finished(self):
+        with self._lock:
+            return self.is_file and self._eof_event.is_set() and self._frame is None
 
     def stop(self):
         self._stop_event.set()
@@ -186,6 +207,8 @@ def main():
     ap.add_argument("--src", type=str, default=None, help="视频文件路径")
     ap.add_argument("--list", action="store_true", help="列出可用摄像头后退出")
     ap.add_argument("--model", type=str, default=MODEL_PATH)
+    ap.add_argument("--no-voice", action="store_true", help="关闭语音播报")
+    ap.add_argument("--report", type=str, default=None, help="退出时保存 JSON 测试摘要")
     ap.add_argument("--action", type=str, default="pushup", help="configs/ 下的动作名（不含 .json）")
     ap.add_argument("--lo-drop", type=float, default=LO_DROP,
                     help="下蹲门槛 = 站立基线 - 该值（默认 15°；调小更敏感、调大更迟钝）")
@@ -260,6 +283,11 @@ def main():
     last_err_say = 0.0                  # 错误播报节流（独立于报数）
     last_cnt_say = 0.0                  # 报数节流
     last_logged_count = 0               # 上次打印过判定明细的计数（终端诊断用）
+    total_frames = 0                    # UI/离线验收摘要
+    detected_frames = 0
+    error_counts = {}
+    active_error_names = set()
+    stopped_reason = "user"
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -271,9 +299,15 @@ def main():
         while True:
             frame = cam.read()
             if frame is None:
+                if cam.finished:
+                    stopped_reason = "eof"
+                    print("\n视频播放完成，自动结束测试。")
+                    break
                 if cv2.waitKey(10) & 0xFF == ord("q"):
                     break
                 continue
+
+            total_frames += 1
 
             frame = cv2.flip(frame, 1)          # 镜像，自己看着顺手
             h, w = frame.shape[:2]
@@ -288,6 +322,7 @@ def main():
             conf = 0.0                      # 计数关键点的最低可信度
             person_ok = False               # 可信度够不够（不够就暂停计数）
             if res and res.pose_landmarks:
+                detected_frames += 1
                 lm = res.pose_landmarks[0]
                 pts = [(int(p.x * w), int(p.y * h)) for p in lm]
                 # 关键点可信度：人没拍到 / 跟丢时 MediaPipe 会输出「幽灵骨架」，
@@ -393,6 +428,10 @@ def main():
                 shown_until = now + 2.0
             elif now > shown_until:
                 shown_hits = []
+            current_error_names = {h["name"] for h in hits}
+            for name in current_error_names - active_error_names:
+                error_counts[name] = error_counts.get(name, 0) + 1
+            active_error_names = current_error_names
             hit_map = {h["name"]: h for h in shown_hits}
 
             # 质量明细：显示「实测值 / 阈值」，一眼看出是照不全还是阈值太严
@@ -443,14 +482,14 @@ def main():
 
             # 语音播报：报错优先。同一次动作既计数又报错时合并成一句
             # （两个 say 会互相打断）；报错与报数各有独立节流，避免错误提示被报数挤掉。
-            if hits and now - last_err_say >= 1.5:
+            if not args.no_voice and hits and now - last_err_say >= 1.5:
                 tip = hits[0]["tip"]
                 if count > last_count:
                     tip += f"，{count}"
                     last_count = count
                 say(tip)
                 last_err_say = now
-            elif count > last_count and now - last_cnt_say >= 1.0:
+            elif not args.no_voice and count > last_count and now - last_cnt_say >= 1.0:
                 # 没有错误提示时才单独念数字（做动作时不用盯屏幕也知道数上了）
                 say(str(count))
                 last_cnt_say = now
@@ -481,6 +520,25 @@ def main():
 
     cam.stop()
     cv2.destroyAllWindows()
+    summary = {
+        "action": action.id,
+        "action_name": action.name,
+        "source": str(source),
+        "reps": action.counter.count,
+        "total_frames": total_frames,
+        "detected_frames": detected_frames,
+        "detection_rate": round(detected_frames / total_frames, 4) if total_frames else 0.0,
+        "errors": error_counts,
+        "error_tips": {r.get("name"): r.get("tip", r.get("name"))
+                       for r in action.quality.rules if r.get("name") in error_counts},
+        "stopped_reason": stopped_reason,
+    }
+    print("测试摘要：" + json.dumps(summary, ensure_ascii=False), flush=True)
+    if args.report:
+        report_dir = os.path.dirname(os.path.abspath(args.report))
+        os.makedirs(report_dir, exist_ok=True)
+        with open(args.report, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

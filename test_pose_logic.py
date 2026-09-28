@@ -10,6 +10,8 @@
 import time
 from unittest.mock import patch
 
+import numpy as np
+
 from pose_logic import RepCounter, QualityChecker, load_action
 
 
@@ -569,6 +571,64 @@ def test_squat_quality_extra_signals():
     print(f"  膝前移比 {travel:.2f}、线段夹角差 {mismatch:.0f}° 均越过宽松阈值")
 
 
+def test_video_source_consumes_each_frame_and_reaches_eof():
+    print("=== 测试 23：离线视频逐帧消费并在结尾自动结束 ===")
+    from realtime_pose import Camera
+
+    class FakeVideo:
+        def __init__(self):
+            self.frames = [np.zeros((2, 2, 3), dtype=np.uint8),
+                           np.ones((2, 2, 3), dtype=np.uint8)]
+            self.released = False
+
+        def isOpened(self):
+            return True
+
+        def get(self, *_):
+            return 100.0
+
+        def read(self):
+            return (True, self.frames.pop(0)) if self.frames else (False, None)
+
+        def release(self):
+            self.released = True
+
+    fake = FakeVideo()
+    with patch("realtime_pose.cv2.VideoCapture", return_value=fake):
+        cam = Camera("demo.mp4")
+        cam.start()
+        received = []
+        deadline = time.time() + 1.0
+        while time.time() < deadline and not cam.finished:
+            frame = cam.read()
+            if frame is not None:
+                received.append(int(frame[0, 0, 0]))
+            time.sleep(0.002)
+        frame = cam.read()
+        if frame is not None:
+            received.append(int(frame[0, 0, 0]))
+        assert cam.finished and received == [0, 1]
+        cam.stop()
+    assert fake.released
+    print("  两帧各消费一次，EOF 状态正确，资源已释放")
+
+
+def test_ui_builds_separate_action_commands():
+    print("=== 测试 24：UI 为三个动作生成正确且安全的启动参数 ===")
+    from fitness_ui import ACTION_IDS, build_command
+
+    for name, action_id in ACTION_IDS.items():
+        cmd = build_command(name, "选择本地视频", "/tmp/demo video.mp4", False,
+                            "/tmp/report.json")
+        assert cmd[cmd.index("--action") + 1] == action_id
+        assert cmd[cmd.index("--src") + 1] == "/tmp/demo video.mp4"
+        assert "--no-voice" in cmd and "--report" in cmd
+    camera_cmd = build_command("深蹲", "摄像头", 2, True, "/tmp/report.json")
+    assert camera_cmd[camera_cmd.index("--cam") + 1] == "2"
+    assert "--no-voice" not in camera_cmd
+    print("  三个动作、视频路径空格、摄像头编号及语音开关参数均正确")
+
+
 
 if __name__ == "__main__":
     test_rep_counter()
@@ -593,4 +653,6 @@ if __name__ == "__main__":
     test_quality_priority_and_degenerate_geometry()
     test_bilateral_asymmetry_signals()
     test_squat_quality_extra_signals()
+    test_video_source_consumes_each_frame_and_reaches_eof()
+    test_ui_builds_separate_action_commands()
     print("全部通过 ✅")
