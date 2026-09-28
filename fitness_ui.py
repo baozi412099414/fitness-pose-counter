@@ -19,6 +19,15 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+# 趋势图内嵌用的 matplotlib 画布。这里**只 import Figure + TkAgg 画布**，
+# 不调用 pyplot 的 matplotlib.use() —— 否则会和 plot_trend.py 设的 Agg 后端打架。
+try:
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    _MPL_TK_OK = True
+except Exception:
+    _MPL_TK_OK = False
+
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "configs"
@@ -152,6 +161,7 @@ class FitnessTestUI:
         self._sync_source()
         self._sync_goal()
         self._refresh_stats()
+        self._draw_trend()
         self.root.after(100, self._poll_messages)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -307,9 +317,29 @@ class FitnessTestUI:
         ttk.Label(result, textvariable=self.errors_var, wraplength=220,
                   justify="center").grid(row=1, column=3, pady=5)
 
-        # ---- 历史与统计：全部只读本地文件，不需要摄像头 ----
-        stats = ttk.LabelFrame(outer, text="历史与统计（不依赖摄像头）", padding=12)
-        stats.pack(fill="x", pady=(0, 12))
+        # ---- 下方用标签页承载：趋势图 / 历史统计 / 运行日志 ----
+        notebook = ttk.Notebook(outer)
+        notebook.pack(fill="both", expand=True)
+
+        # 标签页 1：内嵌趋势图（切换用户/动作、跑完一次测试都会自动重画）
+        trend_tab = ttk.Frame(notebook, padding=4)
+        notebook.add(trend_tab, text="  训练趋势图  ")
+        self.trend_note = ttk.Label(trend_tab, text="", foreground="#888")
+        self.trend_note.pack(anchor="w", padx=6, pady=(4, 0))
+        if _MPL_TK_OK:
+            self.trend_fig = Figure(figsize=(12.6, 3.3), dpi=92)
+            self.trend_canvas = FigureCanvasTkAgg(self.trend_fig, master=trend_tab)
+            self.trend_canvas.get_tk_widget().pack(fill="both", expand=True)
+        else:
+            self.trend_fig = None
+            self.trend_canvas = None
+            ttk.Label(trend_tab, foreground="#c0392b",
+                      text="本机没有可用的 matplotlib Tk 后端，趋势图无法内嵌；\n"
+                           "仍可用「查看趋势图」按钮另存为图片。").pack(pady=24)
+
+        # 标签页 2：历史与统计（全部只读本地文件，不需要摄像头）
+        stats = ttk.Frame(notebook, padding=12)
+        notebook.add(stats, text="  历史与统计  ")
         stats.columnconfigure(1, weight=1)
 
         ttk.Label(stats, text="目标进度").grid(row=0, column=0, sticky="w", padx=(0, 10))
@@ -345,8 +375,9 @@ class FitnessTestUI:
         ttk.Button(rbtns, text="校验配置", width=10,
                    command=self._validate_configs).pack(pady=2)
 
-        log_box = ttk.LabelFrame(outer, text="运行日志", padding=8)
-        log_box.pack(fill="both", expand=True)
+        # 标签页 3：运行日志
+        log_box = ttk.Frame(notebook, padding=8)
+        notebook.add(log_box, text="  运行日志  ")
         self.log = tk.Text(log_box, height=13, wrap="word", state="disabled",
                            background="#151515", foreground="#e7e7e7",
                            insertbackground="white")
@@ -354,6 +385,41 @@ class FitnessTestUI:
         self.log.configure(yscrollcommand=scroll.set)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
+
+    # ---------------- 内嵌趋势图 ----------------
+    def _draw_trend(self):
+        """
+        把趋势图画到内嵌画布上。
+
+        绘图逻辑直接复用 `plot_trend.build_axes()` —— 命令行脚本和界面上看到的是
+        同一套代码画出来的，不会出现「改了脚本忘了界面」的不一致。
+        """
+        if not _MPL_TK_OK or self.trend_canvas is None:
+            return
+        from plot_trend import build_axes          # 顺便完成中文字体设置
+        from training_manager import Goals, History
+
+        user = self.store.current_user()
+        hist = History(self.store, user)
+        self.trend_fig.clear()
+        axes = self.trend_fig.subplots(1, 3)
+
+        if not hist.all_sessions():
+            axes[0].text(0.5, 0.5, f"用户「{user}」还没有训练记录\n"
+                                   f"用摄像头或参考视频跑一次就有了",
+                         ha="center", va="center", fontsize=13, color="#888")
+            axes[0].axis("off")
+            for a in axes[1:]:
+                a.axis("off")
+            self.trend_note.config(text=f"当前用户：{user}　（暂无数据）")
+        else:
+            top = build_axes(self.trend_fig, axes, hist, Goals(self.store, user),
+                             action=self.action_id())
+            self.trend_note.config(
+                text=f"当前用户：{user}　动作：{self.action_var.get()}　"
+                     f"最常犯的错：{top}　（切换用户/动作会自动重画）")
+        self.trend_fig.tight_layout(rect=(0, 0, 1, 0.93))
+        self.trend_canvas.draw()
 
     # ---------------- 历史与统计（不依赖摄像头）----------------
     def _error_tip_map(self):
@@ -573,6 +639,7 @@ class FitnessTestUI:
             f"今日已完成 {done} 次" + (f" / 目标 {goal}" if goal else "（未设目标）"))
         if hasattr(self, "report_list"):
             self._refresh_stats()       # 换用户/换动作后，进度条和报告列表一起刷新
+            self._draw_trend()          # 趋势图也跟着重画
 
     def _save_goal(self):
         from training_manager import Goals
@@ -784,6 +851,7 @@ class FitnessTestUI:
             self.status_var.set("已停止" if return_code < 0 else f"未生成报告（{return_code}）")
         if hasattr(self, "report_list"):
             self._refresh_stats()       # 刚跑完：历史列表多一条，目标进度也要更新
+            self._draw_trend()          # 趋势图立即反映新数据
         if self.restart_pending:
             self.restart_pending = False
             self.root.after(250, self.start)

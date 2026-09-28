@@ -295,13 +295,28 @@ def test_plot_trend(tmp_note=""):
                              errors={"not_deep_enough": 2},
                              when=now - timedelta(days=off))
 
+        # ① 命令行脚本路径（pyplot 建 figure）
         out = os.path.join(tmp, "trend.png")
         import plot_trend
         plot_trend.plot(user, action="squat", weeks=4, days=7, out=out, show=False)
         size = os.path.getsize(out)
-        print(f"  生成 {os.path.basename(out)}（{size} 字节）")
+        print(f"  命令行脚本生成 {os.path.basename(out)}（{size} 字节）")
         assert size > 5000, "图片应该有实际内容"
-        print("  ✅ 趋势图可生成（中文标题、周/日趋势、目标线）\n")
+
+        # ② UI 内嵌路径：用 matplotlib 的 Figure（**不经过 pyplot**）也能画同一套图。
+        #    这两条路径共用 build_axes()，这里确保它们不会各自跑偏。
+        from matplotlib.figure import Figure
+        from plot_trend import build_axes
+        fig = Figure(figsize=(12.6, 3.3), dpi=80)
+        axes = fig.subplots(1, 3)
+        top = build_axes(fig, axes, hist, Goals(store, user), action="squat", weeks=4, days=7)
+        fig.tight_layout(rect=(0, 0, 1, 0.93))
+        out2 = os.path.join(tmp, "embed.png")
+        fig.savefig(out2, dpi=80)
+        print(f"  UI 内嵌画布生成 {os.path.basename(out2)}（{os.path.getsize(out2)} 字节）"
+              f"，最常犯的错：{top}")
+        assert os.path.getsize(out2) > 5000, "内嵌画布也应该画出内容"
+        print("  ✅ 趋势图可生成（脚本与 UI 内嵌共用同一套绘图逻辑）\n")
     finally:
         os.environ.pop("FITNESS_DATA_DIR", None)
         shutil.rmtree(tmp, ignore_errors=True)
