@@ -110,13 +110,17 @@ class FitnessTestUI:
     def __init__(self, root):
         self.root = root
         self.root.title("健身动作识别测试台")
-        self.root.geometry("820x690")
-        self.root.minsize(720, 560)
-        # 识别窗口启动后可能抢走 macOS 前台焦点；测试控制台必须仍可点击。
-        try:
-            self.root.attributes("-topmost", True)
-        except tk.TclError:
-            pass
+        # 窗口尺寸按屏幕自适应：高度取屏幕的 86%（上限 1060），
+        # 而不是写死 —— 写死的话高屏浪费、矮屏放不下最下面的趋势图。
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        win_w, win_h = 900, min(1060, max(620, int(sh * 0.86)))
+        self.root.geometry(f"{win_w}x{win_h}+{max(0, (sw - win_w) // 2)}+{max(0, (sh - win_h) // 3)}")
+        self.root.minsize(700, 480)
+        # 启动瞬间短暂置顶，让用户注意到控制台在哪。
+        # ⚠ **绝不能一直 topmost**：macOS 上 topmost 窗口永远压在所有普通窗口之上，
+        #   摄像头画面、消息框、文件对话框都会被它挡住，用户根本点不到 ——
+        #   这正是「点击提示出现在 UI 后面、摄像头画面也上不来」的根因。
+        self._flash_topmost()
         self.process = None
         self.report_path = None
         self.control_path = None
@@ -172,8 +176,31 @@ class FitnessTestUI:
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
     def _build(self):
-        outer = ttk.Frame(self.root, padding=18)
-        outer.pack(fill="both", expand=True)
+        # ---- 可滚动容器 ----
+        # 界面内容比较长（测试设置 + 训练管理 + 按钮 + 结果 + 三个标签页），
+        # 矮一点的屏幕上最下面的趋势图会被挤出可视区。这里给整个内容区加垂直滚动条，
+        # 内容再长也能滚到。
+        shell = ttk.Frame(self.root)
+        shell.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(shell, highlightthickness=0)
+        vbar = ttk.Scrollbar(shell, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=vbar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        vbar.pack(side="right", fill="y")
+
+        outer = ttk.Frame(self.canvas, padding=18)
+        self._canvas_win = self.canvas.create_window((0, 0), window=outer, anchor="nw")
+
+        # 内容变高 → 更新可滚动范围；画布变宽 → 让内容跟着变宽（否则底部会出现横向滚动条）
+        outer.bind("<Configure>", lambda _e: self.canvas.configure(
+            scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
+            self._canvas_win, width=e.width))
+        # 鼠标滚轮。macOS 上滚轮/触控板都走 <MouseWheel>，delta 是小数；
+        # 这里只取方向，避免不同平台的量纲差异导致一滚就飞到底。
+        self.canvas.bind_all("<MouseWheel>", self._on_wheel)
+        self.canvas.bind_all("<Button-4>", lambda _e: self.canvas.yview_scroll(-1, "units"))
+        self.canvas.bind_all("<Button-5>", lambda _e: self.canvas.yview_scroll(1, "units"))
 
         ttk.Label(outer, text="健身动作识别测试台",
                   font=("Helvetica", 22, "bold")).pack(anchor="w")
@@ -325,7 +352,7 @@ class FitnessTestUI:
 
         # ---- 下方用标签页承载：趋势图 / 历史统计 / 运行日志 ----
         notebook = ttk.Notebook(outer)
-        notebook.pack(fill="both", expand=True)
+        notebook.pack(fill="x")
 
         # 标签页 1：内嵌趋势图（切换用户/动作、跑完一次测试都会自动重画）
         trend_tab = ttk.Frame(notebook, padding=4)
@@ -335,7 +362,10 @@ class FitnessTestUI:
         if _MPL_TK_OK:
             self.trend_fig = Figure(figsize=(12.6, 3.3), dpi=92)
             self.trend_canvas = FigureCanvasTkAgg(self.trend_fig, master=trend_tab)
-            self.trend_canvas.get_tk_widget().pack(fill="both", expand=True)
+            # 固定高度（在可滚动容器里不能用 expand，否则高度会塌成一条线）；
+            # 330px 刚好容得下三条子图的标题、刻度和图例。
+            self.trend_canvas.get_tk_widget().configure(height=330)
+            self.trend_canvas.get_tk_widget().pack(fill="x")
         else:
             self.trend_fig = None
             self.trend_canvas = None
@@ -389,8 +419,37 @@ class FitnessTestUI:
                            insertbackground="white")
         scroll = ttk.Scrollbar(log_box, orient="vertical", command=self.log.yview)
         self.log.configure(yscrollcommand=scroll.set)
+        self.log.configure(height=14)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
+
+    # ---------------- 统一弹窗 ----------------
+    def _msg(self, kind, title, message, **kw):
+        """
+        统一弹窗入口：总是带上 `parent=self.root`。
+
+        macOS 上**不指定 parent 的消息框会跑到主窗口后面**，用户看到的现象是
+        「点了按钮什么都没发生」。包一层可以保证以后新增的弹窗也不会漏掉 parent。
+        `kind` 取 showinfo / showwarning / showerror / askyesno。
+        """
+        kw.setdefault("parent", self.root)
+        return getattr(messagebox, kind)(title, message, **kw)
+
+    # ---------------- 滚动 ----------------
+    def _on_wheel(self, event):
+        """鼠标滚轮滚动主内容区（只取方向，规避各平台 delta 量纲不同）。"""
+        try:
+            self.canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+        except tk.TclError:
+            pass
+
+    def _scroll_to_log(self):
+        """把视图滚到底部（看运行日志 / 校验结果时方便）。"""
+        try:
+            self.canvas.update_idletasks()
+            self.canvas.yview_moveto(1.0)
+        except tk.TclError:
+            pass
 
     # ---------------- 内嵌趋势图 ----------------
     def _draw_trend(self):
@@ -493,7 +552,7 @@ class FitnessTestUI:
         """把选中的报告读出来，用人能看懂的方式展示。"""
         sel = self.report_list.curselection()
         if not sel:
-            messagebox.showinfo("未选择", "先在列表里点一条历史报告。")
+            self._msg("showinfo", "未选择", "先在列表里点一条历史报告。")
             return
         idx = sel[0]
         if idx >= len(self._report_paths):
@@ -502,7 +561,7 @@ class FitnessTestUI:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception as e:
-            messagebox.showerror("读取失败", f"{p.name}\n{e}")
+            self._msg("showerror", "读取失败", f"{p.name}\n{e}")
             return
         lines = [
             f"文件　　{d.get('action_name')}（{d.get('action')}）　{p.name}",
@@ -525,7 +584,7 @@ class FitnessTestUI:
             lines.append("错误事件：")
             for k, v in sorted(errs.items(), key=lambda kv: -kv[1]):
                 lines.append(f"　　{tips.get(k, k)}　{v} 次")
-        messagebox.showinfo("报告详情", "\n".join(lines))
+        self._msg("showinfo", "报告详情", "\n".join(lines))
 
     def _validate_configs(self):
         """
@@ -537,7 +596,7 @@ class FitnessTestUI:
         from validate_config import validate_file
         files = sorted(CONFIG_DIR.glob("*.json"))
         if not files:
-            messagebox.showwarning("没有配置", f"{CONFIG_DIR} 下没有 json 文件")
+            self._msg("showwarning", "没有配置", f"{CONFIG_DIR} 下没有 json 文件")
             return
         self._append_log("\n===== 动作配置校验 =====\n")
         total_err = total_warn = 0
@@ -554,7 +613,7 @@ class FitnessTestUI:
         self._append_log(summary + "\n")
         self.status_var.set(summary)
         if total_err:
-            messagebox.showwarning("配置有问题", summary + "\n详情见下方运行日志。")
+            self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
 
     def _open_reports_dir(self):
         """在访达里打开报告目录。"""
@@ -568,24 +627,45 @@ class FitnessTestUI:
             else:
                 subprocess.Popen(["xdg-open", str(path)])
         except Exception as e:
-            messagebox.showerror("打开失败", str(e))
+            self._msg("showerror", "打开失败", str(e))
 
     # ---------------- 窗口焦点（解决 macOS 点击不灵敏）----------------
-    def _grab_focus(self):
-        """把键盘焦点抢回控制台；抢不到也不影响功能。"""
+    def _flash_topmost(self, ms=900):
+        """短暂置顶约 0.9 秒后自动取消：能提醒用户，又不会挡住其它窗口。"""
         try:
-            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.root.after(ms, lambda: self.root.attributes("-topmost", False))
+        except tk.TclError:
+            pass
+
+    def _grab_focus(self):
+        """
+        把**键盘**焦点抢回控制台。
+
+        ⚠ 这里**不调用 lift()**。lift 会把控制台抬到摄像头画面、消息框之上，
+        用户就看不到识别窗口了。只抢键盘焦点不会改变窗口层级。
+        """
+        try:
             self.root.focus_force()
         except tk.TclError:
             pass
 
     def _maybe_grab_focus(self, _event=None):
-        """鼠标在控制台里活动时抢焦点，节流到每秒一次，避免过于频繁。"""
+        """
+        鼠标在控制台里活动时把键盘焦点抢回来。
+
+        节流 3 秒，而且**只在本窗口确实没有键盘焦点时才抢** ——
+        否则会不停和识别画面抢焦点，导致 q / r 按键在画面窗口里失灵。
+        """
         now = time.time()
-        if now - self._last_focus_grab < 1.0:
+        if now - self._last_focus_grab < 3.0:
             return
         self._last_focus_grab = now
-        self._grab_focus()
+        try:
+            if self.root.focus_displayof() is None:
+                self._grab_focus()
+        except tk.TclError:
+            pass
 
     # ---------------- 训练管理（模块 7/8/10）----------------
     def _refresh_users(self):
@@ -615,16 +695,15 @@ class FitnessTestUI:
         """删除用户及其全部训练数据（二次确认，且不允许删掉最后一个用户）。"""
         name = (self.user_var.get() or "").strip()
         if not name:
-            messagebox.showwarning("未选择用户", "请先在下拉框里选择要删除的用户。")
+            self._msg("showwarning", "未选择用户", "请先在下拉框里选择要删除的用户。")
             return
-        if not messagebox.askyesno(
-                "确认删除",
-                f"确定要删除用户「{name}」吗？\n\n"
-                f"该用户的档案、训练历史和目标都会被一起删除，且无法恢复。"):
+        if not self._msg("askyesno", "确认删除",
+                         f"确定要删除用户「{name}」吗？\n\n"
+                         f"该用户的档案、训练历史和目标都会被一起删除，且无法恢复。"):
             return
         ok, msg = self.store.delete_user(name)
         if not ok:
-            messagebox.showwarning("无法删除", msg)
+            self._msg("showwarning", "无法删除", msg)
             return
         # 删完切到当前仍然有效的用户（可能已经不是原来那个了）
         current = self.store.current_user()
@@ -652,7 +731,7 @@ class FitnessTestUI:
         try:
             value = int(float(self.goal_var.get() or 0))
         except ValueError:
-            messagebox.showerror("目标无效", "每日目标要填整数次数")
+            self._msg("showerror", "目标无效", "每日目标要填整数次数")
             return
         Goals(self.store, self.store.current_user()).set_goal(self.action_id(), value)
         self._sync_goal()
@@ -663,7 +742,7 @@ class FitnessTestUI:
         from training_manager import History
         user = self.store.current_user()
         if not History(self.store, user).all_sessions():
-            messagebox.showinfo("暂无数据",
+            self._msg("showinfo", "暂无数据",
                                 f"用户「{user}」还没有训练记录。\n先做一次训练再来看趋势。")
             return
         out = ROOT / "captures" / f"trend_{user}.png"
@@ -674,7 +753,7 @@ class FitnessTestUI:
             self._append_log(f"$ 生成趋势图 -> {out}\n")
             self.status_var.set("正在生成趋势图…")
         except Exception as e:
-            messagebox.showerror("生成失败", str(e))
+            self._msg("showerror", "生成失败", str(e))
 
     def action_id(self):
         """当前选中动作的 id（对应 configs/<id>.json）。"""
@@ -700,7 +779,7 @@ class FitnessTestUI:
             self._sync_goal()
 
     def _browse(self):
-        path = filedialog.askopenfilename(
+        path = filedialog.askopenfilename(parent=self.root, 
             title="选择动作视频",
             filetypes=[("视频文件", "*.mp4 *.mov *.avi *.mkv *.webm *.ogv *.ogg"),
                        ("所有文件", "*")],
@@ -726,7 +805,7 @@ class FitnessTestUI:
         try:
             source_value = self._source_value()
         except ValueError as exc:
-            messagebox.showerror("无法开始", str(exc))
+            self._msg("showerror", "无法开始", str(exc))
             return
 
         report_dir = ROOT / "captures/reports"
@@ -750,7 +829,7 @@ class FitnessTestUI:
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
             )
         except OSError as exc:
-            messagebox.showerror("启动失败", str(exc))
+            self._msg("showerror", "启动失败", str(exc))
             return
 
         self.status_var.set("运行中")
@@ -758,11 +837,8 @@ class FitnessTestUI:
         self.stop_btn.configure(state="normal", relief="raised")
         self.reset_btn.configure(state="normal", relief="raised")
         self.restart_btn.configure(state="normal", relief="raised")
-        self.root.lift()
-        try:
-            self.root.attributes("-topmost", True)
-        except tk.TclError:
-            pass
+        # 只闪一下置顶（同样不能持久，否则识别画面会被压住）
+        self._flash_topmost()
         # 识别窗口启动后会抢走键盘焦点，隔一会儿把控制台抢回来，
         # 否则 macOS 上按钮要点两次才生效（第一次只用来激活窗口）。
         self.root.after(1200, self._grab_focus)
