@@ -136,6 +136,13 @@ class FitnessTestUI:
         self.rate_var = tk.StringVar(value="--")
         self.errors_var = tk.StringVar(value="暂无")
 
+        # macOS 上「非活动窗口的第一次点击只激活窗口、不传给按钮」，
+        # 而识别子进程启动会抢走焦点 → 表现就是「按钮不灵敏、要点两次」。
+        # 解决：鼠标只要在控制台里移动，就把键盘焦点抢回来（每秒最多一次）。
+        self._last_focus_grab = 0.0
+        self.root.bind("<Motion>", self._maybe_grab_focus, add="+")
+        self.root.bind("<Enter>", self._maybe_grab_focus, add="+")
+
         self._build()
         self._sync_source()
         self._sync_goal()
@@ -214,8 +221,10 @@ class FitnessTestUI:
             row=0, column=2, sticky="w", padx=6, pady=5)
         ttk.Button(train, text="新建用户…", width=11, command=self._new_user).grid(
             row=0, column=3, sticky="w", pady=5)
+        ttk.Button(train, text="删除用户…", width=11, command=self._delete_user).grid(
+            row=0, column=4, sticky="w", padx=(6, 0), pady=5)
         ttk.Label(train, textvariable=self.goal_status_var,
-                  foreground="#2f80ed").grid(row=0, column=4, sticky="w", padx=12, pady=5)
+                  foreground="#2f80ed").grid(row=0, column=5, sticky="w", padx=12, pady=5)
 
         ttk.Label(train, text="分组").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=5)
         gframe = ttk.Frame(train)
@@ -298,6 +307,23 @@ class FitnessTestUI:
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
 
+    # ---------------- 窗口焦点（解决 macOS 点击不灵敏）----------------
+    def _grab_focus(self):
+        """把键盘焦点抢回控制台；抢不到也不影响功能。"""
+        try:
+            self.root.lift()
+            self.root.focus_force()
+        except tk.TclError:
+            pass
+
+    def _maybe_grab_focus(self, _event=None):
+        """鼠标在控制台里活动时抢焦点，节流到每秒一次，避免过于频繁。"""
+        now = time.time()
+        if now - self._last_focus_grab < 1.0:
+            return
+        self._last_focus_grab = now
+        self._grab_focus()
+
     # ---------------- 训练管理（模块 7/8/10）----------------
     def _refresh_users(self):
         self.user_box["values"] = self.store.list_users()
@@ -321,6 +347,28 @@ class FitnessTestUI:
         self._refresh_users()
         self._sync_goal()
         self.status_var.set(f"已创建并切换到用户「{name}」")
+
+    def _delete_user(self):
+        """删除用户及其全部训练数据（二次确认，且不允许删掉最后一个用户）。"""
+        name = (self.user_var.get() or "").strip()
+        if not name:
+            messagebox.showwarning("未选择用户", "请先在下拉框里选择要删除的用户。")
+            return
+        if not messagebox.askyesno(
+                "确认删除",
+                f"确定要删除用户「{name}」吗？\n\n"
+                f"该用户的档案、训练历史和目标都会被一起删除，且无法恢复。"):
+            return
+        ok, msg = self.store.delete_user(name)
+        if not ok:
+            messagebox.showwarning("无法删除", msg)
+            return
+        # 删完切到当前仍然有效的用户（可能已经不是原来那个了）
+        current = self.store.current_user()
+        self.user_var.set(current)
+        self._refresh_users()
+        self._sync_goal()
+        self.status_var.set(msg + f"，当前用户：{current}")
 
     def _sync_goal(self):
         """把「当前用户 + 当前动作」的今日目标与完成量显示出来。"""
@@ -449,6 +497,10 @@ class FitnessTestUI:
             self.root.attributes("-topmost", True)
         except tk.TclError:
             pass
+        # 识别窗口启动后会抢走键盘焦点，隔一会儿把控制台抢回来，
+        # 否则 macOS 上按钮要点两次才生效（第一次只用来激活窗口）。
+        self.root.after(1200, self._grab_focus)
+        self.root.after(2800, self._grab_focus)
         threading.Thread(target=self._read_output, daemon=True).start()
 
     def _read_output(self):
@@ -491,19 +543,26 @@ class FitnessTestUI:
             self.start()
 
     def _poll_messages(self):
-        try:
-            while True:
+        """
+        消费子进程输出。
+
+        这里必须**限量**：识别进程每秒会吐不少行，如果 while True 一直消费，
+        主线程就被日志刷满，按钮点击明显迟钝（这就是「按键不灵敏」的主因之一）。
+        每轮最多处理一批，剩下的留给下一轮，保证界面事件有机会被处理。
+        """
+        for _ in range(60):
+            try:
                 kind, value = self.messages.get_nowait()
-                if kind == "log":
-                    self._append_log(value)
-                    match = re.search(r"第\s*(\d+)\s*次", value)
-                    if match:
-                        self.reps_var.set(match.group(1))
-                else:
-                    self._finished(value)
-        except queue.Empty:
-            pass
-        self.root.after(100, self._poll_messages)
+            except queue.Empty:
+                break
+            if kind == "log":
+                self._append_log(value)
+                match = re.search(r"第\s*(\d+)\s*次", value)
+                if match:
+                    self.reps_var.set(match.group(1))
+            else:
+                self._finished(value)
+        self.root.after(80, self._poll_messages)
 
     def _finished(self, return_code):
         self.process = None
@@ -530,9 +589,18 @@ class FitnessTestUI:
             self.restart_pending = False
             self.root.after(250, self.start)
 
+    MAX_LOG_LINES = 1500        # 日志文本上限；超了砍掉最前面一段
+
     def _append_log(self, text):
         self.log.configure(state="normal")
         self.log.insert("end", text)
+        # 文本无限增长会让 Text 重绘越来越慢，最终整个界面发卡
+        try:
+            lines = int(self.log.index("end-1c").split(".")[0])
+            if lines > self.MAX_LOG_LINES:
+                self.log.delete("1.0", f"{lines - self.MAX_LOG_LINES}.0")
+        except (ValueError, tk.TclError):
+            pass
         self.log.see("end")
         self.log.configure(state="disabled")
 

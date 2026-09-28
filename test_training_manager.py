@@ -201,6 +201,47 @@ def test_persistence():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_delete_user():
+    print("=== 测试 7：删除用户（保护规则 + 数据清理 + 自动切换） ===")
+    tmp = tempfile.mkdtemp()
+    try:
+        store = UserStore(root=os.path.join(tmp, "users"))
+        store.create_user("甲")
+        store.create_user("乙")
+        History(store, "乙").add_session("squat", 20)
+        store.switch_user("乙")
+
+        # ① 删非当前用户
+        ok, msg = store.delete_user("甲")
+        print(f"  删非当前用户 -> {msg}，剩余 {store.list_users()}")
+        assert ok and "甲" not in store.list_users()
+        assert not os.path.isdir(store.user_dir("甲")), "数据目录应被真的删掉"
+
+        # ② 不允许删掉最后一个（否则程序没有可用档案）
+        ok, msg = store.delete_user("乙")
+        print(f"  删最后一个   -> {msg}")
+        assert not ok, "最后一个用户不该被删掉"
+        assert store.list_users() == ["乙"], "失败时不该动数据"
+
+        # ③ 删掉的正好是当前用户 -> 自动切到剩下的用户
+        store.create_user("丙")
+        store.switch_user("丙")
+        History(store, "丙").add_session("pushup", 10)
+        ok, msg = store.delete_user("丙")
+        print(f"  删当前用户   -> {msg}，当前切到「{store.current_user_or_none()}」")
+        assert ok
+        assert store.current_user_or_none() == "乙", "删当前用户后应切到其他有效用户"
+        assert not os.path.isdir(store.user_dir("丙"))
+
+        # ④ 删不存在的用户要有明确返回，而不是抛异常
+        ok, msg = store.delete_user("查无此人")
+        print(f"  删不存在的   -> {msg}")
+        assert not ok
+        print("  ✅ 删除用户、保护最后一个、自动切换、目录清理都正确\n")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_plot_trend(tmp_note=""):
     print("=== 测试 6：趋势图能正常生成（模块 8 的可视化） ===")
     tmp = tempfile.mkdtemp()
@@ -237,5 +278,6 @@ if __name__ == "__main__":
     test_user_store()
     test_history_and_goals()
     test_persistence()
+    test_delete_user()
     test_plot_trend()
     print("全部通过 ✅")

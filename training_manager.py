@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from datetime import datetime, timedelta
 
@@ -205,6 +206,39 @@ class UserStore:
         self.create_user(name)
         self._write_json(self._marker, {"name": name})
         return name
+
+    def delete_user(self, name):
+        """
+        删除用户及其**全部数据**（档案 / 历史 / 目标），不可恢复。
+
+        返回 (是否删除成功, 说明文字)。两条保护规则：
+          · 不允许删掉最后一个用户 —— 否则程序没有可用档案，`current_user()` 又要重建。
+          · 删掉的正好是当前用户时，自动切到剩下任意一个用户，避免指向已删除目录。
+        """
+        name = (name or "").strip()
+        if not name:
+            return False, "用户名为空"
+        users = self.list_users()
+        if name not in users:
+            return False, f"用户「{name}」不存在"
+        if len(users) <= 1:
+            return False, "只剩一个用户，不能删除（否则没有可用档案）"
+
+        was_current = (self.current_user_or_none() == name)
+        shutil.rmtree(self.user_dir(name), ignore_errors=True)
+
+        if was_current:
+            remaining = self.list_users()
+            if remaining:
+                self._write_json(self._marker, {"name": remaining[0]})
+        return True, f"已删除用户「{name}」及其训练数据"
+
+    def current_user_or_none(self):
+        """当前用户名；没有或指向已删除目录时返回 None（不自动建用户）。"""
+        cur = self._read_json(self._marker, {}).get("name")
+        if cur and os.path.isdir(self.user_dir(cur)):
+            return cur
+        return None
 
     def user_dir(self, name):
         return os.path.join(self.root, str(name))
