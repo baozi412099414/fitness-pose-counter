@@ -26,10 +26,13 @@ REFERENCE_VIDEOS = {
     "深蹲": ROOT / "captures/reference/squat_standard.webm",
     "开合跳": ROOT / "captures/reference/jumping_jack_standard.ogg",
 }
-SOURCE_TYPES = ("内置参考视频", "选择本地视频", "摄像头")
+SOURCE_TYPES = ("摄像头", "选择本地视频", "内置参考视频")
+PHONE_CAMERA_INDEX = 1
+COMPUTER_CAMERA_INDEX = 0
 
 
-def build_command(action_name, source_type, source_value, voice, report_path):
+def build_command(action_name, source_type, source_value, voice, report_path,
+                  control_path=None):
     """生成参数列表；单独保留为纯函数，便于无 GUI 自动测试。"""
     action_id = ACTION_IDS[action_name]
     cmd = [sys.executable, "-u", str(ROOT / "realtime_pose.py"),
@@ -40,24 +43,39 @@ def build_command(action_name, source_type, source_value, voice, report_path):
         cmd += ["--src", str(source_value)]
     if not voice:
         cmd.append("--no-voice")
+    if control_path:
+        cmd += ["--control-file", str(control_path)]
     return cmd
+
+
+def write_control_command(control_path, command):
+    """原子写入 UI 命令，避免识别进程读到半份 JSON。"""
+    control_path = Path(control_path)
+    payload = {"seq": time.time_ns(), "command": command}
+    tmp_path = control_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+    tmp_path.replace(control_path)
 
 
 class FitnessTestUI:
     def __init__(self, root):
         self.root = root
         self.root.title("健身动作识别测试台")
-        self.root.geometry("820x650")
+        self.root.geometry("820x690")
         self.root.minsize(720, 560)
         self.process = None
         self.report_path = None
+        self.control_path = None
         self.messages = queue.Queue()
         self.restart_pending = False
 
         self.action_var = tk.StringVar(value="深蹲")
-        self.source_type_var = tk.StringVar(value="内置参考视频")
+        # 日常使用默认直接开摄像头；参考视频只是调试时的可选输入。
+        self.source_type_var = tk.StringVar(value="摄像头")
         self.file_var = tk.StringVar()
-        self.camera_var = tk.StringVar(value="0")
+        # 本项目已实测 iPhone 连续互通相机为设备 1、Mac 内置摄像头为设备 0。
+        self.camera_var = tk.StringVar(value=str(PHONE_CAMERA_INDEX))
+        self.custom_camera_var = tk.StringVar(value="2")
         self.voice_var = tk.BooleanVar(value=True)
         self.status_var = tk.StringVar(value="准备就绪")
         self.reps_var = tk.StringVar(value="0")
@@ -75,36 +93,59 @@ class FitnessTestUI:
 
         ttk.Label(outer, text="健身动作识别测试台",
                   font=("Helvetica", 22, "bold")).pack(anchor="w")
-        ttk.Label(outer, text="分别选择俯卧撑、深蹲或开合跳；识别画面会在独立窗口显示。",
+        ttk.Label(outer, text="选择动作后直接开始即可；默认使用摄像头，参考视频仅用于调试。",
                   foreground="#555").pack(anchor="w", pady=(4, 16))
 
         form = ttk.LabelFrame(outer, text="测试设置", padding=12)
         form.pack(fill="x")
         form.columnconfigure(1, weight=1)
+        form.columnconfigure(2, weight=1)
+        form.columnconfigure(3, weight=1)
 
         ttk.Label(form, text="动作").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=6)
-        action = ttk.Combobox(form, textvariable=self.action_var,
-                              values=tuple(ACTION_IDS), state="readonly", width=18)
-        action.grid(row=0, column=1, sticky="w", pady=6)
-        action.bind("<<ComboboxSelected>>", lambda _e: self._sync_source())
+        action_frame = ttk.Frame(form)
+        action_frame.grid(row=0, column=1, columnspan=3, sticky="ew", pady=6)
+        for col, name in enumerate(ACTION_IDS):
+            action_frame.columnconfigure(col, weight=1)
+            tk.Radiobutton(
+                action_frame, text=name, variable=self.action_var, value=name,
+                command=self._sync_source, indicatoron=False, padx=18, pady=8,
+                selectcolor="#bfe3ff",
+            ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 6, 0))
 
         ttk.Label(form, text="输入").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=6)
-        source = ttk.Combobox(form, textvariable=self.source_type_var,
-                              values=SOURCE_TYPES, state="readonly", width=18)
-        source.grid(row=1, column=1, sticky="w", pady=6)
-        source.bind("<<ComboboxSelected>>", lambda _e: self._sync_source())
+        source_frame = ttk.Frame(form)
+        source_frame.grid(row=1, column=1, columnspan=3, sticky="w", pady=6)
+        for col, name in enumerate(SOURCE_TYPES):
+            tk.Radiobutton(
+                source_frame, text=name, variable=self.source_type_var, value=name,
+                command=self._sync_source,
+            ).grid(row=0, column=col, sticky="w", padx=(0, 14))
 
         ttk.Label(form, text="视频/设备").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=6)
         self.file_entry = ttk.Entry(form, textvariable=self.file_var)
-        self.file_entry.grid(row=2, column=1, sticky="ew", pady=6)
+        self.file_entry.grid(row=2, column=1, columnspan=2, sticky="ew", pady=6)
         self.browse_btn = ttk.Button(form, text="选择视频…", command=self._browse)
-        self.browse_btn.grid(row=2, column=2, padx=(8, 0), pady=6)
-        self.camera_box = ttk.Spinbox(form, from_=0, to=9, width=6,
-                                      textvariable=self.camera_var)
-        self.camera_box.grid(row=2, column=1, sticky="w", pady=6)
+        self.browse_btn.grid(row=2, column=3, padx=(8, 0), pady=6)
+        self.camera_frame = ttk.Frame(form)
+        self.camera_frame.grid(row=2, column=1, columnspan=3, sticky="w", pady=6)
+        tk.Radiobutton(self.camera_frame,
+                       text=f"手机摄像头（设备 {PHONE_CAMERA_INDEX}，默认）",
+                       variable=self.camera_var,
+                       value=str(PHONE_CAMERA_INDEX)).pack(side="left")
+        tk.Radiobutton(self.camera_frame,
+                       text=f"电脑摄像头（设备 {COMPUTER_CAMERA_INDEX}）",
+                       variable=self.camera_var,
+                       value=str(COMPUTER_CAMERA_INDEX)).pack(side="left", padx=(12, 0))
+        tk.Radiobutton(self.camera_frame, text="其他编号",
+                       variable=self.camera_var, value="custom").pack(side="left", padx=(12, 4))
+        self.camera_box = ttk.Spinbox(self.camera_frame, from_=0, to=9, width=4,
+                                      textvariable=self.custom_camera_var)
+        self.camera_box.pack(side="left")
 
         ttk.Checkbutton(form, text="开启中文语音提醒和报数",
-                        variable=self.voice_var).grid(row=3, column=1, sticky="w", pady=6)
+                        variable=self.voice_var).grid(row=3, column=1, columnspan=3,
+                                                      sticky="w", pady=6)
 
         buttons = ttk.Frame(outer)
         buttons.pack(fill="x", pady=14)
@@ -112,9 +153,12 @@ class FitnessTestUI:
         self.start_btn.pack(side="left")
         self.stop_btn = ttk.Button(buttons, text="停止", command=self.stop, state="disabled")
         self.stop_btn.pack(side="left", padx=8)
-        self.restart_btn = ttk.Button(buttons, text="清零并重启", command=self.restart,
+        self.reset_btn = ttk.Button(buttons, text="清零", command=self.reset,
+                                    state="disabled")
+        self.reset_btn.pack(side="left")
+        self.restart_btn = ttk.Button(buttons, text="重新启动", command=self.restart,
                                       state="disabled")
-        self.restart_btn.pack(side="left")
+        self.restart_btn.pack(side="left", padx=8)
         ttk.Label(buttons, textvariable=self.status_var).pack(side="right")
 
         result = ttk.LabelFrame(outer, text="最近一次测试结果", padding=12)
@@ -146,9 +190,7 @@ class FitnessTestUI:
         camera = source_type == "摄像头"
         if source_type == "内置参考视频":
             self.file_var.set(str(REFERENCE_VIDEOS[self.action_var.get()]))
-        elif camera:
-            self.file_var.set("")
-        self.camera_box.grid() if camera else self.camera_box.grid_remove()
+        self.camera_frame.grid() if camera else self.camera_frame.grid_remove()
         self.file_entry.grid_remove() if camera else self.file_entry.grid()
         self.browse_btn.grid_remove() if camera else self.browse_btn.grid()
         self.browse_btn.configure(state="normal" if source_type == "选择本地视频" else "disabled")
@@ -166,7 +208,8 @@ class FitnessTestUI:
     def _source_value(self):
         if self.source_type_var.get() == "摄像头":
             try:
-                return int(self.camera_var.get())
+                selected = self.camera_var.get()
+                return int(self.custom_camera_var.get() if selected == "custom" else selected)
             except ValueError as exc:
                 raise ValueError("摄像头设备号必须是整数") from exc
         path = Path(self.file_var.get()).expanduser()
@@ -187,8 +230,9 @@ class FitnessTestUI:
         report_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         self.report_path = report_dir / f"{ACTION_IDS[self.action_var.get()]}-{stamp}.json"
+        self.control_path = report_dir / f"control-{ACTION_IDS[self.action_var.get()]}-{stamp}.json"
         cmd = build_command(self.action_var.get(), self.source_type_var.get(), source_value,
-                            self.voice_var.get(), self.report_path)
+                            self.voice_var.get(), self.report_path, self.control_path)
         self._append_log("\n$ " + " ".join(cmd) + "\n")
         try:
             self.process = subprocess.Popen(
@@ -202,6 +246,7 @@ class FitnessTestUI:
         self.status_var.set("运行中")
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
+        self.reset_btn.configure(state="normal")
         self.restart_btn.configure(state="normal")
         threading.Thread(target=self._read_output, daemon=True).start()
 
@@ -216,6 +261,25 @@ class FitnessTestUI:
     def stop(self):
         if self.process and self.process.poll() is None:
             self.status_var.set("正在停止…")
+            self._send_command("stop")
+            pid = self.process.pid
+            self.root.after(2500, lambda: self._force_stop(pid))
+
+    def reset(self):
+        if self.process and self.process.poll() is None:
+            self._send_command("reset")
+            self.reps_var.set("0")
+            self.rate_var.set("--")
+            self.errors_var.set("暂无")
+            self.status_var.set("已发送清零命令")
+
+    def _send_command(self, command):
+        if not self.control_path:
+            return
+        write_control_command(self.control_path, command)
+
+    def _force_stop(self, pid):
+        if self.process and self.process.pid == pid and self.process.poll() is None:
             self.process.terminate()
 
     def restart(self):
@@ -244,6 +308,7 @@ class FitnessTestUI:
         self.process = None
         self.start_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
+        self.reset_btn.configure(state="disabled")
         self.restart_btn.configure(state="disabled")
         if self.report_path and self.report_path.is_file():
             try:

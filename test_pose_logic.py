@@ -7,7 +7,10 @@
     .venv/bin/python test_pose_logic.py
 """
 
+import json
+import tempfile
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -615,7 +618,8 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
 
 def test_ui_builds_separate_action_commands():
     print("=== 测试 24：UI 为三个动作生成正确且安全的启动参数 ===")
-    from fitness_ui import ACTION_IDS, build_command
+    from fitness_ui import (ACTION_IDS, COMPUTER_CAMERA_INDEX, PHONE_CAMERA_INDEX,
+                            build_command, write_control_command)
 
     for name, action_id in ACTION_IDS.items():
         cmd = build_command(name, "选择本地视频", "/tmp/demo video.mp4", False,
@@ -626,7 +630,16 @@ def test_ui_builds_separate_action_commands():
     camera_cmd = build_command("深蹲", "摄像头", 2, True, "/tmp/report.json")
     assert camera_cmd[camera_cmd.index("--cam") + 1] == "2"
     assert "--no-voice" not in camera_cmd
-    print("  三个动作、视频路径空格、摄像头编号及语音开关参数均正确")
+    assert PHONE_CAMERA_INDEX == 1 and COMPUTER_CAMERA_INDEX == 0
+    controlled = build_command("深蹲", "摄像头", 0, True, "/tmp/report.json",
+                               "/tmp/control.json")
+    assert controlled[controlled.index("--control-file") + 1] == "/tmp/control.json"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        control_path = Path(temp_dir) / "control.json"
+        write_control_command(control_path, "reset")
+        payload = json.loads(control_path.read_text(encoding="utf-8"))
+        assert payload["command"] == "reset" and isinstance(payload["seq"], int)
+    print("  三动作、摄像头、语音及清零控制命令参数均正确")
 
 
 

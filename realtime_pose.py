@@ -209,6 +209,8 @@ def main():
     ap.add_argument("--model", type=str, default=MODEL_PATH)
     ap.add_argument("--no-voice", action="store_true", help="关闭语音播报")
     ap.add_argument("--report", type=str, default=None, help="退出时保存 JSON 测试摘要")
+    ap.add_argument("--control-file", type=str, default=None,
+                    help="UI 控制文件（支持 reset / stop 命令）")
     ap.add_argument("--action", type=str, default="pushup", help="configs/ 下的动作名（不含 .json）")
     ap.add_argument("--lo-drop", type=float, default=LO_DROP,
                     help="下蹲门槛 = 站立基线 - 该值（默认 15°；调小更敏感、调大更迟钝）")
@@ -288,6 +290,7 @@ def main():
     error_counts = {}
     active_error_names = set()
     stopped_reason = "user"
+    last_control_seq = None
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
@@ -297,6 +300,34 @@ def main():
         print(f"  模型就绪，初始化用时 {time.time() - t_init:.0f} 秒\n")
         t0 = time.time()
         while True:
+            # UI 与识别进程用一个很小的 JSON 文件通信。这样不依赖窗口焦点，
+            # “清零/停止/重启”在 OpenCV 窗口没有获得键盘焦点时仍然有效。
+            if args.control_file and os.path.exists(args.control_file):
+                try:
+                    with open(args.control_file, encoding="utf-8") as f:
+                        control = json.load(f)
+                    seq = control.get("seq")
+                    if seq != last_control_seq:
+                        last_control_seq = seq
+                        command = control.get("command")
+                        if command == "stop":
+                            stopped_reason = "ui_stop"
+                            print("\nUI 请求停止，正在生成测试摘要。", flush=True)
+                            break
+                        if command == "reset":
+                            action.reset()
+                            last_count = 0
+                            last_logged_count = 0
+                            shown_hits = []
+                            shown_until = 0.0
+                            total_frames = 0
+                            detected_frames = 0
+                            error_counts.clear()
+                            active_error_names.clear()
+                            print("\n已清零：次数、动作阶段和错误统计全部重置。", flush=True)
+                except (OSError, ValueError, TypeError):
+                    pass  # UI 正在替换文件的极短窗口，下一帧会重试
+
             frame = cam.read()
             if frame is None:
                 if cam.finished:
