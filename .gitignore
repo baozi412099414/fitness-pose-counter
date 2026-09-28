@@ -17,3 +17,6 @@ pose_landmarker_lite.task
 # 选题过程文档（历史草稿，不进版本库）
 选题/_archive/
 选题/_backup/
+
+# 训练管理模块的用户数据（运行时生成，含个人训练记录，不进版本库）
+data/

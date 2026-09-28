@@ -300,6 +300,14 @@ def main():
     ap.add_argument("--action", type=str, default="pushup", help="configs/ 下的动作名（不含 .json）")
     ap.add_argument("--lo-drop", type=float, default=LO_DROP,
                     help="下蹲门槛 = 站立基线 - 该值（默认 15°；调小更敏感、调大更迟钝）")
+    # ---- 训练管理（任务书模块 7 训练组与间歇 / 8 历史与目标 / 10 多用户）----
+    ap.add_argument("--user", type=str, default=None,
+                    help="用户名；数据按 data/users/<用户名>/ 分开存（不传则用「默认用户」）")
+    ap.add_argument("--sets", type=int, default=0,
+                    help="分几组（0 = 自由训练不分组；设了就会在组间提醒休息）")
+    ap.add_argument("--reps-per-set", type=int, default=10, help="每组目标次数")
+    ap.add_argument("--rest", type=float, default=30.0, help="组间休息秒数")
+    ap.add_argument("--no-history", action="store_true", help="本次不写入训练历史")
     args = ap.parse_args()
 
     if args.list:
@@ -321,6 +329,27 @@ def main():
         return
     action = load_action(cfg_path)
     print(f"动作：{action.name}（{action.id}），信号类型 {action.signal_type}")
+
+    # ---- 训练管理：用户档案 + 分组间歇 + 历史 + 目标（任务书模块 7/8/10）----
+    # 纯逻辑 + JSON 存储，不依赖摄像头，所以能独立自动化测试（见 test_training_manager.py）
+    from training_manager import SetManager, UserStore, History, Goals
+    store = UserStore()
+    user = store.switch_user(args.user) if args.user else store.current_user()
+    history = History(store, user)
+    goals = Goals(store, user)
+    setman = SetManager(args.sets, args.reps_per_set, args.rest) if args.sets > 0 else None
+
+    goal = goals.get_goal(args.action)
+    done_today = history.today_reps(args.action)
+    line = f"  用户：{user}"
+    if goal:
+        line += f"　今日目标 {goal} 次（已完成 {done_today}，还差 {max(0, goal - done_today)}）"
+    elif done_today:
+        line += f"　今日已完成 {done_today} 次"
+    print(line)
+    if setman is not None:
+        print(f"  分组：{setman.total_sets} 组 × {setman.reps_per_set} 次，"
+              f"组间休息 {int(args.rest)} 秒")
 
     # 选视频源
     if args.src:
@@ -602,6 +631,19 @@ def main():
                 frame = blit_cn(frame, "⚠ " + tips, (12, fh - 54), size=30,
                                 color=(255, 90, 90), bg=(64, 18, 18))
 
+            # 训练组进度（模块 7）：第几组 / 本组几次 / 休息倒计时
+            if setman is not None:
+                st = setman.status(now)
+                if st["rest_remaining"] > 0:
+                    grp = f"休息 {st['rest_remaining']:.0f} 秒 → 准备第 {st['current_set']} 组"
+                elif st["finished"]:
+                    grp = f"全部完成 · 共 {st['total_reps']} 次"
+                else:
+                    grp = (f"第 {st['current_set']}/{st['total_sets']} 组 · "
+                           f"{st['reps_in_set']}/{st['reps_per_set']} 次")
+                frame = blit_cn(frame, grp, (12, fh - 146), size=26,
+                                color=(255, 235, 160), bg=(36, 32, 18))
+
             # 终端也打印每次计数的判定明细 —— HUD 看不清时可以直接把输出复制回来
             if count > last_logged_count:
                 last_logged_count = count
@@ -609,6 +651,13 @@ def main():
                          f"{'OK' if c['ok'] else '!!'}"
                          for c in checks if c.get("limit") is not None]
                 print(f"  第 {count} 次： " + "   ".join(parts), flush=True)
+
+            # ---- 训练组与间歇（模块 7）：组完成 / 休息结束 / 全部完成 ----
+            if setman is not None:
+                for ev in setman.on_rep(count, now):
+                    print(f"  [训练] {ev['tip']}", flush=True)
+                    if not args.no_voice:
+                        say(ev["tip"])
 
             # 语音播报：报错优先。同一次动作既计数又报错时合并成一句
             # （两个 say 会互相打断）；报错与报数各有独立节流，避免错误提示被报数挤掉。
@@ -663,6 +712,27 @@ def main():
                        for r in action.quality.rules if r.get("name") in error_counts},
         "stopped_reason": stopped_reason,
     }
+    # ---- 写入训练历史 + 结算今日目标（任务书模块 8）----
+    # 跑离线视频属于「调参」而不是「训练」，所以那种情况默认不记进个人历史
+    if not args.no_history and not args.src:
+        try:
+            history.add_session(
+                action=action.id, reps=action.counter.count,
+                sets=setman.total_sets if setman else None,
+                errors=error_counts,
+                duration_sec=time.time() - t0,
+                source=str(source),
+            )
+            gp = goals.progress(action.id, history)
+            summary["user"] = user
+            summary["goal"] = gp
+            if gp["target"]:
+                mark = "已达成" if gp["reached"] else f"还差 {gp['remaining']} 次"
+                print(f"  今日目标：{gp['done']}/{gp['target']}　{mark}")
+            print(f"  已写入训练历史（用户：{user}）")
+        except Exception as e:
+            print(f"  （写训练历史失败，不影响本次结果：{e}）")
+
     print("测试摘要：" + json.dumps(summary, ensure_ascii=False), flush=True)
     if args.report:
         report_dir = os.path.dirname(os.path.abspath(args.report))
