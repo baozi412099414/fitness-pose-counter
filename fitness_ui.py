@@ -63,6 +63,11 @@ class FitnessTestUI:
         self.root.title("健身动作识别测试台")
         self.root.geometry("820x690")
         self.root.minsize(720, 560)
+        # 识别窗口启动后可能抢走 macOS 前台焦点；测试控制台必须仍可点击。
+        try:
+            self.root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
         self.process = None
         self.report_path = None
         self.control_path = None
@@ -147,19 +152,37 @@ class FitnessTestUI:
                         variable=self.voice_var).grid(row=3, column=1, columnspan=3,
                                                       sticky="w", pady=6)
 
-        buttons = ttk.Frame(outer)
+        buttons = tk.Frame(outer)
         buttons.pack(fill="x", pady=14)
-        self.start_btn = ttk.Button(buttons, text="开始测试", command=self.start)
-        self.start_btn.pack(side="left")
-        self.stop_btn = ttk.Button(buttons, text="停止", command=self.stop, state="disabled")
+        button_style = {
+            "font": ("Helvetica", 14, "bold"), "width": 9, "height": 2,
+            "relief": "raised", "bd": 2, "highlightthickness": 1,
+            "takefocus": True,
+        }
+        self.start_btn = tk.Button(buttons, text="开始测试", command=self.start,
+                                   bg="#2f80ed", fg="white", activebackground="#56a0ff",
+                                   **button_style)
+        self.start_btn.pack(side="left", padx=(0, 8))
+        self.stop_btn = tk.Button(buttons, text="停止", command=self.stop,
+                                  bg="#eb5757", fg="white", activebackground="#ff7777",
+                                  state="disabled", **button_style)
         self.stop_btn.pack(side="left", padx=8)
-        self.reset_btn = ttk.Button(buttons, text="清零", command=self.reset,
-                                    state="disabled")
-        self.reset_btn.pack(side="left")
-        self.restart_btn = ttk.Button(buttons, text="重新启动", command=self.restart,
-                                      state="disabled")
+        self.reset_btn = tk.Button(buttons, text="清零", command=self.reset,
+                                   bg="#f2c94c", fg="#222", activebackground="#ffe27a",
+                                   state="disabled", **button_style)
+        self.reset_btn.pack(side="left", padx=8)
+        self.restart_btn = tk.Button(buttons, text="重新启动", command=self.restart,
+                                     bg="#27ae60", fg="white", activebackground="#49d17b",
+                                     state="disabled", **button_style)
         self.restart_btn.pack(side="left", padx=8)
         ttk.Label(buttons, textvariable=self.status_var).pack(side="right")
+
+        # 鼠标点不到时仍有确定的操作入口：F5 开始、F6 停止、F7 清零、F8 重启。
+        self.root.bind("<F5>", lambda _e: self.start())
+        self.root.bind("<F6>", lambda _e: self.stop())
+        self.root.bind("<F7>", lambda _e: self.reset())
+        self.root.bind("<F8>", lambda _e: self.restart())
+        self.root.bind("<Escape>", lambda _e: self.stop())
 
         result = ttk.LabelFrame(outer, text="最近一次测试结果", padding=12)
         result.pack(fill="x", pady=(0, 12))
@@ -244,10 +267,15 @@ class FitnessTestUI:
             return
 
         self.status_var.set("运行中")
-        self.start_btn.configure(state="disabled")
-        self.stop_btn.configure(state="normal")
-        self.reset_btn.configure(state="normal")
-        self.restart_btn.configure(state="normal")
+        self.start_btn.configure(state="disabled", relief="sunken")
+        self.stop_btn.configure(state="normal", relief="raised")
+        self.reset_btn.configure(state="normal", relief="raised")
+        self.restart_btn.configure(state="normal", relief="raised")
+        self.root.lift()
+        try:
+            self.root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
         threading.Thread(target=self._read_output, daemon=True).start()
 
     def _read_output(self):
@@ -306,10 +334,10 @@ class FitnessTestUI:
 
     def _finished(self, return_code):
         self.process = None
-        self.start_btn.configure(state="normal")
-        self.stop_btn.configure(state="disabled")
-        self.reset_btn.configure(state="disabled")
-        self.restart_btn.configure(state="disabled")
+        self.start_btn.configure(state="normal", relief="raised")
+        self.stop_btn.configure(state="disabled", relief="sunken")
+        self.reset_btn.configure(state="disabled", relief="sunken")
+        self.restart_btn.configure(state="disabled", relief="sunken")
         if self.report_path and self.report_path.is_file():
             try:
                 data = json.loads(self.report_path.read_text(encoding="utf-8"))
