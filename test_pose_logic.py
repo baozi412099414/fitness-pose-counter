@@ -7,6 +7,9 @@
     .venv/bin/python test_pose_logic.py
 """
 
+import time
+from unittest.mock import patch
+
 from pose_logic import RepCounter, QualityChecker, load_action
 
 
@@ -309,6 +312,79 @@ def test_abnormal_frame_dropped():
     print("  异常帧不会污染距离类约束的峰值")
 
 
+def test_reset_clears_cycle_state():
+    print("=== 测试 12：清零同时清除本轮动作状态 ===")
+    a = load_action("configs/squat.json")
+    a.counter.count = 3
+    a.counter.stage = "active"
+    a.sig_peak = 175.0
+    a.depth_valley = 88.0
+    a.rule_ext = {"demo": {"peak": 2.0, "valley": 1.0}}
+    a.last_values = [123.0]
+    a.unit_smooth = 100.0
+    a.reset()
+    assert a.counter.count == 0 and a.counter.stage == "ready"
+    assert a.sig_peak is None and a.depth_valley is None and a.unit_smooth is None
+    assert a.rule_ext == {} and a.last_values == [] and a.unit_smooth is None
+    print("  计数、阶段、峰值、谷值和规则极值均已清除")
+
+
+def test_low_confidence_does_not_pollute_counter_extrema():
+    print("=== 测试 13：低可信度帧不污染计数信号极值 ===")
+    a = load_action("configs/squat.json")
+    pts = [(0, 0)] * 33
+    pts[23], pts[25], pts[27] = (100, 100), (100, 160), (100, 220)
+    vis = [1.0] * 33
+    vis[25] = 0.1
+    a.update(pts, vis, now=0.0)
+    assert a.sig_peak is None and a.depth_valley is None
+    assert a.counter.count == 0 and a.counter.stage == "ready"
+    print("  幽灵骨架既不计数，也不写入峰值/谷值")
+
+
+def test_hidden_quality_points_do_not_pollute_rule_extrema():
+    print("=== 测试 14：质量规则关键点不可见时不写入规则极值 ===")
+    a = load_action("configs/jumping_jack.json")
+    pts = [(0, 0)] * 33
+    pts[11], pts[12], pts[13], pts[23] = (100, 100), (200, 100), (100, 200), (100, 300)
+    pts[27], pts[28] = (0, 500), (300, 500)
+    vis = [1.0] * 33
+    vis[27] = vis[28] = 0.1
+    a.update(pts, vis, now=0.0)
+    assert "legs_not_apart" not in a.rule_ext
+    print("  脚踝不可见时，腿部质量规则不会记录虚假峰值")
+
+
+def test_camera_thread_stops_cleanly():
+    print("=== 测试 15：摄像头线程可正常停止并 join ===")
+    from realtime_pose import Camera
+
+    class FakeCapture:
+        def __init__(self):
+            self.released = False
+
+        def isOpened(self):
+            return True
+
+        def set(self, *_):
+            return True
+
+        def read(self):
+            return False, None
+
+        def release(self):
+            self.released = True
+
+    fake = FakeCapture()
+    with patch("realtime_pose.cv2.VideoCapture", return_value=fake):
+        cam = Camera(0)
+        cam.start()
+        time.sleep(0.02)
+        cam.stop()
+    assert not cam.is_alive() and fake.released
+    print("  stop() 后线程退出、资源释放，未覆盖 Thread._stop()")
+
+
 
 if __name__ == "__main__":
     test_rep_counter()
@@ -322,4 +398,8 @@ if __name__ == "__main__":
     test_depth_judgment()
     test_jumping_jack()
     test_abnormal_frame_dropped()
+    test_reset_clears_cycle_state()
+    test_low_confidence_does_not_pollute_counter_extrema()
+    test_hidden_quality_points_do_not_pollute_rule_extrema()
+    test_camera_thread_stops_cleanly()
     print("全部通过 ✅")

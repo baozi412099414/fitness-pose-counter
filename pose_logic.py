@@ -310,6 +310,23 @@ class Action:
 
     def update(self, points, visibilities=None, now=None):
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
+        # 先检查计数关键点可信度，再计算信号。距离类信号在计算时会更新归一化
+        # 平滑基准；如果先算后过滤，低可信度帧仍可能污染 unit_smooth。
+        conf = 1.0
+        if visibilities is not None:
+            idxs = set()
+            for c in (self.conditions or [{"points": self.signal_points}]):
+                idxs.update(c["points"])
+            conf = min(visibilities[i] for i in idxs)
+        if conf < self.min_visibility:
+            cond_count = len(self.conditions) if self.conditions else 1
+            self.last_values = [None] * cond_count
+            checks = self.quality.check(
+                points, visibilities, self.counter.stage, False,
+                self.sig_peak, self.depth_valley, self.rule_ext,
+            )
+            return self.counter.count, self.counter.stage, None, [], checks
+
         values = self.signals(points)
         self.last_values = values                # 供 HUD 显示每个条件的当前值
         sig = values[0] if values else None      # 显示用（多条件时是第一个）
@@ -317,26 +334,11 @@ class Action:
         # 否则一个离谱值就会污染峰值，导致「永远判定通过、永远不报错」。
         if any(v is None for v in values):
             return self.counter.count, self.counter.stage, None, [], []
-        # 可信度：把所有条件用到的关键点都算进来；人没拍到 / 跟丢时不更新状态机，
-        # 否则 MediaPipe 输出的「幽灵骨架」会让程序凭空加数。
-        conf = 1.0
-        if visibilities is not None:
-            idxs = set()
-            for c in (self.conditions or [{"points": self.signal_points}]):
-                idxs.update(c["points"])
-            conf = min(visibilities[i] for i in idxs)
-
-        # 追踪本轮峰值：peak_min / peak_max 类约束要用它，
-        # 因为「刚过计数线那一帧」的角度不能代表这一轮的实际幅度。
-        self.sig_peak = sig if self.sig_peak is None else max(self.sig_peak, sig)
-
         just_counted = False
-        if conf >= self.min_visibility:
-            before = self.counter.count
-            count, stage = self.counter.update(values, now)
-            just_counted = count > before       # 这一帧刚数上一个
-        else:
-            count, stage = self.counter.count, self.counter.stage
+        self.sig_peak = sig if self.sig_peak is None else max(self.sig_peak, sig)
+        before = self.counter.count
+        count, stage = self.counter.update(values, now)
+        just_counted = count > before           # 这一帧刚数上一个
 
         # 下蹲阶段的谷值（这一轮蹲到最低多少度）—— 只在 active 阶段采集，
         # 所以等计数那一刻（离开 active）它已经完整了，判定准确、不滞后。
@@ -350,6 +352,12 @@ class Action:
             r_idx = rule.get("points")
             if not st or not r_idx:
                 continue
+            # 自带信号的规则还要检查它自己的关键点是否可信；计数关键点可见，
+            # 不代表脚踝等质量判定点也一定可见。
+            if visibilities is not None:
+                rule_conf = min(visibilities[i] for i in r_idx)
+                if rule_conf < self.min_visibility:
+                    continue
             v = self._calc_signal(st, points, r_idx, rule.get("unit_points"))
             if v is None:
                 continue
@@ -375,6 +383,13 @@ class Action:
 
     def reset(self):
         self.counter.reset()
+        # 清零必须同时结束当前动作周期；否则按 r 后，清零前留下的峰值/谷值
+        # 会参与下一次动作的质量判定，出现「计数清了但判定没清」的串轮问题。
+        self.sig_peak = None
+        self.depth_valley = None
+        self.rule_ext = {}
+        self.last_values = []
+        self.unit_smooth = None
 
 
 def load_action(path):

@@ -110,10 +110,12 @@ class Camera(threading.Thread):
             raise RuntimeError(f"打不开视频源：{source}")
         self._lock = threading.Lock()
         self._frame = None
-        self._stop = threading.Event()
+        # 不要命名为 _stop：threading.Thread 内部有一个同名方法，join() 在线程
+        # 结束时会调用它。用 Event 覆盖后，退出阶段可能报 "Event object is not callable"。
+        self._stop_event = threading.Event()
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             ok, f = self.cap.read()
             if not ok:
                 time.sleep(0.005)
@@ -126,7 +128,7 @@ class Camera(threading.Thread):
             return None if self._frame is None else self._frame.copy()
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
         self.join(timeout=1.0)
         self.cap.release()
 
