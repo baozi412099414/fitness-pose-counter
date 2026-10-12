@@ -641,6 +641,8 @@ def main():
     last_err_say = 0.0                  # 错误播报节流（独立于报数）
     last_cnt_say = 0.0                  # 报数节流
     last_logged_count = 0               # 上次打印过判定明细的计数（终端诊断用）
+    no_person_frames = 0                # 连续多少帧没看到人（用来压醒目提示）
+    person_frames = 0                   # **可信地**看到人的帧数（比 detected_frames 严格）
     total_frames = 0                    # UI/离线验收摘要
     detected_frames = 0
     error_counts = {}
@@ -687,6 +689,8 @@ def main():
                             shown_until = 0.0
                             total_frames = 0
                             detected_frames = 0
+                            person_frames = 0
+                            no_person_frames = 0
                             error_counts.clear()
                             active_error_names.clear()
                             print("\n已清零：次数、动作阶段和错误统计全部重置。", flush=True)
@@ -718,7 +722,8 @@ def main():
                         stopped_reason = "user"
                         break
                     continue
-                person_ok = True            # 数据里的点默认都是可信的
+                # person_ok / conf 在下面 if pts is not None 里统一算 ——
+                # 数据回放也走同一套可信度判断，所以 visibility=0 的数据同样会被当作「没人」
                 total_frames += 1
             else:
                 frame = cam.read()
@@ -755,6 +760,11 @@ def main():
                     counter_idxs.update(condition["points"])
                 conf = min(vis[i] for i in counter_idxs)
                 person_ok = conf >= action.min_visibility
+                # detected_frames 只表示「模型吐了关键点」，但模型在看不到人时也会吐
+                # 「幽灵骨架」（低可信度）。真正有意义的是「可信地看到人」的帧数，
+                # 否则「画面里根本没人」会被算成检出率 100%，把问题掩盖掉。
+                if person_ok:
+                    person_frames += 1
 
                 # ---- 站立基线自动校准 ----
                 # 启动头 2 秒你应该是站着的，用这段时间信号的中位数当「站立基线」，
@@ -842,6 +852,19 @@ def main():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 255, 220), 1)
             # 检测状态：可信度不够时明确写「PAUSED」，而不是默默加数
             det_txt = f"track {conf:.2f}  " + ("COUNTING" if person_ok else "PAUSED no-person")
+            # 连续很多帧都看不到人 → 在画面正中压一条醒目提示。
+            # 「计数一直是 0」最容易被当成程序坏了，其实多半是人没在画面里。
+            if person_ok:
+                no_person_frames = 0
+            else:
+                no_person_frames = no_person_frames + 1
+            if no_person_frames >= 45:          # 约 1.5 秒
+                frame = blit_cn(frame, "没检测到人 —— 请让全身进入画面",
+                                (max(12, w // 2 - 260), h // 2 - 24), size=34,
+                                color=(255, 255, 255), bg=(180, 40, 40))
+                frame = blit_cn(frame, "需要退到 2.5~3 米外，注意光线别太暗",
+                                (max(12, w // 2 - 230), h // 2 + 26), size=24,
+                                color=(255, 226, 150), bg=(70, 30, 30))
             det_color = (120, 230, 120) if person_ok else (60, 60, 255)
             cv2.putText(frame, det_txt, (12, 92),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, det_color, 2)
@@ -1074,6 +1097,11 @@ def main():
         "total_frames": total_frames,
         "detected_frames": detected_frames,
         "detection_rate": round(detected_frames / total_frames, 4) if total_frames else 0.0,
+        # 可信地看到人的比例 —— 判断「画面里到底有没有人」要看这个。
+        # detection_rate 只表示「模型吐了关键点」，人不在画面里时模型照样会吐
+        # 「幽灵骨架」，检出率反而显示 100%，把真正的问题掩盖掉。
+        "person_frames": person_frames,
+        "person_rate": round(person_frames / total_frames, 4) if total_frames else 0.0,
         "errors": error_counts,
         "error_tips": {r.get("name"): r.get("tip", r.get("name"))
                        for r in action.quality.rules if r.get("name") in error_counts},

@@ -714,6 +714,53 @@ def _curl_reps(n, top, bottom):
     return seq
 
 
+def test_person_rate_distinguishes_nobody():
+    print("=== 测试 38：区分「画面里没人」与「程序故障」 ===")
+    import json
+    import tempfile
+    from pose_logic import load_action
+    from realtime_pose import KeypointSource
+
+    # 同一段深蹲数据，只是把 visibility 全设成 0（模拟「关键点全被遮挡 / 人不在画面里」）
+    raw = json.load(open("samples/squat_standard.json", encoding="utf-8"))
+    tmp = Path(tempfile.mkdtemp())
+
+    def run(data, label):
+        p = tmp / f"{label}.json"
+        json.dump(data, open(p, "w", encoding="utf-8"), ensure_ascii=False)
+        ks = KeypointSource(str(p))
+        a = load_action("configs/squat.json")
+        a.counter.lo, a.counter.hi = 140.0, 155.0
+        detected = person = 0
+        while True:
+            st, _f, pts, vis = ks.read()
+            if st == "eof":
+                break
+            if st == "wait":
+                continue
+            detected += 1
+            conf = min(vis[i] for i in a.signal_points)
+            if conf >= a.min_visibility:
+                person += 1
+            a.update(pts, vis, now=ks.elapsed)
+        return a.counter.count, detected, person
+
+    reps_ok, det_ok, per_ok = run(json.loads(json.dumps(raw)), "ok")
+    blind = json.loads(json.dumps(raw))
+    blind["visibility"] = 0.0
+    reps_no, det_no, per_no = run(blind, "blind")
+
+    print(f"  正常数据：计数 {reps_ok}　关键点帧 {det_ok}　可信帧 {per_ok}")
+    print(f"  遮挡数据：计数 {reps_no}　关键点帧 {det_no}　可信帧 {per_no}")
+    assert reps_ok == 3 and per_ok == det_ok, "正常数据应计数且可信帧等于总帧"
+    assert reps_no == 0, "看不到人时不该计数"
+    # ⚠ 这是关键：detected 只表示「模型吐了关键点」，遮挡时照样是满帧，
+    #   光看它会以为一切正常；必须看「可信帧」才能发现根本没人。
+    assert det_no == det_ok, "关键点帧数在遮挡时仍是满的（这正是旧指标会骗人的地方）"
+    assert per_no == 0, "遮挡时可信帧必须为 0，否则 UI 的「没检测到人」提示不会触发"
+    print("  ✅ 关键点帧会骗人、可信帧不会 —— UI 的「没检测到人」提示依赖后者\n")
+
+
 def test_data_replay_full_flow():
     print("=== 测试 37：数据回放走完整流程（与摄像头同一条路径） ===")
     from fitness_ui import build_command
@@ -1364,6 +1411,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_person_rate_distinguishes_nobody()
     test_data_replay_full_flow()
     test_pose_player()
     test_custom_action_end_to_end()

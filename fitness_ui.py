@@ -172,6 +172,22 @@ def hover_btn(parent, text, command, bg=PRIMARY, hi=None, fg="white", **kw):
     return btn
 
 
+def paint_action_button(btn, selected):
+    """
+    手动给动作按钮上色，区分「选中 / 未选中」。
+
+    ⚠ 不能只靠 `selectcolor` —— 在 clam 主题下它经常不生效，
+    结果就是**点了和没点看起来一模一样**（用户实测反馈过）。
+    所以这里用回调显式改背景/前景：选中 = 主色底白字，未选中 = 浅灰底深字。
+    """
+    if selected:
+        btn.configure(bg=PRIMARY, fg="white", activebackground=PRIMARY_HI,
+                      activeforeground="white")
+    else:
+        btn.configure(bg=SOFT, fg=MUTED, activebackground="#e4eaf1",
+                      activeforeground=TEXT)
+
+
 def set_btn_enabled(btn, enabled, base):
     """统一处理按钮启用/禁用（顺带把颜色切到灰，一眼看出能不能点）。"""
     btn.configure(state="normal" if enabled else "disabled",
@@ -436,7 +452,7 @@ class ActionEditor(tk.Toplevel):
         # ── 按钮（固定在窗口底部，不随内容滚动）──
         btns = bottom
         hover_btn(btns, "保存动作", self._save, SUCCESS, SUCCESS_HI).pack(side="left")
-        tk.Button(btns, text="取消", command=self.destroy, bg=SOFT, fg=TEXT,
+        tk.Button(btns, text="取消", command=self._close_editor, bg=SOFT, fg=TEXT,
                   activebackground="#e4eaf1", font=F_BTN, relief="flat", bd=0,
                   highlightthickness=0, padx=18, pady=9,
                   cursor="pointinghand").pack(side="left", padx=8)
@@ -456,8 +472,20 @@ class ActionEditor(tk.Toplevel):
             self.geometry(f"{w}x{h}+{x}+{y}")
         except tk.TclError:
             pass
+        # ⚠ 必须接管关闭事件：点窗口的 X 也要释放 grab。
+        # 之前只有「保存」那条路径释放，用户直接关窗的话 grab 会一直握着，
+        # **主界面所有按钮就全点不动了**（表现为「点开始测试没反应」）。
+        self.protocol("WM_DELETE_WINDOW", self._close_editor)
         self.grab_set()
         ent.focus_set()
+
+    def _close_editor(self):
+        """关闭表单：先释放 grab 再销毁，保证主界面恢复可点。"""
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.destroy()
 
     # ---------- 联动 ----------
     def _on_name(self, *_a):
@@ -553,8 +581,7 @@ class ActionEditor(tk.Toplevel):
         if not ok:
             messagebox.showerror("保存失败", msg, parent=self)
             return
-        self.grab_release()
-        self.destroy()
+        self._close_editor()
         self.on_saved(cfg, msg)
 
 
@@ -690,9 +717,9 @@ class FitnessTestUI:
             # 选中态用浅蓝底 —— tkinter 没法在选中时同时改字色，浅底黑字最稳妥。
             btn = tk.Radiobutton(
                 action_area, text=name, variable=self.action_var, value=name,
-                command=self._sync_source, indicatoron=False,
-                bg=SOFT, fg=TEXT, selectcolor="#d6e8ff",
-                activebackground="#d6e8ff", activeforeground=TEXT,
+                command=self._on_action_click, indicatoron=False,
+                bg=SOFT, fg=MUTED, selectcolor=SOFT,
+                activebackground="#e4eaf1", activeforeground=TEXT,
                 font=F_BTN, relief="flat", bd=0, highlightthickness=0,
                 padx=16, pady=9, cursor="pointinghand",
             )
@@ -701,6 +728,7 @@ class FitnessTestUI:
             self._action_buttons[name] = btn
         for c in range(PER_ROW):
             action_area.columnconfigure(c, weight=1, uniform="act")
+        self._paint_actions()          # 启动时就把选中项标出来
 
         # 加动作的入口直接放在动作区旁边 —— 用户最需要它的时候就在眼前
         add_row = tk.Frame(form, bg=CARD)
@@ -1154,6 +1182,17 @@ class FitnessTestUI:
         if total_err:
             self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
 
+    def _paint_actions(self):
+        """按当前选中项重画所有动作按钮（选中 = 主色底白字，未选中 = 浅灰底）。"""
+        cur = self.action_var.get()
+        for name, btn in getattr(self, "_action_buttons", {}).items():
+            paint_action_button(btn, name == cur)
+
+    def _on_action_click(self):
+        """点动作按钮：先更新配色，再同步输入源。"""
+        self._paint_actions()
+        self._sync_source()
+
     def _new_action(self):
         """打开「新建动作」表单 —— 填完保存即可，全程不碰 JSON。"""
         ActionEditor(self.root, self.existing_ids(),
@@ -1189,9 +1228,9 @@ class FitnessTestUI:
             r, c = divmod(i, 3)
             btn = tk.Radiobutton(
                 area, text=name, variable=self.action_var, value=name,
-                command=self._sync_source, indicatoron=False,
-                bg=SOFT, fg=TEXT, selectcolor="#d6e8ff",
-                activebackground="#d6e8ff", activeforeground=TEXT,
+                command=self._on_action_click, indicatoron=False,
+                bg=SOFT, fg=MUTED, selectcolor=SOFT,
+                activebackground="#e4eaf1", activeforeground=TEXT,
                 font=F_BTN, relief="flat", bd=0, highlightthickness=0,
                 padx=16, pady=9, cursor="pointinghand")
             btn.grid(row=r, column=c, sticky="ew",
@@ -1199,7 +1238,8 @@ class FitnessTestUI:
             self._action_buttons[name] = btn
         if select and select in self._action_buttons:
             self.action_var.set(select)
-            self._sync_source()
+        self._paint_actions()
+        self._sync_source()
         self._on_outer_configure()
 
     def _open_configs_dir(self):
@@ -1566,6 +1606,36 @@ class FitnessTestUI:
                     "、".join(f"{tips.get(k, k)}×{v}" for k, v in errors.items()) or "无"
                 )
                 self.status_var.set("测试完成" if return_code == 0 else f"异常结束（{return_code}）")
+
+                # ⚠ 检出率为 0 是最容易被误解成「程序坏了」的情况：
+                # 画面明明在动（帧数在涨），但模型一帧都没看到人，于是计数永远是 0。
+                # 这时必须**明确说清是什么问题**，否则用户会反复重试还以为功能没做好。
+                # 判断「画面里有没有人」要用 person_rate（可信地看到人的比例），
+                # 不能用 detection_rate —— 后者只表示「模型吐了关键点」，
+                # 人不在画面里时模型照样会吐「幽灵骨架」，检出率反而显示 100%。
+                rate = float(data.get("person_rate", data.get("detection_rate")) or 0)
+                frames = int(data.get("total_frames") or 0)
+                if frames and rate <= 0.001:
+                    self._append_log(
+                        "\n⚠ 本次一帧都没检测到人（检出率 0%）—— 不是程序坏了，是画面里没有人。\n"
+                        "   请依次检查：\n"
+                        "     1. 摄像头拍到的画面里，**你的全身是否入镜**（退到 2.5~3 米外）；\n"
+                        "     2. 光线是否够亮（逆光/太暗都会检测不到）；\n"
+                        "     3. 用的是不是对的摄像头（界面里可切「电脑摄像头」试试）；\n"
+                        "     4. 识别画面里有没有骨架线 —— 没有就说明确实没识别到人。\n")
+                    self._msg("showwarning", "没有检测到人",
+                              f"本次跑了 {frames} 帧，但**一帧都没有检测到人**"
+                              f"（检出率 0%）。\n\n"
+                              f"这不是程序故障 —— 画面里没有人，所以计数只能是 0。\n\n"
+                              f"请检查：\n"
+                              f"  · 全身是否在画面里（需要退到 2.5~3 米外）\n"
+                              f"  · 光线是否足够（太暗或逆光都检测不到）\n"
+                              f"  · 摄像头是否选对了\n\n"
+                              f"识别窗口里如果**没有骨架线**，就说明确实没识别到人。")
+                elif frames and rate < 0.3:
+                    self._append_log(
+                        f"\n⚠ 检出率偏低（{rate*100:.0f}%）—— 人体经常不在画面里或拍不全，"
+                        f"计数会被暂停。建议调整机位让全身稳定入镜。\n")
             except (OSError, ValueError) as exc:
                 self.status_var.set(f"报告读取失败：{exc}")
         else:
