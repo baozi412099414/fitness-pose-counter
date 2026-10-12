@@ -540,6 +540,12 @@ class Action:
 
     def update(self, points, visibilities=None, now=None):
         """喂一帧关键点，返回 (count, stage, signal, hits, checks)。"""
+        # 关键点数量不足直接跳过。正常情况 MediaPipe 总给 33 个点，但异常时可能给不全
+        # （模型内部出错、图像格式异常），后面按索引取点会 IndexError ——
+        # 那会把整个识别主循环搞崩，表现为「画面卡住」。宁可丢这一帧。
+        if points is None or len(points) < 33:
+            return self.counter.count, self.counter.stage, None, [], []
+
         # 先检查计数关键点可信度，再计算信号。距离类信号在计算时会更新归一化
         # 平滑基准；如果先算后过滤，低可信度帧仍可能污染 unit_smooth。
         conf = 1.0

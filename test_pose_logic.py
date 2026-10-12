@@ -684,6 +684,73 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_robustness_against_bad_input():
+    print("=== 测试 33：异常输入不能把程序搞崩、也不能造成误判 ===")
+    from motion_synth import Synth
+
+    synth = Synth()
+    frames = synth.build("squat", reps=1, depth=95)
+    vis = [1.0] * 33
+
+    # ① 关键点数量不足 / None / 空 —— 曾经会 IndexError 把主循环搞崩
+    for label, pts in (("5 个点", [(100, 100)] * 5), ("空列表", []), ("None", None)):
+        a = load_action("configs/squat.json")
+        count, stage, sig, hits, checks = a.update(pts, vis, now=1.0)
+        assert count == 0, f"{label} 不该计数"
+    print("  ✓ 点数不足 / 空列表 / None 都不崩、不计数")
+
+    # ② NaN / 越界坐标 / 超大坐标
+    for label, pts in (("NaN", [(float("nan"), float("nan"))] * 33),
+                       ("负坐标", [(-500, -500)] * 33),
+                       ("超大坐标", [(10 ** 9, 10 ** 9)] * 33)):
+        a = load_action("configs/squat.json")
+        for i, _ in enumerate(frames):
+            a.update(pts, vis, now=i / 30.0)
+        assert a.counter.count == 0, f"{label} 不该计数"
+    print("  ✓ NaN / 负坐标 / 超大坐标 都不计数")
+
+    # ③ 时间倒流 / 时间全相同 —— 不该凭空多计
+    for label, mk in (("时间倒流", lambda i: -i / 30.0),
+                      ("时间全相同", lambda i: 1.0),
+                      ("时间跳跃", lambda i: i * 10.0)):
+        a = load_action("configs/squat.json")
+        for i, p in enumerate(frames):
+            a.update(p, vis, now=mk(i))
+        assert a.counter.count <= 1, f"{label} 不该多计（实际 {a.counter.count}）"
+    print("  ✓ 时间倒流 / 停滞 / 跳跃 都不会凭空多计")
+
+    # ④ 关键点抖动 ±15px —— 防抖要压得住
+    import random
+    for noise in (5, 15):
+        random.seed(7)
+        a = load_action("configs/squat.json")
+        for i, p in enumerate(synth.build("squat", reps=2, depth=95)):
+            jittered = [(x + random.randint(-noise, noise), y + random.randint(-noise, noise))
+                        for x, y in p]
+            a.update(jittered, vis, now=i / 30.0)
+        assert a.counter.count == 2, f"±{noise}px 噪声下应稳定计 2 次（实际 {a.counter.count}）"
+    print("  ✓ ±5 / ±15px 抖动下计数稳定（不会乱计）")
+
+    # ⑤ 半个动作 / 停在半路 —— 不该计数
+    half = frames[:15]
+    bottom = frames[29]
+    for label, seq in (("蹲到半路停住", half + [half[-1]] * 300),
+                       ("蹲到底停住", frames[:30] + [bottom] * 300)):
+        a = load_action("configs/squat.json")
+        for i, p in enumerate(seq):
+            a.update(p, vis, now=i / 30.0)
+        assert a.counter.count == 0, f"{label} 不该计数（实际 {a.counter.count}）"
+    print("  ✓ 只蹲下不起身 / 停在半路 都不计数")
+
+    # ⑥ 完整往返计 1 次；之后站着不动也不重复计
+    a = load_action("configs/squat.json")
+    seq = frames + [frames[0]] * 150
+    for i, p in enumerate(seq):
+        a.update(p, vis, now=i / 30.0)
+    assert a.counter.count == 1, f"一次往返应计 1 次（实际 {a.counter.count}）"
+    print("  ✓ 完整往返计 1 次，之后静置不再重复计数\n")
+
+
 def test_no_data_does_not_misfire():
     print("=== 测试 31：没有数据 ≠ 动作不到位（不能误报） ===")
     a = load_action("configs/squat.json")
@@ -1025,6 +1092,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_robustness_against_bad_input()
     test_no_data_does_not_misfire()
     test_face_sign_missing_is_safe()
     test_face_direction_adaptive()
