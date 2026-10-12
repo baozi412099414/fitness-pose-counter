@@ -40,6 +40,7 @@ SIGNAL_ARITY = {
     "dxs": 2,
     "dy": 2,
     "tilt": 2,
+    "tilts": 2,            # 带符号版本（用于「膝前移」这类需要区分前后方向的判据）
     "angle_pair_diff": 6,      # 两组三点，比较左右两侧夹角是否同步
     "segment_angle_diff": 4,   # 两条线段方向差
 }
