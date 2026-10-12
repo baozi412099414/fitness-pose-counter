@@ -883,7 +883,11 @@ class FitnessTestUI:
             self._msg("showerror", "启动失败", str(exc))
             return
 
-        self.status_var.set("运行中")
+        # MediaPipe 0.10.35 启动时会尝试上传遥测，网络超时导致**卡约 61 秒**才出画面
+        # （见 CLAUDE.md「mediapipe 版本坑」）。不提前说明的话很容易被当成卡死。
+        self.status_var.set("启动中…首次约需 1 分钟（MediaPipe 初始化），画面出现前请稍候")
+        self._append_log("[提示] MediaPipe 首次初始化约需 1 分钟 —— 它在尝试上传遥测并等网络超时。\n"
+                         "       这段时间画面不会出现，**不是卡死**，请稍候。\n")
         self.start_btn.configure(state="disabled", relief="sunken")
         self.stop_btn.configure(state="normal", relief="raised")
         self.reset_btn.configure(state="normal", relief="raised")
