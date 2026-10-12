@@ -561,7 +561,10 @@ def test_bilateral_asymmetry_signals():
 
 
 def test_squat_quality_extra_signals():
-    print("=== 测试 22：深蹲明显膝前移与躯干-小腿失配信号 ===")
+    print("=== 测试 22：dxs（带符号水平差）与 segment_angle_diff 信号的计算 ===")
+    # 注意：这里测的是**信号本身**能不能算对、方向对不对，
+    # 不是「squat.json 用的是哪个信号」——深蹲的膝前移判据后来改成了小腿前倾角（tilt），
+    # 但 dxs 作为一个可配置信号仍然保留，供自定义动作用。
     a = load_action("configs/squat.json")
     p = [(0, 0)] * 33
     p[11], p[12] = (100, 40), (300, 40)       # 肩宽 200
@@ -583,9 +586,12 @@ def test_squat_quality_extra_signals():
 
 
 def test_knee_over_toe_judgment():
-    print("=== 测试 25：深蹲「膝超过脚尖」判定（带符号水平差走完整状态机） ===")
+    print("=== 测试 25：深蹲「膝前移」判定（走完整状态机，验证配置里的真实判据） ===")
     vis = [1.0] * 33
-    # 肩宽 200（肩点 100 / 300）。脚尖放在脚踝前方 80px = 0.4 倍肩宽（真实人体比例）
+    # 这个用例**读取 configs/squat.json**，所以它验证的是「配置里实际生效的判据」——
+    # 判据从 dxs 换成小腿前倾角（tilt）之后，用例无需修改就继续有效，
+    # 因为它关心的是「膝在踝前方多少」这个物理事实，而不是用哪个信号算出来。
+    # 肩宽 200（肩点 100 / 300）；脚尖放在脚踝前方 80px = 0.4 倍肩宽（真实人体比例）
     TOE = 180
 
     def squat_pose(knee_x):
@@ -617,7 +623,7 @@ def test_knee_over_toe_judgment():
     print(f"  ② 膝明显越过脚尖（膝 230 > 脚尖 {TOE}）-> 计数 {c}，报错 {[h['name'] for h in hits]}")
     assert c == 1, "应计 1 次"
     assert any(h["name"] == "knee_over_toe" for h in hits), "膝越过脚尖应报"
-    print("  ✅ 带符号水平差能正确区分「膝在前」与「膝在后」\n")
+    print("  ✅ 配置里的「膝前移」判据能正确区分「膝在前」与「膝在后」\n")
 
 
 def test_chinese_overlay():
