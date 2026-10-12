@@ -229,25 +229,41 @@ class QualityChecker:
                 # 用「本轮动作里信号达到过的最大值」判定。
                 # 例：「站起时腿没伸直」不能用计数瞬间的角度（那时刚好刚过计数线），
                 # 要看这一轮最高站到多少度。
-                value = r_peak if r_peak is not None else 0.0
+                #
+                # ⚠ r_peak 为 None 表示**本轮根本没采到极值**（关键点一直不可信）。
+                #   这时必须判成「无数据」（visible=False），绝不能拿 0 去比 ——
+                #   否则「看不清」会被误报成「动作不到位」，而且每一轮都报。
+                value = r_peak
                 limit = rule.get("min", 0)
-                ok = value >= limit
+                if value is None:
+                    visible, ok = False, True
+                else:
+                    ok = value >= limit
             elif kind == "peak_max":
-                # 同理，用峰值判「有没有到位（角度够小）」
-                value = r_peak if r_peak is not None else 0.0
+                # 同理，用峰值判「有没有到位（角度够小）」；同样要区分「没数据」
+                value = r_peak
                 limit = rule.get("max", 180)
-                ok = value <= limit
+                if value is None:
+                    visible, ok = False, True
+                else:
+                    ok = value <= limit
             elif kind == "valley_max":
                 # 用「动作阶段里信号达到过的最小值」判定。
                 # 例：「有没有蹲下去」—— 看这一轮蹲到最低时是多少度。
                 # 谷值只在下蹲阶段采集，所以计数那一刻就已经完整了，判定准确、不滞后。
-                value = r_valley if r_valley is not None else 999.0
+                value = r_valley
                 limit = rule.get("max", 180)
-                ok = value <= limit
+                if value is None:
+                    visible, ok = False, True
+                else:
+                    ok = value <= limit
             elif kind == "valley_min":
-                value = r_valley if r_valley is not None else 999.0
+                value = r_valley
                 limit = rule.get("min", 0)
-                ok = value >= limit
+                if value is None:
+                    visible, ok = False, True
+                else:
+                    ok = value >= limit
             checks.append({
                 "name": rule.get("name", "动作不标准"),
                 "tip": rule.get("tip", rule.get("name", "动作不标准")),
@@ -486,7 +502,11 @@ class Action:
             # face_relative：先按人的朝向把符号翻正，再和阈值比。
             # 不加这个开关的话，用户面朝画面左侧时符号整个反过来，
             # 「膝超脚尖」会每一帧都误报 —— 而阈值本身其实是对的。
-            if face_relative and self.face_sign:
+            if face_relative:
+                if not self.face_sign:
+                    # 朝向判不出来（脚被遮挡）时**不能退回用原始符号** ——
+                    # 那等于赌用户恰好面朝右边。判不了就不判，让这一帧无效。
+                    return None
                 v *= self.face_sign
         elif sig_type == "dy":
             v = pts[0][1] - pts[1][1]
@@ -628,20 +648,21 @@ class Action:
         return count, stage, sig, hits, checks
 
     def reset(self):
+        """
+        清零：计数 + 本轮动作周期的全部状态。
+
+        必须把峰值/谷值/规则极值一起清掉 —— 否则按 r 清零后，清零前留下的极值
+        会参与下一次动作的质量判定，出现「计数清了但判定没清」的串轮问题。
+        """
         self.counter.reset()
-        self.sig_peak = None
-        self.depth_valley = None
-        self.rule_ext = {}
-        self.last_values = []
-        self.last_score = None
-        # 清零必须同时结束当前动作周期；否则按 r 后，清零前留下的峰值/谷值
-        # 会参与下一次动作的质量判定，出现「计数清了但判定没清」的串轮问题。
         self.sig_peak = None
         self.depth_valley = None
         self.rule_ext = {}
         self.violation_streaks = {}
         self.last_values = []
+        self.last_score = None
         self.unit_smooth = None
+        # face_sign 故意不清：朝向是人的属性，清零计数不该把它忘掉
 
 
 def load_action(path):

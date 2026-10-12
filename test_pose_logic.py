@@ -116,7 +116,8 @@ def test_load_and_update():
     count, stage, s, hits, checks = action.update(pts, vis)
     print(f"  update -> 计数 {count} 阶段 {stage}")
     for c in checks:
-        print(f"    [{c['name']}] 实测 {c['value']:.1f}° / 阈值 {c['limit']}°  "
+        val = "无数据" if c["value"] is None else f"{c['value']:.1f}°"
+    print(f"    [{c['name']}] 实测 {val} / 阈值 {c['limit']}°  "
               f"可见={c['visible']} 本阶段判={c['checked']} 达标={c['ok']}")
     print("  ✅ 读配置 + 算角度 + 状态机 + 质量明细 全链路跑通\n")
 
@@ -683,6 +684,67 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_no_data_does_not_misfire():
+    print("=== 测试 31：没有数据 ≠ 动作不到位（不能误报） ===")
+    a = load_action("configs/squat.json")
+    pts = [(300, 200)] * 33
+    vis = [1.0] * 33
+
+    # ① 本轮完全没采到极值（真实场景：关键点一直不可信）
+    checks = a.quality.check(pts, vis, stage="ready", just_counted=True,
+                             peak=None, valley=None)
+    bad = [c for c in checks if c["visible"] and c["checked"] and not c["ok"]]
+    print(f"  无数据 -> 误报 {len(bad)} 条（应为 0）")
+    assert not bad, f"没数据时误报了：{[c['name'] for c in bad]}"
+
+    # ② value 必须是 None，而不是 0 / 999 这类占位值
+    placeholders = [c["name"] for c in checks
+                    if c["value"] is not None and c["value"] in (0.0, 999.0, -1.0)]
+    print(f"  用占位值顶替的约束：{placeholders or '无'}")
+    assert not placeholders, f"这些约束在用占位值判定：{placeholders}"
+
+    # ③ 无数据的约束不该进错误提示，也不该参与评分
+    assert not a.quality.hits(checks), "没数据不该产生错误提示"
+    assert a.quality.total_score(checks) is None, "全无数据时算不出分，应返回 None"
+
+    # ④ 有数据时必须照常判定（别把功能一起修没了）
+    good = a.quality.check(pts, vis, stage="ready", just_counted=True,
+                           peak=175.0, valley=95.0)
+    # 只传了计数信号的极值，所以只有「用计数信号」的那两条能判；
+    # 自带 signal 的约束（膝超脚尖、上身前倾…）因为 rule_ext 为空仍然是「无数据」。
+    ok_names = [c["name"] for c in good if c["visible"] and c["ok"]]
+    print(f"  有数据（峰值175/谷值95）-> 判定通过：{ok_names}")
+    assert "not_deep_enough" in ok_names, "给了谷值就应该能判「蹲够不够深」"
+    assert "not_standing_straight" in ok_names, "给了峰值就应该能判「站得直不直」"
+    print("  ✅ 无数据判为「不判定」，有数据正常判定\n")
+
+
+def test_face_sign_missing_is_safe():
+    print("=== 测试 32：朝向判不出来时不做方向相关判定 ===")
+    a = load_action("configs/squat.json")
+    from motion_synth import Synth
+    synth = Synth()
+    frames = synth.build("squat", reps=1, depth=95)
+
+    # 先把脚尖/脚踝的可见性打到 0.0，让 estimate_face_sign 判不出朝向
+    vis = [1.0] * 33
+    for i in (27, 28, 31, 32):
+        vis[i] = 0.0
+    for i, p in enumerate(frames):
+        a.update(p, vis, now=i / 30.0)
+
+    print(f"  脚尖/脚踝不可见 -> face_sign={a.face_sign}（应为 0）")
+    assert a.face_sign == 0, "脚看不见时不该猜朝向"
+    # 方向相关的约束（knee_over_toe）必须判为「无数据」，不能拿原始符号硬判
+    checks = a.quality.check(frames[0], vis, stage="ready", just_counted=True,
+                             peak=175.0, valley=95.0,
+                             rule_ext={})
+    kt = next(c for c in checks if c["name"] == "knee_over_toe")
+    print(f"  knee_over_toe 的 visible={kt['visible']}（应为 False）")
+    assert not kt["visible"], "朝向判不出来时不该做方向相关的判定"
+    print("  ✅ 朝向未知时不硬判，避免误报\n")
+
+
 def test_face_direction_adaptive():
     print("=== 测试 30：朝向自适应（面朝画面左/右都该判对） ===")
     from motion_synth import Synth
@@ -963,6 +1025,8 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_no_data_does_not_misfire()
+    test_face_sign_missing_is_safe()
     test_face_direction_adaptive()
     test_action_scoring()
     test_motion_synth()

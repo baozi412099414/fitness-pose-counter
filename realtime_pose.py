@@ -268,6 +268,16 @@ def blit_cn(frame, text, org, size=26, color=(255, 255, 255), bg=(0, 0, 0)):
     return frame
 
 
+def _fmt_num(v, width=5):
+    """
+    格式化一个可能为 None 的数值。
+
+    **None 和 0 是两回事**：「这一轮没采到极值」（关键点看不清）要显示成 `--`，
+    用 0 顶替会让人以为「实测值就是 0」，反而更难排查。
+    """
+    return " " * (width - 2) + "--" if v is None else f"{v:{width}.2f}"
+
+
 def bring_window_to_front():
     """
     从终端启动的 GUI 窗口默认抢不到键盘焦点，按键（q / r）会没反应。
@@ -590,7 +600,7 @@ def main():
                 if kept is not None:
                     # 刚命中、正在保持显示的错误（数值取命中那一刻的）
                     txt = (f"{c['name'].upper():18s} "
-                           f"{kept.get('value') or 0:5.2f}/{(kept.get('limit') or 0):.2f}  !!")
+                           f"{_fmt_num(kept.get('value'))}/{_fmt_num(kept.get('limit'))}  !!")
                     color = (60, 60, 255)
                 elif not c["visible"]:
                     hidden = True
@@ -601,11 +611,11 @@ def main():
                     color = (150, 150, 150)
                 elif c["ok"]:
                     txt = (f"{c['name'].upper():18s} "
-                           f"{(c['value'] or 0):5.2f}/{(c['limit'] or 0):.2f}  OK")
+                           f"{_fmt_num(c['value'])}/{_fmt_num(c['limit'])}  OK")
                     color = (120, 230, 120)
                 else:
                     txt = (f"{c['name'].upper():18s} "
-                           f"{(c['value'] or 0):5.2f}/{(c['limit'] or 0):.2f}  !!")
+                           f"{_fmt_num(c['value'])}/{_fmt_num(c['limit'])}  !!")
                     color = (60, 60, 255)
                 cv2.putText(frame, txt, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
                 y += 26
@@ -671,7 +681,7 @@ def main():
             # 终端也打印每次计数的判定明细 —— HUD 看不清时可以直接把输出复制回来
             if count > last_logged_count:
                 last_logged_count = count
-                parts = [f"{c['name']}={(c['value'] or 0):.2f}/{c['limit']:.2f}"
+                parts = [f"{c['name']}={_fmt_num(c['value'])}/{_fmt_num(c['limit'])}"
                          f"{'OK' if c['ok'] else '!!'}"
                          for c in checks if c.get("limit") is not None]
                 print(f"  第 {count} 次： " + "   ".join(parts), flush=True)
