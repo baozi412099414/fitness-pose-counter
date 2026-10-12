@@ -44,6 +44,137 @@ PHONE_CAMERA_INDEX = 1
 COMPUTER_CAMERA_INDEX = 0
 
 
+# ══════════════════════════════════════════════════════════════════
+# 视觉主题：配色 / 字体 / 卡片 / 悬停按钮
+# ══════════════════════════════════════════════════════════════════
+# 目标：让这个调试台看起来像「一个正经的小程序」，而不是脚本堆出来的对话框。
+#
+# tkinter 没有圆角和阴影，所以靠**配色层次 + 留白 + 字体层级**来营造现代感：
+#   · 页面底色浅灰，功能区用纯白「卡片」浮在上面
+#   · 卡片之间留足间距 —— 比画边框更能区分区块，也更干净
+#   · 标题 / 说明 / 数值三种字号，一眼看出主次
+BG         = "#eef1f5"      # 页面底色
+CARD       = "#ffffff"      # 卡片底色
+SOFT       = "#f7f9fb"      # 输入框等「凹下去」的区域
+BORDER     = "#dfe4ea"      # 分隔线
+TEXT       = "#1f2933"      # 主文字
+MUTED      = "#7b8794"      # 次要说明文字
+PRIMARY    = "#2f80ed"      # 主色（开始 / 强调）
+PRIMARY_HI = "#5a9bf5"
+SUCCESS    = "#27ae60"
+SUCCESS_HI = "#3fc97a"
+DANGER     = "#eb5757"
+DANGER_HI  = "#f57b7b"
+WARN       = "#f2c94c"
+WARN_HI    = "#ffdd77"
+GREY       = "#a8b2bd"      # 禁用态
+
+F_TITLE = ("Helvetica", 22, "bold")
+F_H2    = ("Helvetica", 14, "bold")
+F_BODY  = ("Helvetica", 12)
+F_SMALL = ("Helvetica", 11)
+F_TINY  = ("Helvetica", 10)
+F_NUM   = ("Helvetica", 26, "bold")
+F_BTN   = ("Helvetica", 13, "bold")
+
+
+def setup_style(root):
+    """统一 ttk 控件外观。ttk 默认主题（macOS 的 aqua）不允许改背景色，
+    所以切到 clam —— 它是「可换肤」的经典主题，能配合我们的配色。"""
+    st = ttk.Style(root)
+    try:
+        st.theme_use("clam")
+    except tk.TclError:
+        pass
+    st.configure(".", background=CARD, foreground=TEXT, font=F_BODY)
+    st.configure("TFrame", background=CARD)
+    st.configure("Page.TFrame", background=BG)
+    st.configure("TLabel", background=CARD, foreground=TEXT, font=F_BODY)
+    st.configure("Muted.TLabel", background=CARD, foreground=MUTED, font=F_SMALL)
+    st.configure("H2.TLabel", background=CARD, foreground=TEXT, font=F_H2)
+    st.configure("Tiny.TLabel", background=CARD, foreground=MUTED, font=F_TINY)
+    st.configure("TCheckbutton", background=CARD, foreground=TEXT, font=F_BODY)
+    st.configure("TRadiobutton", background=CARD, foreground=TEXT, font=F_BODY)
+    for name in ("TEntry", "TSpinbox", "TCombobox"):
+        st.configure(name, fieldbackground=SOFT, background=SOFT,
+                     bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER,
+                     foreground=TEXT, arrowcolor=MUTED, padding=5)
+    st.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 6, 0, 0))
+    st.configure("TNotebook.Tab", padding=(20, 9), font=F_BODY,
+                 background="#dce3ea", foreground=MUTED, borderwidth=0)
+    st.map("TNotebook.Tab",
+           background=[("selected", CARD)], foreground=[("selected", PRIMARY)])
+    st.configure("Trend.Horizontal.TProgressbar", troughcolor="#e7ecf2",
+                 background=PRIMARY, borderwidth=0, thickness=12)
+    return st
+
+
+def card(parent, title=None, subtitle=None, pady=(0, 12)):
+    """
+    造一块「卡片」：白底 + 内边距，可选标题与说明。
+
+    返回的是**内容区**（一个干净的 Frame），调用方在里面随便用 grid 或 pack。
+
+    ⚠ 标题放在**独立子容器**里，不和内容区共用父容器 —— 因为 tkinter 规定
+    「同一个容器不能混用 pack 和 grid」。早期版本把标题 pack 在返回的容器上，
+    调用方一 grid 就报 `cannot use geometry manager grid ... already has slaves
+    managed by pack`。
+
+    **刻意不画边框** —— 现代界面靠留白和底色区分区块，加边框反而显得笨重
+    （tkinter 也画不出圆角，硬加方框会更土）。
+    """
+    outer = tk.Frame(parent, bg=BG)
+    outer.pack(fill="x", pady=pady)
+    box = tk.Frame(outer, bg=CARD)
+    box.pack(fill="x")
+    pad = tk.Frame(box, bg=CARD, padx=18, pady=15)
+    pad.pack(fill="x")
+    if title or subtitle:
+        head = tk.Frame(pad, bg=CARD)
+        head.pack(fill="x", pady=(0, 12))
+        if title:
+            tk.Label(head, text=title, bg=CARD, fg=TEXT, font=F_H2).pack(anchor="w")
+        if subtitle:
+            tk.Label(head, text=subtitle, bg=CARD, fg=MUTED, font=F_SMALL).pack(
+                anchor="w", pady=(3, 0))
+    body = tk.Frame(pad, bg=CARD)
+    body.pack(fill="x")
+    return body
+
+
+def hover_btn(parent, text, command, bg=PRIMARY, hi=None, fg="white", **kw):
+    """
+    扁平 + 悬停变色的按钮。
+
+    tkinter 默认按钮带立体边框（像 90 年代的对话框），这里全部压平，
+    再用 <Enter>/<Leave> 做悬停反馈 —— 这是「像小程序」最明显的一步。
+    """
+    hi = hi or bg
+    btn = tk.Button(parent, text=text, command=command, bg=bg, fg=fg,
+                    activebackground=hi, activeforeground=fg,
+                    disabledforeground="#f0f0f0",
+                    relief="flat", bd=0, highlightthickness=0,
+                    font=F_BTN, cursor="pointinghand", padx=18, pady=9, **kw)
+
+    def _enter(_e=None):
+        if str(btn["state"]) != "disabled":
+            btn.configure(bg=hi)
+
+    def _leave(_e=None):
+        if str(btn["state"]) != "disabled":
+            btn.configure(bg=bg)
+
+    btn.bind("<Enter>", _enter)
+    btn.bind("<Leave>", _leave)
+    return btn
+
+
+def set_btn_enabled(btn, enabled, base):
+    """统一处理按钮启用/禁用（顺带把颜色切到灰，一眼看出能不能点）。"""
+    btn.configure(state="normal" if enabled else "disabled",
+                  bg=base if enabled else GREY, cursor="pointinghand" if enabled else "arrow")
+
+
 def discover_actions(config_dir=None):
     """
     扫描 configs/*.json，返回 [(显示名, 动作id), ...]。
@@ -112,6 +243,10 @@ class FitnessTestUI:
         self.root.title("健身动作识别测试台")
         # 窗口尺寸按屏幕自适应：高度取屏幕的 86%（上限 1060），
         # 而不是写死 —— 写死的话高屏浪费、矮屏放不下最下面的趋势图。
+        # 应用视觉主题（必须早于任何控件创建，否则先建的控件拿不到新样式）
+        self.root.configure(bg=BG)
+        setup_style(self.root)
+
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         win_w, win_h = 900, min(1060, max(620, int(sh * 0.86)))
         self.root.geometry(f"{win_w}x{win_h}+{max(0, (sw - win_w) // 2)}+{max(0, (sh - win_h) // 3)}")
@@ -183,153 +318,163 @@ class FitnessTestUI:
     def _build(self):
         # ---- 可滚动容器 ----
         # 界面内容比较长（测试设置 + 训练管理 + 按钮 + 结果 + 三个标签页），
-        # 矮一点的屏幕上最下面的趋势图会被挤出可视区。这里给整个内容区加垂直滚动条，
-        # 内容再长也能滚到。
-        shell = ttk.Frame(self.root)
+        # 矮一点的屏幕上最下面的趋势图会被挤出可视区。这里给整个内容区加垂直滚动条。
+        shell = tk.Frame(self.root, bg=BG)
         shell.pack(fill="both", expand=True)
-        self.canvas = tk.Canvas(shell, highlightthickness=0)
+        self.canvas = tk.Canvas(shell, highlightthickness=0, bg=BG)
         vbar = ttk.Scrollbar(shell, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=vbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         vbar.pack(side="right", fill="y")
 
-        outer = ttk.Frame(self.canvas, padding=18)
+        outer = tk.Frame(self.canvas, bg=BG, padx=22, pady=18)
         self._canvas_win = self.canvas.create_window((0, 0), window=outer, anchor="nw")
 
         # 内容变高 → 更新可滚动范围；画布变宽 → 让内容跟着变宽（否则底部会出现横向滚动条）
         outer.bind("<Configure>", self._on_outer_configure)
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
             self._canvas_win, width=e.width))
-        # 固定每次滚动的像素量：省掉 tk 每次重新计算滚动单位
         self.canvas.configure(yscrollincrement=18)
-        # 鼠标滚轮。macOS 上滚轮/触控板都走 <MouseWheel>，delta 是小数；
-        # Linux 是 Button-4/5。两者都走带节流的处理方法。
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
         self.canvas.bind_all("<Button-4>", self._on_wheel_linux)
         self.canvas.bind_all("<Button-5>", self._on_wheel_linux)
 
-        ttk.Label(outer, text="健身动作识别测试台",
-                  font=("Helvetica", 22, "bold")).pack(anchor="w")
-        ttk.Label(outer, text="选择动作后直接开始即可；默认使用摄像头，参考视频仅用于调试。",
-                  foreground="#555").pack(anchor="w", pady=(4, 16))
+        # ══════════ 顶部标题 ══════════
+        head = tk.Frame(outer, bg=BG)
+        head.pack(fill="x", pady=(0, 16))
+        tk.Label(head, text="健身动作识别测试台", bg=BG, fg=TEXT,
+                 font=F_TITLE).pack(anchor="w")
+        tk.Label(head, text="选好动作直接开始即可 —— 默认使用摄像头，内置参考视频仅用于调试。",
+                 bg=BG, fg=MUTED, font=F_SMALL).pack(anchor="w", pady=(3, 0))
 
-        form = ttk.LabelFrame(outer, text="测试设置", padding=12)
-        form.pack(fill="x")
+        # ══════════ 卡片 1：测试设置 ══════════
+        form = card(outer, "测试设置", "动作的判定逻辑全部来自 configs/ 下的配置文件")
         form.columnconfigure(1, weight=1)
-        form.columnconfigure(2, weight=1)
-        form.columnconfigure(3, weight=1)
 
-        ttk.Label(form, text="动作").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=6)
-        action_frame = ttk.Frame(form)
-        action_frame.grid(row=0, column=1, columnspan=3, sticky="ew", pady=6)
+        tk.Label(form, text="动作", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=0, column=0, sticky="w", padx=(0, 14), pady=(10, 0))
+        action_frame = tk.Frame(form, bg=CARD)
+        action_frame.grid(row=0, column=1, sticky="ew", pady=(10, 0))
         for col, (name, _aid) in enumerate(self.actions):
-            action_frame.columnconfigure(col, weight=1)
+            action_frame.columnconfigure(col, weight=1, uniform="act")
+            # indicatoron=False：把单选按钮画成「药丸按钮」，比小圆点更像 App。
+            # 选中态用浅蓝底 —— tkinter 没法在选中时同时改字色，浅底黑字最稳妥。
             tk.Radiobutton(
                 action_frame, text=name, variable=self.action_var, value=name,
-                command=self._sync_source, indicatoron=False, padx=18, pady=8,
-                selectcolor="#bfe3ff",
-            ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 6, 0))
+                command=self._sync_source, indicatoron=False,
+                bg=SOFT, fg=TEXT, selectcolor="#d6e8ff",
+                activebackground="#d6e8ff", activeforeground=TEXT,
+                font=F_BTN, relief="flat", bd=0, highlightthickness=0,
+                padx=16, pady=10, cursor="pointinghand",
+            ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 8, 0))
 
-        ttk.Label(form, text="输入").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=6)
-        source_frame = ttk.Frame(form)
-        source_frame.grid(row=1, column=1, columnspan=3, sticky="w", pady=6)
+        tk.Label(form, text="输入", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=1, column=0, sticky="w", padx=(0, 14), pady=(12, 0))
+        source_frame = tk.Frame(form, bg=CARD)
+        source_frame.grid(row=1, column=1, sticky="w", pady=(12, 0))
         for col, name in enumerate(SOURCE_TYPES):
             tk.Radiobutton(
                 source_frame, text=name, variable=self.source_type_var, value=name,
-                command=self._sync_source,
-            ).grid(row=0, column=col, sticky="w", padx=(0, 14))
+                command=self._sync_source, bg=CARD, fg=TEXT, selectcolor=SOFT,
+                activebackground=CARD, activeforeground=TEXT,
+                font=F_BODY, relief="flat", bd=0, highlightthickness=0,
+                cursor="pointinghand",
+            ).grid(row=0, column=col, sticky="w", padx=(0, 18))
 
-        ttk.Label(form, text="视频/设备").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=6)
+        tk.Label(form, text="视频/设备", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=2, column=0, sticky="w", padx=(0, 14), pady=(10, 0))
         self.file_entry = ttk.Entry(form, textvariable=self.file_var)
-        self.file_entry.grid(row=2, column=1, columnspan=2, sticky="ew", pady=6)
+        self.file_entry.grid(row=2, column=1, sticky="ew", pady=(10, 0))
         self.browse_btn = ttk.Button(form, text="选择视频…", command=self._browse)
-        self.browse_btn.grid(row=2, column=3, padx=(8, 0), pady=6)
-        self.camera_frame = ttk.Frame(form)
-        self.camera_frame.grid(row=2, column=1, columnspan=3, sticky="w", pady=6)
-        tk.Radiobutton(self.camera_frame,
-                       text=f"手机摄像头（设备 {PHONE_CAMERA_INDEX}，默认）",
-                       variable=self.camera_var,
-                       value=str(PHONE_CAMERA_INDEX)).pack(side="left")
-        tk.Radiobutton(self.camera_frame,
-                       text=f"电脑摄像头（设备 {COMPUTER_CAMERA_INDEX}）",
-                       variable=self.camera_var,
-                       value=str(COMPUTER_CAMERA_INDEX)).pack(side="left", padx=(12, 0))
-        tk.Radiobutton(self.camera_frame, text="其他编号",
-                       variable=self.camera_var, value="custom").pack(side="left", padx=(12, 4))
+        self.browse_btn.grid(row=2, column=2, padx=(8, 0), pady=(10, 0))
+        self.camera_frame = tk.Frame(form, bg=CARD)
+        self.camera_frame.grid(row=2, column=1, columnspan=2, sticky="w", pady=(10, 0))
+        for text, val, pad in ((f"手机摄像头（设备 {PHONE_CAMERA_INDEX}，默认）", str(PHONE_CAMERA_INDEX), (0, 0)),
+                               (f"电脑摄像头（设备 {COMPUTER_CAMERA_INDEX}）", str(COMPUTER_CAMERA_INDEX), (18, 0)),
+                               ("其他编号", "custom", (18, 6))):
+            tk.Radiobutton(self.camera_frame, text=text, variable=self.camera_var,
+                           value=val, bg=CARD, fg=TEXT, selectcolor=SOFT,
+                           activebackground=CARD, activeforeground=TEXT, font=F_BODY,
+                           relief="flat", bd=0, highlightthickness=0,
+                           cursor="pointinghand").pack(side="left", padx=pad)
         self.camera_box = ttk.Spinbox(self.camera_frame, from_=0, to=9, width=4,
                                       textvariable=self.custom_camera_var)
         self.camera_box.pack(side="left")
 
         ttk.Checkbutton(form, text="开启中文语音提醒和报数",
-                        variable=self.voice_var).grid(row=3, column=1, columnspan=3,
-                                                      sticky="w", pady=6)
+                        variable=self.voice_var).grid(row=3, column=1, sticky="w",
+                                                      pady=(12, 0))
 
-        # ---- 训练管理（任务书模块 7 训练组 / 8 历史与目标 / 10 多用户）----
-        train = ttk.LabelFrame(outer, text="训练管理（多用户 · 分组间歇 · 目标）", padding=12)
-        train.pack(fill="x", pady=(12, 0))
+        # ══════════ 卡片 2：训练管理（模块 7 / 8 / 10）══════════
+        train = card(outer, "训练管理", "多用户档案 · 分组间歇 · 每日目标 · 训练历史")
+        train.columnconfigure(1, weight=1)
 
-        ttk.Label(train, text="用户").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=5)
+        tk.Label(train, text="用户", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=0, column=0, sticky="w", padx=(0, 14), pady=(10, 0))
         self.user_box = ttk.Combobox(train, textvariable=self.user_var,
                                      values=self.store.list_users(), width=14)
-        self.user_box.grid(row=0, column=1, sticky="w", pady=5)
-        ttk.Button(train, text="切换", width=6, command=self._switch_user).grid(
-            row=0, column=2, sticky="w", padx=6, pady=5)
-        ttk.Button(train, text="新建用户…", width=11, command=self._new_user).grid(
-            row=0, column=3, sticky="w", pady=5)
-        ttk.Button(train, text="删除用户…", width=11, command=self._delete_user).grid(
-            row=0, column=4, sticky="w", padx=(6, 0), pady=5)
-        ttk.Label(train, textvariable=self.goal_status_var,
-                  foreground="#2f80ed").grid(row=0, column=5, sticky="w", padx=12, pady=5)
+        self.user_box.grid(row=0, column=1, sticky="w", pady=(10, 0))
+        tk.Button(train, text="切换", command=self._switch_user, bg=SOFT, fg=TEXT,
+                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+            row=0, column=2, sticky="w", padx=6, pady=(10, 0))
+        tk.Button(train, text="新建用户…", command=self._new_user, bg=SOFT, fg=TEXT,
+                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+            row=0, column=3, sticky="w", pady=(10, 0))
+        tk.Button(train, text="删除用户…", command=self._delete_user, bg=SOFT, fg=DANGER,
+                  activebackground="#ffe3e3", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+            row=0, column=4, sticky="w", padx=(6, 0), pady=(10, 0))
+        tk.Label(train, textvariable=self.goal_status_var, bg=CARD, fg=PRIMARY,
+                 font=F_SMALL).grid(row=0, column=5, sticky="w", padx=14, pady=(10, 0))
 
-        ttk.Label(train, text="分组").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=5)
-        gframe = ttk.Frame(train)
-        gframe.grid(row=1, column=1, columnspan=4, sticky="w", pady=5)
+        tk.Label(train, text="分组", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=1, column=0, sticky="w", padx=(0, 14), pady=(12, 0))
+        gframe = tk.Frame(train, bg=CARD)
+        gframe.grid(row=1, column=1, columnspan=5, sticky="w", pady=(12, 0))
         ttk.Checkbutton(gframe, text="启用分组间歇", variable=self.group_on_var).pack(side="left")
         ttk.Spinbox(gframe, from_=1, to=20, width=4,
-                    textvariable=self.sets_var).pack(side="left", padx=(10, 2))
-        ttk.Label(gframe, text="组 ×").pack(side="left")
+                    textvariable=self.sets_var).pack(side="left", padx=(12, 3))
+        tk.Label(gframe, text="组 ×", bg=CARD, fg=TEXT).pack(side="left")
         ttk.Spinbox(gframe, from_=1, to=100, width=4,
-                    textvariable=self.reps_per_set_var).pack(side="left", padx=(6, 2))
-        ttk.Label(gframe, text="次，组间休息").pack(side="left")
+                    textvariable=self.reps_per_set_var).pack(side="left", padx=(6, 3))
+        tk.Label(gframe, text="次，组间休息", bg=CARD, fg=TEXT).pack(side="left")
         ttk.Spinbox(gframe, from_=0, to=600, width=5,
-                    textvariable=self.rest_var).pack(side="left", padx=(6, 2))
-        ttk.Label(gframe, text="秒").pack(side="left")
+                    textvariable=self.rest_var).pack(side="left", padx=(6, 3))
+        tk.Label(gframe, text="秒", bg=CARD, fg=TEXT).pack(side="left")
 
-        ttk.Label(train, text="每日目标").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=5)
-        tframe = ttk.Frame(train)
-        tframe.grid(row=2, column=1, columnspan=4, sticky="w", pady=5)
+        tk.Label(train, text="每日目标", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=2, column=0, sticky="w", padx=(0, 14), pady=(12, 0))
+        tframe = tk.Frame(train, bg=CARD)
+        tframe.grid(row=2, column=1, columnspan=5, sticky="w", pady=(12, 0))
         ttk.Spinbox(tframe, from_=0, to=999, width=5,
                     textvariable=self.goal_var).pack(side="left")
-        ttk.Label(tframe, text="次").pack(side="left", padx=(4, 10))
-        ttk.Button(tframe, text="保存目标", width=10,
-                   command=self._save_goal).pack(side="left")
-        ttk.Button(tframe, text="查看趋势图", width=12,
-                   command=self._show_trend).pack(side="left", padx=10)
+        tk.Label(tframe, text="次", bg=CARD, fg=TEXT).pack(side="left", padx=(5, 12))
+        tk.Button(tframe, text="保存目标", command=self._save_goal, bg=SOFT, fg=TEXT,
+                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").pack(side="left")
+        tk.Button(tframe, text="查看趋势图", command=self._show_trend, bg=SOFT, fg=PRIMARY,
+                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").pack(
+            side="left", padx=10)
 
-        buttons = tk.Frame(outer)
-        buttons.pack(fill="x", pady=14)
-        button_style = {
-            "font": ("Helvetica", 14, "bold"), "width": 9, "height": 2,
-            "relief": "raised", "bd": 2, "highlightthickness": 1,
-            "takefocus": True,
-        }
-        self.start_btn = tk.Button(buttons, text="开始测试", command=self.start,
-                                   bg="#2f80ed", fg="white", activebackground="#56a0ff",
-                                   **button_style)
-        self.start_btn.pack(side="left", padx=(0, 8))
-        self.stop_btn = tk.Button(buttons, text="停止", command=self.stop,
-                                  bg="#eb5757", fg="white", activebackground="#ff7777",
-                                  state="disabled", **button_style)
+        # ══════════ 主操作按钮 ══════════
+        buttons = tk.Frame(outer, bg=BG)
+        buttons.pack(fill="x", pady=(2, 14))
+        self.start_btn = hover_btn(buttons, "▶  开始测试", self.start, PRIMARY, PRIMARY_HI)
+        self.start_btn.pack(side="left")
+        self.stop_btn = hover_btn(buttons, "■  停止", self.stop, DANGER, DANGER_HI)
         self.stop_btn.pack(side="left", padx=8)
-        self.reset_btn = tk.Button(buttons, text="清零", command=self.reset,
-                                   bg="#f2c94c", fg="#222", activebackground="#ffe27a",
-                                   state="disabled", **button_style)
+        self.reset_btn = hover_btn(buttons, "↺  清零", self.reset, WARN, WARN_HI, fg="#3a2f00")
         self.reset_btn.pack(side="left", padx=8)
-        self.restart_btn = tk.Button(buttons, text="重新启动", command=self.restart,
-                                     bg="#27ae60", fg="white", activebackground="#49d17b",
-                                     state="disabled", **button_style)
+        self.restart_btn = hover_btn(buttons, "⟳  重新启动", self.restart, SUCCESS, SUCCESS_HI)
         self.restart_btn.pack(side="left", padx=8)
-        ttk.Label(buttons, textvariable=self.status_var).pack(side="right")
+        for b, base in ((self.stop_btn, DANGER), (self.reset_btn, WARN),
+                        (self.restart_btn, SUCCESS)):
+            set_btn_enabled(b, False, base)
+        tk.Label(buttons, textvariable=self.status_var, bg=BG, fg=MUTED,
+                 font=F_SMALL).pack(side="right")
 
         # 鼠标点不到时仍有确定的操作入口：F5 开始、F6 停止、F7 清零、F8 重启。
         self.root.bind("<F5>", lambda _e: self.start())
@@ -338,33 +483,28 @@ class FitnessTestUI:
         self.root.bind("<F8>", lambda _e: self.restart())
         self.root.bind("<Escape>", lambda _e: self.stop())
 
-        result = ttk.LabelFrame(outer, text="最近一次测试结果", padding=12)
-        result.pack(fill="x", pady=(0, 12))
+        # ══════════ 卡片 3：最近一次结果 ══════════
+        res = card(outer, "最近一次测试结果")
         for col in range(4):
-            result.columnconfigure(col, weight=1)
-        ttk.Label(result, text="次数", foreground="#666").grid(row=0, column=0)
-        ttk.Label(result, text="动作评分", foreground="#666").grid(row=0, column=1)
-        ttk.Label(result, text="关键点检出率", foreground="#666").grid(row=0, column=2)
-        ttk.Label(result, text="错误事件", foreground="#666").grid(row=0, column=3)
-        ttk.Label(result, textvariable=self.reps_var,
-                  font=("Helvetica", 20, "bold")).grid(row=1, column=0, pady=5)
-        ttk.Label(result, textvariable=self.score_var,
-                  font=("Helvetica", 20, "bold"), foreground="#B5651D").grid(
-            row=1, column=1, pady=5)
-        ttk.Label(result, textvariable=self.rate_var,
-                  font=("Helvetica", 16, "bold")).grid(row=1, column=2, pady=5)
-        ttk.Label(result, textvariable=self.errors_var, wraplength=220,
-                  justify="center").grid(row=1, column=3, pady=5)
+            res.columnconfigure(col, weight=1, uniform="res")
+        for col, (label, var, color, font) in enumerate((
+                ("次数", self.reps_var, TEXT, F_NUM),
+                ("动作评分", self.score_var, "#b5651d", F_NUM),
+                ("关键点检出率", self.rate_var, PRIMARY, ("Helvetica", 20, "bold")),
+                ("错误事件", self.errors_var, DANGER, F_SMALL))):
+            tk.Label(res, text=label, bg=CARD, fg=MUTED, font=F_SMALL).grid(
+                row=0, column=col)
+            tk.Label(res, textvariable=var, bg=CARD, fg=color, font=font,
+                     wraplength=230, justify="center").grid(row=1, column=col, pady=(8, 2))
 
-        # ---- 下方用标签页承载：趋势图 / 历史统计 / 运行日志 ----
+        # ══════════ 下方标签页：趋势图 / 历史统计 / 运行日志 ══════════
         notebook = ttk.Notebook(outer)
         notebook.pack(fill="x")
 
-        # 标签页 1：内嵌趋势图（切换用户/动作、跑完一次测试都会自动重画）
-        trend_tab = ttk.Frame(notebook, padding=4)
+        trend_tab = tk.Frame(notebook, bg=CARD, padx=10, pady=8)
         notebook.add(trend_tab, text="  训练趋势图  ")
-        self.trend_note = ttk.Label(trend_tab, text="", foreground="#888")
-        self.trend_note.pack(anchor="w", padx=6, pady=(4, 0))
+        self.trend_note = tk.Label(trend_tab, text="", bg=CARD, fg=MUTED, font=F_SMALL)
+        self.trend_note.pack(anchor="w", pady=(0, 4))
         if _MPL_TK_OK:
             self.trend_fig = Figure(figsize=(12.6, 3.3), dpi=92)
             self.trend_canvas = FigureCanvasTkAgg(self.trend_fig, master=trend_tab)
@@ -375,61 +515,67 @@ class FitnessTestUI:
         else:
             self.trend_fig = None
             self.trend_canvas = None
-            ttk.Label(trend_tab, foreground="#c0392b",
-                      text="本机没有可用的 matplotlib Tk 后端，趋势图无法内嵌；\n"
-                           "仍可用「查看趋势图」按钮另存为图片。").pack(pady=24)
+            tk.Label(trend_tab, fg=DANGER, bg=CARD, font=F_BODY,
+                     text="本机没有可用的 matplotlib Tk 后端，趋势图无法内嵌；\n"
+                          "仍可用「查看趋势图」按钮另存为图片。").pack(pady=24)
 
-        # 标签页 2：历史与统计（全部只读本地文件，不需要摄像头）
-        stats = ttk.Frame(notebook, padding=12)
+        # ══════════ 标签页 2：历史与统计（全部只读本地文件，不需要摄像头）══════════
+        stats = tk.Frame(notebook, bg=CARD, padx=14, pady=12)
         notebook.add(stats, text="  历史与统计  ")
         stats.columnconfigure(1, weight=1)
 
-        ttk.Label(stats, text="目标进度").grid(row=0, column=0, sticky="w", padx=(0, 10))
-        self.goal_bar = ttk.Progressbar(stats, orient="horizontal", length=220,
-                                        mode="determinate", maximum=100)
+        tk.Label(stats, text="目标进度", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=0, column=0, sticky="w", padx=(0, 12))
+        self.goal_bar = ttk.Progressbar(stats, orient="horizontal", length=240,
+                                        mode="determinate", maximum=100,
+                                        style="Trend.Horizontal.TProgressbar")
         self.goal_bar.grid(row=0, column=1, sticky="w")
-        ttk.Label(stats, textvariable=self.progress_var,
-                  foreground="#2f80ed").grid(row=0, column=2, sticky="w", padx=10)
+        tk.Label(stats, textvariable=self.progress_var, bg=CARD, fg=PRIMARY,
+                 font=F_BODY).grid(row=0, column=2, sticky="w", padx=12)
 
-        ttk.Label(stats, text="最常犯的错").grid(row=1, column=0, sticky="nw", pady=(8, 0))
-        ttk.Label(stats, textvariable=self.top_errors_var, wraplength=440,
-                  foreground="#c0392b", justify="left").grid(
-            row=1, column=1, columnspan=2, sticky="w", pady=(8, 0))
+        tk.Label(stats, text="最常犯的错", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=1, column=0, sticky="nw", pady=(12, 0))
+        tk.Label(stats, textvariable=self.top_errors_var, bg=CARD, fg=DANGER,
+                 font=F_BODY, wraplength=460, justify="left").grid(
+            row=1, column=1, columnspan=2, sticky="w", pady=(12, 0))
 
-        ttk.Label(stats, text="历史报告").grid(row=2, column=0, sticky="nw", pady=(8, 0))
-        list_frame = ttk.Frame(stats)
-        list_frame.grid(row=2, column=1, sticky="ew", pady=(8, 0))
-        self.report_list = tk.Listbox(list_frame, height=5, activestyle="dotbox",
-                                      font=("Menlo", 10))
+        tk.Label(stats, text="历史报告", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=2, column=0, sticky="nw", pady=(12, 0))
+        list_frame = tk.Frame(stats, bg=CARD)
+        list_frame.grid(row=2, column=1, sticky="ew", pady=(12, 0))
+        self.report_list = tk.Listbox(
+            list_frame, height=5, activestyle="none", font=("Menlo", 11),
+            bg=SOFT, fg=TEXT, selectbackground="#d6e8ff", selectforeground=TEXT,
+            relief="flat", bd=0, highlightthickness=0)
         self.report_list.pack(side="left", fill="x", expand=True)
         rscroll = ttk.Scrollbar(list_frame, orient="vertical",
                                 command=self.report_list.yview)
         self.report_list.configure(yscrollcommand=rscroll.set)
         rscroll.pack(side="right", fill="y")
-        rbtns = ttk.Frame(stats)
-        rbtns.grid(row=2, column=2, sticky="nw", padx=10, pady=(8, 0))
-        ttk.Button(rbtns, text="刷新", width=10,
-                   command=self._refresh_stats).pack(pady=2)
-        ttk.Button(rbtns, text="查看详情", width=10,
-                   command=self._show_report_detail).pack(pady=2)
-        ttk.Button(rbtns, text="打开目录", width=10,
-                   command=self._open_reports_dir).pack(pady=2)
-        ttk.Button(rbtns, text="校验配置", width=10,
-                   command=self._validate_configs).pack(pady=2)
+        rbtns = tk.Frame(stats, bg=CARD)
+        rbtns.grid(row=2, column=2, sticky="nw", padx=12, pady=(12, 0))
+        for label, cmd in (("刷新", self._refresh_stats),
+                           ("查看详情", self._show_report_detail),
+                           ("打开目录", self._open_reports_dir),
+                           ("校验配置", self._validate_configs)):
+            tk.Button(rbtns, text=label, command=cmd, bg=SOFT, fg=TEXT,
+                      activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                      highlightthickness=0, padx=14, pady=5, width=9,
+                      cursor="pointinghand").pack(pady=3)
 
-        # 标签页 3：运行日志
-        log_box = ttk.Frame(notebook, padding=8)
+        # ══════════ 标签页 3：运行日志（深色控制台，和浅色界面形成对比）══════════
+        log_box = tk.Frame(notebook, bg=CARD, padx=10, pady=10)
         notebook.add(log_box, text="  运行日志  ")
-        self.log = tk.Text(log_box, height=13, wrap="word", state="disabled",
-                           background="#151515", foreground="#e7e7e7",
-                           insertbackground="white")
+        self.log = tk.Text(log_box, height=14, wrap="word", state="disabled",
+                           background="#1c2128", foreground="#d7dde5",
+                           insertbackground="white", relief="flat", bd=0,
+                           highlightthickness=0, font=("Menlo", 11),
+                           padx=12, pady=10)
         scroll = ttk.Scrollbar(log_box, orient="vertical", command=self.log.yview)
         self.log.configure(yscrollcommand=scroll.set)
-        self.log.configure(height=14)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
 
-    # ---------------- 统一弹窗 ----------------
     def _msg(self, kind, title, message, **kw):
         """
         统一弹窗入口：总是带上 `parent=self.root`。
@@ -892,10 +1038,10 @@ class FitnessTestUI:
                          "② 点识别窗口的关闭按钮；③ 点这里的「停止」。\n"
                          "       ⚠ 按 q 没反应时，先用鼠标点一下识别画面（macOS 上命令行窗口\n"
                          "         默认拿不到键盘焦点，点一下就有了）。\n")
-        self.start_btn.configure(state="disabled", relief="sunken")
-        self.stop_btn.configure(state="normal", relief="raised")
-        self.reset_btn.configure(state="normal", relief="raised")
-        self.restart_btn.configure(state="normal", relief="raised")
+        set_btn_enabled(self.start_btn, False, PRIMARY)
+        set_btn_enabled(self.stop_btn, True, DANGER)
+        set_btn_enabled(self.reset_btn, True, WARN)
+        set_btn_enabled(self.restart_btn, True, SUCCESS)
         # 只闪一下置顶（同样不能持久，否则识别画面会被压住）
         self._flash_topmost()
         # ⚠ 识别期间**不要**抢焦点：识别窗口（realtime_pose）自己会抢前台，
@@ -966,10 +1112,10 @@ class FitnessTestUI:
 
     def _finished(self, return_code):
         self.process = None
-        self.start_btn.configure(state="normal", relief="raised")
-        self.stop_btn.configure(state="disabled", relief="sunken")
-        self.reset_btn.configure(state="disabled", relief="sunken")
-        self.restart_btn.configure(state="disabled", relief="sunken")
+        set_btn_enabled(self.start_btn, True, PRIMARY)
+        set_btn_enabled(self.stop_btn, False, DANGER)
+        set_btn_enabled(self.reset_btn, False, WARN)
+        set_btn_enabled(self.restart_btn, False, SUCCESS)
         if self.report_path and self.report_path.is_file():
             try:
                 data = json.loads(self.report_path.read_text(encoding="utf-8"))
