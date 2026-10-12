@@ -184,6 +184,14 @@ def validate_file(path):
         if first not in ("lo", "hi"):
             rep.error(f"counter.first 只能是 lo 或 hi，现在是「{first}」")
 
+    # 循环次数：几个完整往返才算 1 次（默认 1）。写错的话计数会整体差倍数，
+    # 而且是「静默错」—— 用户只会觉得「怎么数得不对」，很难联想到配置。
+    cyc = counter.get("cycles_per_rep", 1)
+    if not isinstance(cyc, int) or isinstance(cyc, bool) or cyc < 1:
+        rep.error(f"counter.cycles_per_rep 必须是 ≥1 的整数，现在是 {cyc!r}")
+    elif cyc > 10:
+        rep.warn(f"cycles_per_rep={cyc}：用户要做 {cyc} 个完整往返才计 1 次，确认是有意为之")
+
     mi = counter.get("min_interval", 0.35)
     if not isinstance(mi, (int, float)) or mi < 0:
         rep.error(f"min_interval 要是非负数，现在是 {mi!r}")

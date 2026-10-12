@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from pose_logic import RepCounter, QualityChecker, load_action
+from pose_logic import Action, QualityChecker, RepCounter, load_action
 
 
 def test_rep_counter():
@@ -690,6 +690,119 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def _curl_pose(elbow_deg):
+    """构造二头弯举姿态：肩固定、肘在其正下方、腕按肘角摆放。"""
+    import math
+    p = [(300, 300)] * 33
+    L = 100.0
+    d = math.radians(180 - elbow_deg)
+    el, wr = (0.0, 1.0), (math.sin(d), 1.0 + math.cos(d))
+    px = lambda v: (int(600 + v[0] * L), int(200 + v[1] * L))
+    p[11] = p[12] = px((0.0, 0.0))
+    p[13] = px(el)
+    p[15] = px(wr)
+    p[23] = p[24] = (600, 700)
+    p[14] = px(el)
+    p[16] = (2 * 600 - px(wr)[0], px(wr)[1])
+    return p
+
+
+def _curl_reps(n, top, bottom):
+    seq = []
+    for _ in range(n):
+        seq += [_curl_pose(top)] * 4 + [_curl_pose(bottom)] * 8 + [_curl_pose(top)] * 6
+    return seq
+
+
+def test_custom_action_end_to_end():
+    print("=== 测试 34：新增动作只写一份配置、不改代码（端到端验收） ===")
+    from fitness_ui import discover_actions
+    from validate_config import validate_file
+
+    # ① 配置校验器认识它
+    rep = validate_file("configs/bicep_curl.json")
+    print(f"  配置校验：错误 {len(rep.errors)}、警告 {len(rep.warns)}")
+    assert rep.ok, f"新动作配置不该有错误：{rep.errors}"
+
+    # ② 解释器能加载，字段都读对了
+    a = load_action("configs/bicep_curl.json")
+    print(f"  解释器加载：{a.name}　信号 {a.signal_type}　"
+          f"阈值 {a.counter.lo}/{a.counter.hi}　约束 {len(a.quality.rules)} 条")
+    assert a.id == "bicep_curl" and a.counter.lo == 130.0
+
+    # ③ 界面自动多一个按钮（UI 读的是同一个 configs/ 目录）
+    acts = discover_actions("configs")
+    names = [n for n, _ in acts]
+    print(f"  界面发现 {len(acts)} 个动作：{names}")
+    assert "二头弯举" in names, "界面应该自动出现新动作，无需改 UI 代码"
+
+    # ④ 判定行为：计数宽松、质量严格
+    def run(seq):
+        act = load_action("configs/bicep_curl.json")
+        seen = set()
+        for i, p in enumerate(seq):
+            _c, _s, _sig, hits, _ch = act.update(p, [1.0] * 33, now=i / 30.0)
+            for h in hits:
+                seen.add(h["name"])
+        return act.counter.count, act.last_score, seen
+
+    c, s, errs = run(_curl_reps(3, 170, 45))
+    print(f"  标准弯举 ×3（弯到 45°）→ 计数 {c}　{s} 分　错误 {errs or '无'}")
+    assert c == 3 and not errs, "标准动作应计数且不报错"
+
+    c, s, errs = run(_curl_reps(2, 170, 100))
+    print(f"  幅度不足 ×2（只到 100°）→ 计数 {c}　{s} 分　错误 {errs}")
+    assert c == 2, "计数要宽松：幅度不足仍应计数（否则用户以为程序没反应）"
+    assert "not_curled_enough" in errs, "质量要严格：幅度不足必须报出来"
+
+    c, _s, _e = run(_curl_reps(2, 170, 150))
+    print(f"  几乎没动 ×2（只到 150°）→ 计数 {c}（应为 0）")
+    assert c == 0, "几乎没动不该计数"
+
+    c, _s, errs = run(_curl_reps(2, 158, 45))
+    print(f"  放下不彻底 ×2（只回到 158°）→ 计数 {c}　错误 {errs}")
+    assert "not_extended" in errs, "放下不彻底应报出来"
+    print("  ✅ 新增动作靠一份 JSON 全链路生效（命令行 / 界面 / 校验器都不用改）\n")
+
+
+def test_cycles_per_rep():
+    print("=== 测试 35：循环次数（几个完整往返才算 1 次） ===")
+    import json
+    from motion_synth import Synth
+
+    synth = Synth()
+    frames = synth.build("squat", reps=6, depth=95)     # 做 6 个完整往返
+    base = json.load(open("configs/squat.json", encoding="utf-8"))
+
+    for cyc, expect in ((1, 6), (2, 3), (3, 2), (6, 1)):
+        cfg = json.loads(json.dumps(base))
+        cfg["counter"]["cycles_per_rep"] = cyc
+        a = Action(cfg)
+        for i, p in enumerate(frames):
+            a.update(p, [1.0] * 33, now=i / 30.0)
+        print(f"  cycles_per_rep={cyc} → 6 个往返计 {a.counter.count} 次（期望 {expect}）")
+        assert a.counter.count == expect, f"cycles_per_rep={cyc} 应计 {expect} 次"
+
+    # 非法值要被夹到 ≥1（不能让配置写 0 就完全不计）
+    cfg = json.loads(json.dumps(base))
+    cfg["counter"]["cycles_per_rep"] = 0
+    a = Action(cfg)
+    for i, p in enumerate(frames):
+        a.update(p, [1.0] * 33, now=i / 30.0)
+    print(f"  cycles_per_rep=0（非法）→ 夹到 1，计 {a.counter.count} 次（应为 6）")
+    assert a.counter.count == 6, "非法值应退回 1，而不是永远不计数"
+
+    # 清零要把循环进度一起清掉
+    cfg = json.loads(json.dumps(base))
+    cfg["counter"]["cycles_per_rep"] = 3
+    a = Action(cfg)
+    for i, p in enumerate(frames[:18]):
+        a.update(p, [1.0] * 33, now=i / 30.0)
+    a.reset()
+    assert a.counter.cycle_progress == 0, "清零应同时清掉已攒的循环数"
+    print("  ✅ 循环次数生效；非法值安全回退；清零会清掉已攒进度\n")
+
+
 def test_robustness_against_bad_input():
     print("=== 测试 33：异常输入不能把程序搞崩、也不能造成误判 ===")
     from motion_synth import Synth
@@ -1006,12 +1119,14 @@ def test_ui_discovers_actions_from_configs():
                             discover_actions, find_reference_video,
                             write_control_command)
 
-    # ① 真实 configs/ 目录：应扫出三个动作
+    # ① 真实 configs/ 目录：至少包含原有的三个内置动作
+    #    ⚠ 这里用「包含」而不是「相等」—— 以后往 configs/ 里加动作时，
+    #    这条测试不该跟着失效（那正是「配置驱动」的意义）。
     actions = discover_actions()
     names = [n for n, _ in actions]
     ids = [i for _, i in actions]
     print(f"  扫描 configs/ -> {list(zip(names, ids))}")
-    assert set(ids) == {"pushup", "squat", "jumping_jack"}, "应扫出三个动作"
+    assert {"pushup", "squat", "jumping_jack"} <= set(ids), "原有三个内置动作都该被扫到"
     assert all(names), "每个动作都要有显示名"
 
     # ② 关键验证：往一个「新的」配置目录里丢一份 JSON，UI 不需要改代码就能发现它
@@ -1103,6 +1218,8 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_custom_action_end_to_end()
+    test_cycles_per_rep()
     test_robustness_against_bad_input()
     test_no_data_does_not_misfire()
     test_face_sign_missing_is_safe()

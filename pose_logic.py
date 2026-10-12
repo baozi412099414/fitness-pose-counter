@@ -70,6 +70,12 @@ class RepCounter:
             self.hi = float(counter_cfg["hi"])
             self.first = counter_cfg.get("first", "lo")
         self.min_interval = float(counter_cfg.get("min_interval", 0.35))
+        # 循环次数：**几个完整往返才算 1 次**。
+        # 大多数动作是 1（蹲下再站起 = 1 次）；但有些动作天然成对 ——
+        # 例如「左右各划一次才算一组」「跳两下算一次」。
+        # 有了它，这类动作也能纯靠配置描述，不必改代码。
+        self.cycles_per_rep = max(1, int(counter_cfg.get("cycles_per_rep", 1)))
+        self._cycles_done = 0
         # 阈值必须连续满足一小段时间才允许换阶段。迟滞解决「阈值附近抖动」，
         # hold 解决「单帧关键点跳变」；两者作用不同，缺一项仍可能误计数。
         self.enter_hold = float(counter_cfg.get("enter_hold", 0.0))
@@ -81,6 +87,11 @@ class RepCounter:
         self._act_since = None
         self._rest_since = None
         self._active_since = None
+
+    @property
+    def cycle_progress(self):
+        """本轮已经做完了几个循环（`cycles_per_rep > 1` 时供 HUD 显示进度）。"""
+        return self._cycles_done
 
     def _act_and_rest(self, values):
         """返回 (是否满足「进入动作」, 是否满足「回到还原」)。"""
@@ -121,16 +132,25 @@ class RepCounter:
             if rest:
                 if self._rest_since is None:
                     self._rest_since = now
+                # 时间差比较要留浮点容差：`1.0 - 0.8` 在二进制里是 0.19999999999999996，
+                # 会让「刚好达到 min_active_duration」的动作被误判成「太快了」而不计数。
+                # 实际踩到过：合成序列第 2 轮正好卡在边界，3 次只数出 2 次。
                 active_long_enough = (
                     self._active_since is None
-                    or self._rest_since - self._active_since >= self.min_active_duration
+                    or self._rest_since - self._active_since >= self.min_active_duration - 1e-9
                 )
                 if now - self._rest_since >= self.exit_hold:
                     # active 持续太短说明只是一次快速关键点跳变：结束本轮但不计数。
                     # 不能用当前 now 计算持续时间，否则人在还原位多站一会儿也会被补记一次。
-                    if active_long_enough and now - self._last_t >= self.min_interval:
-                        self.count += 1
-                        self._last_t = now
+                    if active_long_enough:
+                        self._cycles_done += 1
+                        if self._cycles_done >= self.cycles_per_rep:
+                            if now - self._last_t >= self.min_interval:
+                                self.count += 1
+                                self._last_t = now
+                            # 攒够一轮就归零。注意即使因 min_interval 被丢弃也要归零 ——
+                            # 否则计数会被「扣住」，用户得再多做几轮才补上，手感很怪。
+                            self._cycles_done = 0
                     self.stage = "ready"
                     self._rest_since = None
                     self._active_since = None
@@ -145,6 +165,7 @@ class RepCounter:
         self._act_since = None
         self._rest_since = None
         self._active_since = None
+        self._cycles_done = 0
 
 
 # --------------------------------------------------------------------------

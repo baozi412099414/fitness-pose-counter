@@ -759,6 +759,14 @@ def main():
                 frame = blit_cn(frame, "⚠ " + tips, (12, fh - 54), size=30,
                                 color=(255, 90, 90), bg=(64, 18, 18))
 
+            # 循环进度：cycles_per_rep > 1 的动作（如「左右各一次才算一组」）
+            # 要让用户知道「还差几个循环」，否则会以为程序没数上。
+            if action.counter.cycles_per_rep > 1:
+                done = action.counter.cycle_progress
+                total = action.counter.cycles_per_rep
+                frame = blit_cn(frame, f"本轮循环 {done}/{total}", (12, fh - 146), size=24,
+                                color=(255, 226, 150), bg=(48, 42, 18))
+
             # 训练组进度（模块 7）：第几组 / 本组几次 / 休息倒计时
             if setman is not None:
                 st = setman.status(now)
