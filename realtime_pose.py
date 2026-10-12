@@ -398,7 +398,13 @@ def main():
 
     last_say = 0.0                      # 语音节流：同一提示 2 秒内不重复念
     last_count = 0                      # 上次计数，用于「刚数上一个」时语音报数
-    got_first = False                   # 是否已出过画面（用来抢一次窗口焦点）
+    got_first = False                   # 是否已出过画面（用来抢窗口焦点）
+    # macOS 上命令行启动的 OpenCV 窗口**默认拿不到键盘焦点**，q / r 就没反应。
+    # 只「抢一次」不够：那一下如果恰好被别的窗口（比如测试控制台）抢走，
+    # 之后就再没机会了。所以改成：出画面后几秒内多试几次，直到用户真的按下过键。
+    got_first_key = False               # 用户按下过任意键（说明焦点已经在画面上）
+    focus_try_until = 0.0               # 在这个时刻之前持续尝试抢前台
+    last_focus_try = 0.0
     # 启动后头 2 秒画面还在稳定（相机自动曝光、人还在站位），这期间 MediaPipe
     # 容易输出乱跳的关键点，会造成「凭空多计一次」→ 所以先不计数。
     warmup_until = time.time() + 2.0
@@ -708,12 +714,31 @@ def main():
                 last_cnt_say = now
                 last_count = count
 
+            # ---- 右上角：退出方式提示 ----
+            # macOS 上命令行启动的 OpenCV 窗口默认没有键盘焦点，按 q 会「没反应」。
+            # 用户不知道「点一下画面就好了」，所以直接把这句话写在画面上。
+            # 一旦收到过任意按键，就说明焦点已经在窗口上，提示 15 秒后自动撤掉。
+            if (not got_first_key) or (time.time() - t0 < 15.0):
+                lines = ["q / ESC = quit", "click the window if keys do nothing"]
+                for i, txt in enumerate(lines):
+                    scale = 0.55 if i == 0 else 0.45
+                    (tw, _th), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
+                    cv2.putText(frame, txt, (w - tw - 14, 26 + i * 22),
+                                cv2.FONT_HERSHEY_SIMPLEX, scale, (235, 235, 235), 1,
+                                cv2.LINE_AA)
+
             cv2.imshow("realtime pose", frame)
             if not got_first:
-                # 第一次出画面时抢一下键盘焦点，否则 q / r 按了没反应
                 got_first = True
-                cv2.waitKey(1)
+                cv2.waitKey(1)              # 先让窗口把第一帧画出来，再抢焦点
                 bring_window_to_front()
+                focus_try_until = time.time() + 8.0
+                last_focus_try = time.time()
+            elif not got_first_key and time.time() < focus_try_until:
+                # 还没收到过任何按键 → 焦点多半不在画面上，每隔 1.5 秒再拉一次
+                if time.time() - last_focus_try >= 1.5:
+                    last_focus_try = time.time()
+                    bring_window_to_front()
 
             # 直接点窗口的 ✕ 关掉也要能退出（最符合直觉的方式）
             try:
@@ -725,11 +750,16 @@ def main():
 
             # q / ESC 退出，r 清零
             k = cv2.waitKey(1) & 0xFF
+            if k != 255:                     # 255 表示这一轮没有按键
+                got_first_key = True
             if k in (ord("q"), 27):
+                stopped_reason = "user"
+                print("\n收到退出键，结束测试。")
                 break
             if k == ord("r"):
                 action.reset()
                 last_count = 0
+                print("  已清零（计数与本轮判定状态）")
 
     cam.stop()
     cv2.destroyAllWindows()
