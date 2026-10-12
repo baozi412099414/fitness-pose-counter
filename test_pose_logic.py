@@ -714,6 +714,65 @@ def _curl_reps(n, top, bottom):
     return seq
 
 
+def test_pose_player():
+    print("=== 测试 36：用自带的关键点数据测试动作（数据回放） ===")
+    import json
+    import tempfile
+    from pose_player import DataError, load_data, play
+
+    # ① 最简格式：只提供 3 个关键点
+    data = load_data("samples/squat_minimal.json")
+    print(f"  最简数据：{data['points']}（{len(data['frames'])} 帧 × {data['fps']:g}fps）")
+    assert data["points"] == [23, 25, 27]
+    res = play("squat", data)
+    print(f"  回放结果：计数 {res['reps']}　{res['score']} 分　错误 {res['errors'] or '无'}")
+    assert res["reps"] == 3, "标准深蹲数据应该数出 3 次"
+
+    # ② 完整格式（33 个点）
+    full = load_data("samples/squat_standard.json")
+    res2 = play("squat", full)
+    print(f"  完整数据（33 点）：计数 {res2['reps']}　{res2['score']} 分")
+    assert res2["reps"] == 3
+
+    # ③ 错误动作的数据要被抓出来
+    shallow = play("squat", load_data("samples/squat_shallow.json"))
+    print(f"  浅蹲数据：计数 {shallow['reps']}　{shallow['score']} 分　错误 {list(shallow['errors'])}")
+    assert shallow["reps"] == 3 and "not_deep_enough" in shallow["errors"]
+
+    # ④ 坏数据要给出「人话」错误，而不是 IndexError / KeyError
+    tmp = tempfile.mkdtemp()
+    def bad(cfg, label):
+        p = os.path.join(tmp, "d.json")
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False)
+        try:
+            load_data(p)
+            return f"（{label}：没报错 ❌）"
+        except DataError as e:
+            return f"{label} → {e}"
+
+    cases = [
+        ({"frames": []}, "空 frames"),
+        ({"points": [23, 25], "frames": [[[1, 2]]]}, "坐标数与 points 不符"),
+        ({"points": [23, 99], "frames": [[[1, 2], [3, 4]]]}, "关键点编号越界"),
+        ({"points": [23], "frames": [[[1, "a"]]]}, "坐标不是数字"),
+        ({"fps": 0, "frames": [[[1, 2]]]}, "fps 非法"),
+    ]
+    print("  坏数据提示：")
+    for cfg, label in cases:
+        print(f"    · {bad(cfg, label)}")
+
+    p = os.path.join(tmp, "broken.json")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("{ 这不是 JSON")
+    try:
+        load_data(p)
+        raise AssertionError("坏 JSON 应该报错")
+    except DataError as e:
+        print(f"    · 坏 JSON → {e}")
+    print("  ✅ 自带数据可回放；坏数据给的是人话而不是堆栈\n")
+
+
 def test_custom_action_end_to_end():
     print("=== 测试 34：新增动作只写一份配置、不改代码（端到端验收） ===")
     from fitness_ui import discover_actions
@@ -1218,6 +1277,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_pose_player()
     test_custom_action_end_to_end()
     test_cycles_per_rep()
     test_robustness_against_bad_input()

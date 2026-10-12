@@ -27,6 +27,7 @@
 """
 
 import argparse
+import json
 import math
 import sys
 
@@ -341,6 +342,29 @@ def fmt_errors(errors):
     return "、".join(f"{k}×{v}" for k, v in sorted(errors.items(), key=lambda kv: -kv[1]))
 
 
+def export_sequence(action_id, frames, path, fps=30.0, note=""):
+    """
+    把合成序列导出成 `pose_player.py` 能读的数据文件。
+
+    用途：给「自带数据测试动作」提供一个**格式模板** ——
+    照着这个文件的结构换成你自己的数据即可。
+    只导出**实际用到的关键点**（其余是占位），文件小很多也更好读。
+    """
+    used = sorted({i for p in frames for i in range(33) if tuple(p[i]) != (0, 0)})
+    data = {
+        "name": f"{action_id} 合成序列（{len(frames)} 帧）",
+        "note": note or "由 motion_synth.py 导出，可直接用 pose_player.py 回放",
+        "action": action_id,
+        "fps": fps,
+        "points": used,
+        "frames": [[list(p[i]) for i in used] for p in frames],
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    print(f"已导出 {len(frames)} 帧、{len(used)} 个关键点 → {path}")
+    return path
+
+
 # ══════════════════════════════════════════════════════════════════
 # 内置用例：标准动作 + 典型错误
 # ══════════════════════════════════════════════════════════════════
@@ -438,6 +462,8 @@ def main(argv=None):
     ap.add_argument("--lo", type=float, default=85.0)
     ap.add_argument("--hi", type=float, default=175.0)
     ap.add_argument("--step", type=float, default=10.0)
+    ap.add_argument("--export", default=None,
+                    help="把这次生成的序列导出成数据文件（供 pose_player.py 回放）")
     # 单次运行时可覆盖的常用参数
     for name, dflt in (("depth", 110.0), ("bottom", 95.0), ("up_shoulder", 165.0),
                        ("up_foot", 2.0), ("lean_deg", 0.0), ("knee_travel_deg", 0.0),
@@ -464,6 +490,8 @@ def main(argv=None):
     params = {k: v for k, v in params.items() if k in accepted}
 
     frames = synth.build(args.action, reps=args.reps, **params)
+    if args.export:
+        export_sequence(args.action, frames, args.export)
     res = run_sequence(args.action, frames)
     print(f"动作：{args.action}　参数：{params}　合成 {len(frames)} 帧（{len(frames)/30:.1f} 秒）")
     print(f"计数：{res['reps']} 次（合成 {args.reps} 个完整动作）")
