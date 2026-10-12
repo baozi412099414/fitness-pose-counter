@@ -255,28 +255,31 @@ macOS 摄像头权限按**谁该为这个进程负责**算，不是按 python �
 
 ## ⭐ 怎么加一个自定义动作（核心考点的用法）
 
-**三步，全程不改代码**：
+**方式 A：界面填表（推荐，全程不碰 JSON）**
 
 ```bash
-cd "/Users/wangwenjing/Desktop/选题 2"
-
-# ① 复制一份现成配置，改成你要的动作
-cp configs/squat.json configs/my_action.json
-#    改 id / name、判定用的关键点、关节角度信号、上下阈值与迟滞区间
-
-# ② 校验有没有写错（关键点越界、阈值方向反了都会逐条指出来）
-.venv/bin/python validate_config.py configs/my_action.json
-
-# ③ 直接就能用了 —— 命令行与界面都自动生效
-.venv/bin/python fitness_ui.py        # 动作按钮会自动多出一个，和深蹲一样能测
+.venv/bin/python fitness_ui.py
 ```
 
-界面上也内置了入口：**动作区右上角的「＋ 新建动作」**（会打开 `configs/` 目录并说明步骤）。
-字段说明见 **`自定义动作指南.md`**。
+动作区右上角 **「＋ 新建动作」** → 填表 → 保存。要点：
 
-> 已有一个完整的验收示例 `configs/bicep_curl.json`（二头弯举）——
-> 加它的时候**没有改任何 `.py` 文件**，却自动出现在界面动作列表里，
-> 能计数、能评分、能提示、能写训练历史。
+- **测量部位用下拉选**（「左膝角（髋-膝-踝）」）—— 程序自动填关键点编号，
+  使用者不用记 23/25/27 这些数字；
+- 字段名全部翻译成人话（「信号降到多少算开始」而不是 `lo`）；
+- **保存前先跑配置校验器**，方向填反 / id 重复会被拦下并说明原因；
+- **保存后动作按钮立刻出现**，不用重启界面。
+
+**方式 B：自己写 JSON**
+
+```bash
+cp configs/squat.json configs/my_action.json   # 改 id / name / points / lo / hi …
+.venv/bin/python validate_config.py configs/my_action.json
+.venv/bin/python fitness_ui.py                 # 动作按钮自动多一个
+```
+
+字段说明见 `自定义动作指南.md`。实现上分两层：
+`action_editor.py` 放**纯数据与纯函数**（部位预设 / 配置拼装 / 保存前校验），
+界面表单在 `fitness_ui.py` 的 `ActionEditor` —— 这样核心逻辑能脱离图形界面做自动化测试。
 
 ## 后续路线图 ⬅ 从这里继续
 

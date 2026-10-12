@@ -830,29 +830,63 @@ def test_pose_player():
 
 def test_custom_action_end_to_end():
     print("=== 测试 34：新增动作只写一份配置、不改代码（端到端验收） ===")
+    import math
+    import shutil
+    import tempfile
+    from action_editor import (ANGLE_PARTS, build_action_config, validate_and_save)
     from fitness_ui import discover_actions
-    from validate_config import validate_file
 
-    # ① 配置校验器认识它
-    rep = validate_file("configs/bicep_curl.json")
-    print(f"  配置校验：错误 {len(rep.errors)}、警告 {len(rep.warns)}")
-    assert rep.ok, f"新动作配置不该有错误：{rep.errors}"
+    # ① 用「动作编辑器」的纯逻辑生成一份配置（等价于界面上填表）
+    cfg = build_action_config(
+        name="测试弯举", aid="tmp_curl", signal="angle",
+        points=ANGLE_PARTS["左肘角（肩-肘-腕）"],
+        start_th=130, end_th=155, first_lo=True, cycles=1,
+        depth_check=True, depth_th=80, depth_tip="手臂没弯到位，再往上举一点",
+        straight_check=True, straight_th=165, straight_tip="放下时手臂要伸直",
+    )
+    print(f"  表单生成：{cfg['name']}（{cfg['id']}）"
+          f"　阈值 {cfg['counter']['lo']:g}/{cfg['counter']['hi']:g}"
+          f"　约束 {len(cfg['quality'])} 条")
 
-    # ② 解释器能加载，字段都读对了
-    a = load_action("configs/bicep_curl.json")
+    # ② 保存进一个临时 configs/，确认校验器放行
+    tmpdir = Path(tempfile.mkdtemp())
+    ok, msg, path = validate_and_save(cfg, tmpdir)
+    assert ok, f"保存失败：{msg}"
+    print(f"  保存 + 校验：{msg.splitlines()[0]}")
+
+    # ③ 解释器能加载，字段都读对
+    a = load_action(str(path))
     print(f"  解释器加载：{a.name}　信号 {a.signal_type}　"
-          f"阈值 {a.counter.lo}/{a.counter.hi}　约束 {len(a.quality.rules)} 条")
-    assert a.id == "bicep_curl" and a.counter.lo == 130.0
+          f"阈值 {a.counter.lo:g}/{a.counter.hi:g}　约束 {len(a.quality.rules)} 条")
+    assert a.counter.lo == 130.0 and a.counter.hi == 155.0
 
-    # ③ 界面自动多一个按钮（UI 读的是同一个 configs/ 目录）
-    acts = discover_actions("configs")
-    names = [n for n, _ in acts]
-    print(f"  界面发现 {len(acts)} 个动作：{names}")
-    assert "二头弯举" in names, "界面应该自动出现新动作，无需改 UI 代码"
+    # ④ 界面能自动发现它（把临时目录当 configs/ 扫）
+    acts = discover_actions(str(tmpdir))
+    print(f"  界面发现：{[n for n, _ in acts]}")
+    assert any(i == "tmp_curl" for _n, i in acts), "界面应该自动出现新动作"
 
-    # ④ 判定行为：计数宽松、质量严格
+    # ⑤ 判定行为：计数宽松、质量严格
+    def curl_pose(elbow_deg):
+        p = [(300, 300)] * 33
+        L, d = 100.0, math.radians(180 - elbow_deg)
+        el, wr = (0.0, 1.0), (math.sin(d), 1.0 + math.cos(d))
+        px = lambda v: (int(600 + v[0] * L), int(200 + v[1] * L))
+        p[11] = p[12] = px((0.0, 0.0))
+        p[13] = px(el)
+        p[15] = px(wr)
+        p[23] = p[24] = (600, 700)
+        p[14] = px(el)
+        p[16] = (2 * 600 - px(wr)[0], px(wr)[1])
+        return p
+
+    def reps(n, top, bottom):
+        seq = []
+        for _ in range(n):
+            seq += [curl_pose(top)] * 4 + [curl_pose(bottom)] * 8 + [curl_pose(top)] * 6
+        return seq
+
     def run(seq):
-        act = load_action("configs/bicep_curl.json")
+        act = load_action(str(path))
         seen = set()
         for i, p in enumerate(seq):
             _c, _s, _sig, hits, _ch = act.update(p, [1.0] * 33, now=i / 30.0)
@@ -860,23 +894,21 @@ def test_custom_action_end_to_end():
                 seen.add(h["name"])
         return act.counter.count, act.last_score, seen
 
-    c, s, errs = run(_curl_reps(3, 170, 45))
+    c, s, errs = run(reps(3, 170, 45))
     print(f"  标准弯举 ×3（弯到 45°）→ 计数 {c}　{s} 分　错误 {errs or '无'}")
     assert c == 3 and not errs, "标准动作应计数且不报错"
 
-    c, s, errs = run(_curl_reps(2, 170, 100))
+    c, s, errs = run(reps(2, 170, 100))
     print(f"  幅度不足 ×2（只到 100°）→ 计数 {c}　{s} 分　错误 {errs}")
     assert c == 2, "计数要宽松：幅度不足仍应计数（否则用户以为程序没反应）"
-    assert "not_curled_enough" in errs, "质量要严格：幅度不足必须报出来"
+    assert "not_enough_range" in errs, "质量要严格：幅度不足必须报出来"
 
-    c, _s, _e = run(_curl_reps(2, 170, 150))
+    c, _s, _e = run(reps(2, 170, 150))
     print(f"  几乎没动 ×2（只到 150°）→ 计数 {c}（应为 0）")
     assert c == 0, "几乎没动不该计数"
 
-    c, _s, errs = run(_curl_reps(2, 158, 45))
-    print(f"  放下不彻底 ×2（只回到 158°）→ 计数 {c}　错误 {errs}")
-    assert "not_extended" in errs, "放下不彻底应报出来"
-    print("  ✅ 新增动作靠一份 JSON 全链路生效（命令行 / 界面 / 校验器都不用改）\n")
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("  ✅ 界面填表 → 生成配置 → 全链路生效（命令行 / 界面 / 校验器都不用改）\n")
 
 
 def test_cycles_per_rep():

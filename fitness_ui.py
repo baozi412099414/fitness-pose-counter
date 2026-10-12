@@ -17,6 +17,9 @@ import threading
 import time
 import tkinter as tk
 from pathlib import Path
+
+from action_editor import (ANGLE_PARTS, CHECKS, PAIR_PARTS, SIGNALS, WHENS,
+                           build_action_config, slugify_id, validate_and_save)
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 # matplotlib 的字体缓存目录要指到可写位置（默认的 ~/.matplotlib 在这台机器上不可写，
@@ -241,6 +244,284 @@ def write_control_command(control_path, command):
     tmp_path.replace(control_path)
 
 
+
+class ActionEditor(tk.Toplevel):
+    """
+    新建动作的表单窗口 —— **完全不碰 JSON**。
+
+    设计上只做一件事：把「配置字段」翻译成「人话」。
+      · 关键点编号（23,25,27）→ 下拉选「左膝角（髋-膝-踝）」
+      · lo / hi              → 「信号降到多少算开始 / 回到多少算完成」
+      · when / check         → 「什么时候判 / 判什么」
+
+    保存前**先跑一遍配置校验器**，有错就拒绝保存并说明原因 ——
+    否则界面里会多出一个「怎么都不计数」的动作，用户很难联想到是字段写错了。
+    """
+
+    def __init__(self, master, existing_ids, on_saved):
+        super().__init__(master)
+        self.title("新建动作")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self.transient(master)
+        self.on_saved = on_saved
+        self.existing_ids = list(existing_ids)
+        self._user_edited_id = False
+
+        pad = tk.Frame(self, bg=BG, padx=20, pady=16)
+        pad.pack(fill="both", expand=True)
+
+        tk.Label(pad, text="新建动作", bg=BG, fg=TEXT, font=F_TITLE).pack(anchor="w")
+        tk.Label(pad, text="填完保存即可 —— 动作列表会自动多出一个，和内置动作一样能测。",
+                 bg=BG, fg=MUTED, font=F_SMALL).pack(anchor="w", pady=(2, 12))
+
+        # ── 基本信息 ──
+        base = card(pad, "① 基本信息", pady=(0, 10))
+        base.columnconfigure(1, weight=1)
+
+        tk.Label(base, text="动作名称", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=0, column=0, sticky="w", padx=(0, 12), pady=(2, 6))
+        self.name_var = tk.StringVar()
+        ent = ttk.Entry(base, textvariable=self.name_var, width=26)
+        ent.grid(row=0, column=1, sticky="ew", pady=(2, 6))
+        self.name_var.trace_add("write", self._on_name)
+
+        tk.Label(base, text="动作 id", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=1, column=0, sticky="w", padx=(0, 12), pady=6)
+        self.id_var = tk.StringVar()
+        ttk.Entry(base, textvariable=self.id_var, width=26).grid(
+            row=1, column=1, sticky="ew", pady=6)
+        self.id_var.trace_add("write", lambda *_: setattr(self, "_user_edited_id", True))
+        tk.Label(base, text="（文件名，英文/数字；留空自动生成）", bg=CARD, fg=MUTED,
+                 font=F_TINY).grid(row=2, column=1, sticky="w")
+
+        tk.Label(base, text="拍摄机位", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=3, column=0, sticky="w", padx=(0, 12), pady=(6, 2))
+        self.side_var = tk.StringVar(value="正面")
+        sf = tk.Frame(base, bg=CARD)
+        sf.grid(row=3, column=1, sticky="w", pady=(6, 2))
+        for s in ("正面", "侧"):
+            tk.Radiobutton(sf, text=s, variable=self.side_var, value=s, bg=CARD,
+                           fg=TEXT, selectcolor=SOFT, activebackground=CARD,
+                           font=F_BODY, relief="flat", bd=0,
+                           highlightthickness=0).pack(side="left", padx=(0, 16))
+
+        # ── 计数规则 ──
+        cnt = card(pad, "② 怎么算一次", pady=(0, 10))
+        cnt.columnconfigure(1, weight=1)
+
+        tk.Label(cnt, text="判定信号", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=0, column=0, sticky="w", padx=(0, 12), pady=(2, 6))
+        self.sig_var = tk.StringVar(value=SIGNALS[0][1])
+        cb = ttk.Combobox(cnt, textvariable=self.sig_var, state="readonly", width=24,
+                          values=[s[1] for s in SIGNALS])
+        cb.grid(row=0, column=1, sticky="ew", pady=(2, 6))
+        cb.bind("<<ComboboxSelected>>", self._on_signal)
+        self.sig_hint = tk.Label(cnt, text="", bg=CARD, fg=MUTED, font=F_TINY,
+                                 wraplength=430, justify="left")
+        self.sig_hint.grid(row=1, column=1, sticky="w")
+
+        tk.Label(cnt, text="测量部位", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=2, column=0, sticky="w", padx=(0, 12), pady=(6, 6))
+        self.part_var = tk.StringVar()
+        self.part_cb = ttk.Combobox(cnt, textvariable=self.part_var, state="readonly", width=24)
+        self.part_cb.grid(row=2, column=1, sticky="ew", pady=(6, 6))
+        self.pts_label = tk.Label(cnt, text="", bg=CARD, fg=MUTED, font=F_TINY)
+        self.pts_label.grid(row=3, column=1, sticky="w")
+        self.part_cb.bind("<<ComboboxSelected>>", lambda _e: self._show_points())
+
+        tk.Label(cnt, text="计数方向", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=4, column=0, sticky="w", padx=(0, 12), pady=(6, 2))
+        self.dir_var = tk.StringVar(value="先变小")
+        df = tk.Frame(cnt, bg=CARD)
+        df.grid(row=4, column=1, sticky="w", pady=(6, 2))
+        for s in ("先变小", "先变大"):
+            tk.Radiobutton(df, text=s, variable=self.dir_var, value=s, bg=CARD,
+                           fg=TEXT, selectcolor=SOFT, activebackground=CARD,
+                           font=F_BODY, relief="flat", bd=0, highlightthickness=0,
+                           command=self._update_words).pack(side="left", padx=(0, 16))
+
+        self.start_lbl = tk.Label(cnt, text="", bg=CARD, fg=MUTED, font=F_SMALL)
+        self.start_lbl.grid(row=5, column=0, sticky="w", padx=(0, 12), pady=(6, 6))
+        self.start_var = tk.StringVar(value="90")
+        ttk.Spinbox(cnt, from_=-999, to=999, increment=1, width=10,
+                    textvariable=self.start_var).grid(row=5, column=1, sticky="w", pady=(6, 6))
+
+        self.end_lbl = tk.Label(cnt, text="", bg=CARD, fg=MUTED, font=F_SMALL)
+        self.end_lbl.grid(row=6, column=0, sticky="w", padx=(0, 12), pady=6)
+        self.end_var = tk.StringVar(value="150")
+        ttk.Spinbox(cnt, from_=-999, to=999, increment=1, width=10,
+                    textvariable=self.end_var).grid(row=6, column=1, sticky="w", pady=6)
+
+        tk.Label(cnt, text="循环次数", bg=CARD, fg=MUTED, font=F_SMALL).grid(
+            row=7, column=0, sticky="w", padx=(0, 12), pady=(6, 2))
+        cyc = tk.Frame(cnt, bg=CARD)
+        cyc.grid(row=7, column=1, sticky="w", pady=(6, 2))
+        self.cyc_var = tk.StringVar(value="1")
+        ttk.Spinbox(cyc, from_=1, to=10, width=6,
+                    textvariable=self.cyc_var).pack(side="left")
+        tk.Label(cyc, text="个完整往返算 1 次", bg=CARD, fg=MUTED,
+                 font=F_TINY).pack(side="left", padx=6)
+
+        self.calib_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(cnt, text="启用站立基线自动校准（只适合「站立姿势就是动作起始姿势」的动作）",
+                        variable=self.calib_var).grid(
+            row=8, column=1, sticky="w", pady=(8, 2))
+
+        # ── 质量要求 ──
+        q = card(pad, "③ 质量要求（可选：不合格时提示什么）", pady=(0, 10))
+        q.columnconfigure(1, weight=1)
+
+        self.depth_on = tk.BooleanVar(value=True)
+        ttk.Checkbutton(q, text="动作幅度要够 —— 信号至少要到达",
+                        variable=self.depth_on).grid(row=0, column=0, sticky="w", pady=4)
+        self.depth_th = tk.StringVar(value="110")
+        ttk.Spinbox(q, from_=-999, to=999, width=10,
+                    textvariable=self.depth_th).grid(row=0, column=1, sticky="w", pady=4)
+        self.depth_tip = tk.StringVar(value="动作幅度不够，再做大一点")
+        ttk.Entry(q, textvariable=self.depth_tip, width=30).grid(
+            row=1, column=1, sticky="ew", pady=(0, 6))
+        tk.Label(q, text="提示语", bg=CARD, fg=MUTED, font=F_TINY).grid(
+            row=1, column=0, sticky="w")
+
+        self.back_on = tk.BooleanVar(value=True)
+        ttk.Checkbutton(q, text="要回到起始位置 —— 信号至少要回到",
+                        variable=self.back_on).grid(row=2, column=0, sticky="w", pady=4)
+        self.back_th = tk.StringVar(value="165")
+        ttk.Spinbox(q, from_=-999, to=999, width=10,
+                    textvariable=self.back_th).grid(row=2, column=1, sticky="w", pady=4)
+        self.back_tip = tk.StringVar(value="要回到起始姿势，别停在半路")
+        ttk.Entry(q, textvariable=self.back_tip, width=30).grid(
+            row=3, column=1, sticky="ew", pady=(0, 6))
+        tk.Label(q, text="提示语", bg=CARD, fg=MUTED, font=F_TINY).grid(
+            row=3, column=0, sticky="w")
+
+        tk.Label(pad, text="提示：数值不用一次填准 —— 先用参考数据或摄像头试一次，"
+                           "看终端打印的实测值再回来改。",
+                 bg=BG, fg=MUTED, font=F_TINY, wraplength=460,
+                 justify="left").pack(anchor="w", pady=(2, 10))
+
+        # ── 按钮 ──
+        btns = tk.Frame(pad, bg=BG)
+        btns.pack(fill="x")
+        hover_btn(btns, "保存动作", self._save, SUCCESS, SUCCESS_HI).pack(side="left")
+        tk.Button(btns, text="取消", command=self.destroy, bg=SOFT, fg=TEXT,
+                  activebackground="#e4eaf1", font=F_BTN, relief="flat", bd=0,
+                  highlightthickness=0, padx=18, pady=9,
+                  cursor="pointinghand").pack(side="left", padx=8)
+
+        self._on_signal()
+        self._update_words()
+        self.update_idletasks()
+        # 居中到父窗口
+        try:
+            x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+            y = master.winfo_rooty() + 60
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except tk.TclError:
+            pass
+        self.grab_set()
+        ent.focus_set()
+
+    # ---------- 联动 ----------
+    def _on_name(self, *_a):
+        if not self._user_edited_id:
+            self.id_var.set(slugify_id(self.name_var.get(), self.existing_ids))
+
+    def _signal(self):
+        name = self.sig_var.get()
+        return next((s for s in SIGNALS if s[1] == name), SIGNALS[0])
+
+    def _on_signal(self, *_a):
+        sig, label, arity, unit, hint = self._signal()
+        self.sig_hint.config(text=f"{hint}（单位：{unit}）")
+        parts = ANGLE_PARTS if arity == 3 else PAIR_PARTS
+        keys = list(parts)
+        self.part_cb.configure(values=keys)
+        if self.part_var.get() not in keys:
+            self.part_var.set(keys[0])
+        self.pts_label.config(text=f"关键点编号：{parts[self.part_var.get()]}"
+                                   f"（程序自动填，不用记）")
+        self._update_words()
+
+    def _show_points(self):
+        sig, label, arity, unit, hint = self._signal()
+        parts = ANGLE_PARTS if arity == 3 else PAIR_PARTS
+        self.pts_label.config(text=f"关键点编号：{parts[self.part_var.get()]}"
+                                   f"（程序自动填，不用记）")
+
+    def _update_words(self):
+        """把「起始/还原阈值」的措辞跟着计数方向变，避免用户填反。"""
+        down = self.dir_var.get() == "先变小"
+        sig, label, arity, unit, hint = self._signal()
+        u = "" if unit == "倍肩宽" else "°"
+        if down:
+            self.start_lbl.config(text=f"信号降到多少算开始（{unit}）")
+            self.end_lbl.config(text=f"回到多少算完成（{unit}）")
+        else:
+            self.start_lbl.config(text=f"信号升到多少算开始（{unit}）")
+            self.end_lbl.config(text=f"回到多少算完成（{unit}）")
+
+    # ---------- 保存 ----------
+    def _save(self):
+        name = self.name_var.get().strip()
+        if not name:
+            messagebox.showwarning("还差一点", "请先填「动作名称」", parent=self)
+            return
+        aid = (self.id_var.get().strip() or slugify_id(name, self.existing_ids))
+        if aid in self.existing_ids:
+            messagebox.showwarning("id 重复",
+                                   f"已经有叫「{aid}」的动作了，换一个 id。", parent=self)
+            return
+        if aid != slugify_id(aid):
+            messagebox.showwarning("id 不合法",
+                                   "id 只能用英文字母、数字和下划线。", parent=self)
+            return
+        sig, label, arity, unit, hint = self._signal()
+        parts = ANGLE_PARTS if arity == 3 else PAIR_PARTS
+        try:
+            start_th = float(self.start_var.get())
+            end_th = float(self.end_var.get())
+            cycles = int(self.cyc_var.get())
+            depth_th = float(self.depth_th.get()) if self.depth_on.get() else None
+            back_th = float(self.back_th.get()) if self.back_on.get() else None
+        except (TypeError, ValueError):
+            messagebox.showwarning("数值填错了", "阈值和循环次数都要填数字。", parent=self)
+            return
+
+        first_lo = self.dir_var.get() == "先变小"
+        # 方向相关的合法性：先变小的动作，起始阈值必须低于还原阈值，否则永远进不了动作
+        if first_lo and not (start_th < end_th):
+            messagebox.showwarning("阈值方向反了",
+                                   "「先变小」的动作：开始阈值要**小于**完成阈值。\n"
+                                   f"现在填的是 开始 {start_th:g} / 完成 {end_th:g}。",
+                                   parent=self)
+            return
+        if (not first_lo) and not (start_th > end_th):
+            messagebox.showwarning("阈值方向反了",
+                                   "「先变大」的动作：开始阈值要**大于**完成阈值。\n"
+                                   f"现在填的是 开始 {start_th:g} / 完成 {end_th:g}。",
+                                   parent=self)
+            return
+
+        cfg = build_action_config(
+            name=name, aid=aid, signal=sig, points=parts[self.part_var.get()],
+            start_th=start_th, end_th=end_th, first_lo=first_lo, cycles=cycles,
+            camera_side=self.side_var.get(), calibrate=self.calib_var.get(),
+            depth_check=self.depth_on.get(), depth_th=depth_th,
+            depth_tip=self.depth_tip.get().strip() or None,
+            straight_check=self.back_on.get(), straight_th=back_th,
+            straight_tip=self.back_tip.get().strip() or None,
+        )
+        ok, msg, path = validate_and_save(cfg, ROOT / "configs")
+        if not ok:
+            messagebox.showerror("保存失败", msg, parent=self)
+            return
+        self.grab_release()
+        self.destroy()
+        self.on_saved(cfg, msg)
+
+
 class FitnessTestUI:
     def __init__(self, root):
         self.root = root
@@ -360,6 +641,7 @@ class FitnessTestUI:
         action_area = tk.Frame(form, bg=CARD)
         action_area.grid(row=0, column=1, columnspan=2, sticky="ew", pady=(10, 0))
         action_area.columnconfigure(0, weight=1)
+        self._action_area = action_area          # 新建动作后要往里重建按钮
 
         # 动作按钮**自动换行**：动作数量由 configs/ 决定，用户随时可能加，
         # 横排一行迟早挤爆（4 个就已经很挤了）。这里按每行 PER_ROW 个排，
@@ -387,7 +669,7 @@ class FitnessTestUI:
         # 加动作的入口直接放在动作区旁边 —— 用户最需要它的时候就在眼前
         add_row = tk.Frame(form, bg=CARD)
         add_row.grid(row=0, column=3, sticky="ne", padx=(10, 0), pady=(10, 0))
-        tk.Button(add_row, text="＋ 新建动作", command=self._open_configs_dir,
+        tk.Button(add_row, text="＋ 新建动作", command=self._new_action,
                   bg="#e8f1ff", fg=PRIMARY, activebackground="#d6e8ff",
                   font=F_SMALL, relief="flat", bd=0, highlightthickness=0,
                   padx=14, pady=6, cursor="pointinghand").pack(fill="x")
@@ -835,6 +1117,54 @@ class FitnessTestUI:
         self.status_var.set(summary)
         if total_err:
             self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
+
+    def _new_action(self):
+        """打开「新建动作」表单 —— 填完保存即可，全程不碰 JSON。"""
+        ActionEditor(self.root, self.existing_ids(),
+                     on_saved=self._on_action_saved)
+
+    def existing_ids(self):
+        return [aid for _n, aid in self.actions]
+
+    def _on_action_saved(self, cfg, msg):
+        """表单保存成功 → 刷新动作列表并选中新动作。"""
+        self._reload_actions(select=cfg["name"])
+        self._flash_topmost()
+        self._msg("showinfo", "动作已添加", msg + "\n\n"
+                  "动作按钮已经自动出现，可以直接选它开始测试。")
+
+    def _reload_actions(self, select=None):
+        """
+        重新扫描 configs/ 并重建动作按钮。
+
+        有了它，「新建动作」保存后**不用重启界面** —— 按钮立刻就位。
+        按钮排布逻辑与 _build 里保持一致（每行 3 个、自动换行）。
+        """
+        self.actions = discover_actions()
+        for b in getattr(self, "_action_buttons", {}).values():
+            b.destroy()
+        self._action_buttons = {}
+        area = getattr(self, "_action_area", None)
+        if area is None:
+            return
+        for c in range(3):
+            area.columnconfigure(c, weight=1, uniform="act")
+        for i, (name, _aid) in enumerate(self.actions):
+            r, c = divmod(i, 3)
+            btn = tk.Radiobutton(
+                area, text=name, variable=self.action_var, value=name,
+                command=self._sync_source, indicatoron=False,
+                bg=SOFT, fg=TEXT, selectcolor="#d6e8ff",
+                activebackground="#d6e8ff", activeforeground=TEXT,
+                font=F_BTN, relief="flat", bd=0, highlightthickness=0,
+                padx=16, pady=9, cursor="pointinghand")
+            btn.grid(row=r, column=c, sticky="ew",
+                     padx=(0 if c == 0 else 8, 0), pady=(0 if r == 0 else 8, 0))
+            self._action_buttons[name] = btn
+        if select and select in self._action_buttons:
+            self.action_var.set(select)
+            self._sync_source()
+        self._on_outer_configure()
 
     def _open_configs_dir(self):
         """打开 configs/ 目录 —— 自定义动作就是往里放一份 JSON。"""
