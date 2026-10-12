@@ -268,6 +268,28 @@ def blit_cn(frame, text, org, size=26, color=(255, 255, 255), bg=(0, 0, 0)):
     return frame
 
 
+def start_stdin_watcher(quit_event):
+    """
+    在后台读**终端**输入：在里面输入 q 并回车（或直接回车）就退出。
+
+    为什么要这个：macOS 上从命令行启动的 OpenCV 窗口经常拿不到键盘焦点，
+    按 q 完全没反应 —— 而**终端窗口一定有焦点**（程序就是从这里启动的）。
+    所以从 stdin 读命令是最可靠的兜底，而且**不需要任何系统权限**
+    （不像全局键盘钩子那样要「输入监控」权限）。
+
+    从 UI 子进程启动时 stdin 是管道，读不到东西会立刻结束，不影响主流程。
+    """
+    def loop():
+        try:
+            for line in sys.stdin:
+                if line.strip().lower() in ("q", "quit", "exit", ""):
+                    quit_event.set()
+                    return
+        except Exception:
+            pass          # 非交互环境（管道 / 已关闭）直接忽略
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def _fmt_num(v, width=5):
     """
     格式化一个可能为 None 的数值。
@@ -476,6 +498,8 @@ def main():
     baseline = None                     # 站立基线（自动校准结果）
     calib_done = False                  # 校准是否已判定完（成功或放弃）
     calibration_announced = False       # 「校准完成」只提示一次，不要一直挂在画面上
+    quit_event = threading.Event()      # 终端里输入 q 回车 → 置位退出（不依赖窗口焦点）
+    start_stdin_watcher(quit_event)
     shown_hits = []                     # 最近命中的错误（保持显示一会儿，免得只闪一帧看不清）
     shown_until = 0.0
     last_err_say = 0.0                  # 错误播报节流（独立于报数）
@@ -784,10 +808,13 @@ def main():
             # 一旦收到过任意按键，就说明焦点已经在窗口上，提示 15 秒后自动撤掉。
             if (not got_first_key) or (time.time() - t0 < 15.0):
                 # 8 秒还没收到任何按键 → 说明键盘焦点多半没抢到，提示要更醒目
+                # 8 秒还没收到任何按键 → 键盘焦点多半没抢到，这时给出**两条路**：
+                # 点窗口（恢复窗口按键），或在终端里输入 q 回车（一定有效）
                 stuck = (not got_first_key) and (time.time() - t0 > 8.0)
-                lines = (["KEYBOARD NOT ACTIVE — CLICK THIS WINDOW, THEN PRESS q"]
+                lines = (["KEYBOARD NOT ACTIVE — type q + Enter in the terminal to quit"]
                          if stuck else
-                         ["q / ESC = quit", "click the window if keys do nothing"])
+                         ["q / ESC = quit  (or type q + Enter in the terminal)",
+                          "click the window if keys do nothing"])
                 color = (60, 60, 255) if stuck else (235, 235, 235)
                 for i, txt in enumerate(lines):
                     scale = 0.55 if i == 0 else 0.45
@@ -818,6 +845,12 @@ def main():
                     print("\n窗口已关闭，退出。")
                     break
             except cv2.error:
+                break
+
+            # 终端里输入 q 回车也能退出（不依赖窗口焦点，是最可靠的兜底）
+            if quit_event.is_set():
+                stopped_reason = "user"
+                print("\n收到终端退出命令，结束测试。")
                 break
 
             # q / ESC 退出，r 清零

@@ -696,7 +696,46 @@ macOS 上从命令行启动的 OpenCV 窗口**默认拿不到键盘焦点**，`q
 （比如测试控制台刚才也在抢焦点），**之后就再也没有机会了**，
 用户看到的就是「按 q 完全没反应」。
 
-### 改法：三处一起
+### 改法（一）：让抢焦点真正生效
+
+用户复测后**仍然按 q 没反应**，继续深挖发现原来的抢焦点代码**做的事情不够**：
+
+```python
+app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+app.activateIgnoringOtherApps_(True)      # ← 只做了这两步
+```
+
+两个问题：
+1. `activateIgnoringOtherApps_` 在 **macOS 14+ 已废弃**，macOS 26 上常常无效；
+2. **「激活 App」≠「窗口拿到键盘焦点」** —— 缺了最关键的一步：
+   把窗口设成 **key window**（`makeKeyAndOrderFront_`）。
+
+现在做三层：
+
+```python
+app.activate()                              # macOS 14+ 的正规做法
+NSRunningApplication.currentApplication().activateWithOptions_(…)   # 换个角度再激活一次
+for w in app.windows(): w.makeKeyAndOrderFront_(None)   # ← 这一步才真正接管键盘
+```
+
+并加了**兜底诊断**：如果 `NSApp.windows()` 拿不到窗口，就用 Quartz 按 PID 查
+系统级窗口列表，打印出来判断「窗口到底存不存在」，好决定下一步往哪修。
+
+### 改法（二）：加一条**完全不依赖窗口焦点**的退出通道
+
+与其一直跟 macOS 的焦点机制较劲，不如给一条一定有效的路：
+
+> **在终端里输入 `q` 然后回车，就能退出。**
+
+实现是后台线程读 `sys.stdin`，命中 `q` / `quit` / 回车就置位退出。
+
+- **为什么可靠**：程序就是从终端启动的，**终端一定有键盘焦点**。
+- **为什么不用全局键盘钩子**（pynput 之类）：那需要「输入监控」权限，
+  又多一道系统授权；而 stdin 读命令**零权限**。
+- **从 UI 子进程启动时** stdin 是管道，读不到东西会立刻结束 —— 已验证不影响主流程。
+- 非 `darwin` 平台同样适用。
+
+### 改法（三）：出画面后持续重试 + 醒目提示
 
 1. **出画面后 8 秒内每 1.5 秒再试一次**（`focus_try_until` / `last_focus_try`），
    **一旦收到过任意按键就停止** —— 说明焦点已经在了，不该继续打扰。
