@@ -78,11 +78,11 @@
         27
       ],
       "check": "valley_min",
-      "min": -0.1,
+      "min": -0.15,
       "priority": 90,
       "tip": "膝盖超过脚尖了，试着把髋部向后坐",
       "when": "any",
-      "ideal": -0.02,
+      "ideal": -0.06,
       "face_relative": true
     },
     {
