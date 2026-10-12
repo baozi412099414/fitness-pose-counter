@@ -267,6 +267,13 @@ def validate_file(path):
                     rep.error(f"{where}：ideal={ideal} 应 ≥ min={lim}"
                               f"（这类约束「越大越好」，满分线要比及格线更大）")
 
+        if rule.get("face_relative") and rule.get("signal") != "dxs":
+            rep.warn(f"{where}：face_relative 只对 signal=dxs 有意义，当前 signal="
+                     f"「{rule.get('signal')}」，这个开关不会生效")
+        if rule.get("face_relative") and "unit_points" not in rule:
+            rep.warn(f"{where}：face_relative 通常要和 unit_points 一起用"
+                     f"（归一化基准也要跟着朝向走）")
+
         pr = rule.get("priority")
         if pr is not None and not isinstance(pr, (int, float)):
             rep.error(f"{where}：priority 要是数字（越大越优先播报）")

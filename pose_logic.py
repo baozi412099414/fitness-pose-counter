@@ -390,21 +390,48 @@ class Action:
         self.violation_streaks = {}      # 连续错误确认：过滤单帧关键点抖动造成的误提醒
         self.last_values = []           # 最近一帧各条件的信号值（供 HUD 显示）
         self.last_score = None          # 最近一次动作「完成那一刻」的得分（0~100）
+        self.face_sign = 0              # 人面朝画面哪一侧：+1 朝右 / -1 朝左 / 0 未知
         self.unit_smooth = None         # 归一化基准（肩宽）的平滑值，避免抖动被放大
+
+    @staticmethod
+    def estimate_face_sign(pts, vis=None, min_vis=0.5):
+        """
+        估计人**面朝画面的哪一侧**：+1 = 面朝右，-1 = 面朝左，0 = 判不出来。
+
+        依据很朴素：**脚尖总在脚踝的前方**。取左右两脚 (脚尖x − 脚踝x) 之和，
+        符号就是朝向 —— 不需要额外机位信息，也不受人站在画面哪个位置影响。
+
+        为什么需要它：`dxs`（带符号水平差）的物理含义依赖朝向。同一个「膝在脚尖后」
+        的动作，面朝右算出来是正、面朝左是负。有了朝向就能把符号翻正，
+        让**同一份配置对左右朝向都成立**。
+        """
+        vals = []
+        for toe, ankle in ((31, 27), (32, 28)):
+            if vis is not None and (vis[toe] < min_vis or vis[ankle] < min_vis):
+                continue
+            vals.append(pts[toe][0] - pts[ankle][0])
+        if not vals:
+            return 0
+        total = sum(vals)
+        # 脚尖和脚踝几乎重合时（脚被遮挡 / 侧对机位）判不出来，宁可返回 0 也不瞎猜
+        if abs(total) < 3.0:
+            return 0
+        return 1 if total > 0 else -1
 
     def signals(self, points):
         """算所有判定条件的信号值（单条件模式就一个）。"""
         conds = self.conditions or [{"signal": self.signal_type,
                                      "points": self.signal_points,
                                      "unit_points": self.unit_points}]
-        return [self._calc_signal(c["signal"], points, c["points"], c.get("unit_points"))
+        return [self._calc_signal(c["signal"], points, c["points"], c.get("unit_points"),
+                                  c.get("face_relative", False))
                 for c in conds]
 
     def signal(self, points):
         """显示用的主信号（多条件时取第一个）。"""
         return self.signals(points)[0]
 
-    def _calc_signal(self, sig_type, points, idx, unit_points=None):
+    def _calc_signal(self, sig_type, points, idx, unit_points=None, face_relative=False):
         """
         算一个信号值。计数信号和「规则自带信号」共用这套算法：
           angle    三点夹角（度）
@@ -456,6 +483,11 @@ class Action:
             # 而这两者在深蹲里意义完全相反。配置里按人的朝向决定点的先后顺序：
             #   人面朝画面右侧时写 [脚尖, 膝]，正常深蹲结果为正；膝越过脚尖就变负。
             v = pts[0][0] - pts[1][0]
+            # face_relative：先按人的朝向把符号翻正，再和阈值比。
+            # 不加这个开关的话，用户面朝画面左侧时符号整个反过来，
+            # 「膝超脚尖」会每一帧都误报 —— 而阈值本身其实是对的。
+            if face_relative and self.face_sign:
+                v *= self.face_sign
         elif sig_type == "dy":
             v = pts[0][1] - pts[1][1]
         elif sig_type == "tilt":
@@ -505,6 +537,11 @@ class Action:
             )
             return self.counter.count, self.counter.stage, None, [], checks
 
+        # 每帧更新朝向（脚看不清时保持上一次的判断，避免左右来回翻）
+        face = self.estimate_face_sign(points, visibilities)
+        if face:
+            self.face_sign = face
+
         values = self.signals(points)
         self.last_values = values                # 供 HUD 显示每个条件的当前值
         sig = values[0] if values else None      # 显示用（多条件时是第一个）
@@ -544,7 +581,8 @@ class Action:
                 rule_conf = min(visibilities[i] for i in r_idx)
                 if rule_conf < self.min_visibility:
                     continue
-            v = self._calc_signal(st, points, r_idx, rule.get("unit_points"))
+            v = self._calc_signal(st, points, r_idx, rule.get("unit_points"),
+                                  rule.get("face_relative", False))
             if v is None:
                 continue
             name = rule.get("name")

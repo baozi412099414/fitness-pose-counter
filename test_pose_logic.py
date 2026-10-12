@@ -683,6 +683,44 @@ def test_video_source_consumes_each_frame_and_reaches_eof():
     print("  两帧各消费一次，EOF 状态正确，资源已释放")
 
 
+def test_face_direction_adaptive():
+    print("=== 测试 30：朝向自适应（面朝画面左/右都该判对） ===")
+    from motion_synth import Synth
+
+    synth = Synth()
+
+    def mirror(pts):
+        """把骨架左右镜像，模拟人面朝另一边。"""
+        xs = [p[0] for p in pts]
+        cx = (min(xs) + max(xs)) / 2
+        return [(int(2 * cx - x), y) for x, y in pts]
+
+    def run(seq):
+        a = load_action("configs/squat.json")
+        for i, p in enumerate(seq):
+            a.update(p, [1.0] * 33, now=i / 30.0)
+        return a.counter.count, a.face_sign, a.last_score
+
+    std_r = synth.build("squat", reps=2, depth=95)
+    knee_r = synth.build("squat", reps=2, depth=95, knee_travel_deg=30)
+    std_l = [mirror(p) for p in std_r]
+    knee_l = [mirror(p) for p in knee_r]
+
+    c1, f1, s1 = run(std_r)
+    c2, f2, s2 = run(std_l)
+    print(f"  面朝右：朝向 {f1:+d}　标准深蹲 {s1} 分")
+    print(f"  面朝左：朝向 {f2:+d}　标准深蹲 {s2} 分")
+    assert f1 == 1 and f2 == -1, "朝向估计应该识别出左右"
+    assert abs(s1 - s2) < 1.0, "同一动作在左右朝向下评分必须一致"
+
+    _c3, _f3, s3 = run(knee_r)
+    _c4, _f4, s4 = run(knee_l)
+    print(f"  膝前移：面朝右 {s3} 分　面朝左 {s4} 分（都应被抓住）")
+    assert s3 < 45 and s4 < 45, "左右朝向下「膝前移」都必须被判为不合格"
+    assert abs(s3 - s4) < 1.0, "左右朝向下错误动作的评分也应一致"
+    print("  ✅ 朝向自动判正：同一份配置对左右朝向都成立\n")
+
+
 def test_action_scoring():
     print("=== 测试 29：动作评分（0~100 分，及格线 60 / 满分线 100） ===")
     from motion_synth import Synth
@@ -925,6 +963,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_face_direction_adaptive()
     test_action_scoring()
     test_motion_synth()
     test_config_validator()

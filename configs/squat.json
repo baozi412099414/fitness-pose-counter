@@ -82,7 +82,8 @@
       "priority": 90,
       "tip": "膝盖超过脚尖了，试着把髋部向后坐",
       "when": "any",
-      "ideal": -0.02
+      "ideal": -0.02,
+      "face_relative": true
     },
     {
       "name": "torso_shin_mismatch",

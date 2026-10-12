@@ -704,6 +704,10 @@ class FitnessTestUI:
         节流 3 秒，而且**只在本窗口确实没有键盘焦点时才抢** ——
         否则会不停和识别画面抢焦点，导致 q / r 按键在画面窗口里失灵。
         """
+        # 识别运行期间一律不抢 —— 用户这时候要看识别画面做动作，
+        # 控制台去抢焦点只会让两个窗口来回跳。
+        if self.process is not None and self.process.poll() is None:
+            return
         now = time.time()
         if now - self._last_focus_grab < 3.0:
             return
@@ -886,10 +890,9 @@ class FitnessTestUI:
         self.restart_btn.configure(state="normal", relief="raised")
         # 只闪一下置顶（同样不能持久，否则识别画面会被压住）
         self._flash_topmost()
-        # 识别窗口启动后会抢走键盘焦点，隔一会儿把控制台抢回来，
-        # 否则 macOS 上按钮要点两次才生效（第一次只用来激活窗口）。
-        self.root.after(1200, self._grab_focus)
-        self.root.after(2800, self._grab_focus)
+        # ⚠ 识别期间**不要**抢焦点：识别窗口（realtime_pose）自己会抢前台，
+        #   两边一起抢的结果就是「两个窗口来回乱跳」，用户根本看不清画面。
+        #   识别结束后（_finished）再把焦点收回来给控制台。
         threading.Thread(target=self._read_output, daemon=True).start()
 
     def _read_output(self):
@@ -981,6 +984,8 @@ class FitnessTestUI:
         if hasattr(self, "report_list"):
             self._refresh_stats()       # 刚跑完：历史列表多一条，目标进度也要更新
             self._draw_trend()          # 趋势图立即反映新数据
+        # 识别结束了，这时把焦点收回控制台（用户接下来要操作按钮）
+        self.root.after(300, self._grab_focus)
         if self.restart_pending:
             self.restart_pending = False
             self.root.after(250, self.start)
