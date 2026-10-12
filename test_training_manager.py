@@ -316,7 +316,18 @@ def test_plot_trend(tmp_note=""):
         print(f"  UI 内嵌画布生成 {os.path.basename(out2)}（{os.path.getsize(out2)} 字节）"
               f"，最常犯的错：{top}")
         assert os.path.getsize(out2) > 5000, "内嵌画布也应该画出内容"
-        print("  ✅ 趋势图可生成（脚本与 UI 内嵌共用同一套绘图逻辑）\n")
+        # ③ 窗口自动对齐：很久没训练时不能显示一张空图（用户会以为坏了）
+        from plot_trend import resolve_window
+        store.create_user("久未训练")
+        h3 = History(store, "久未训练")
+        h3.add_session("squat", 30, score=80.0, when=datetime.now() - timedelta(days=40))
+        end, shifted = resolve_window(h3, None, 14)
+        print(f"  最近 14 天无记录 -> 窗口移到 {end.strftime('%Y-%m-%d')}（挪动={shifted}）")
+        assert shifted, "很久没训练时窗口应该自动前移，否则图是空的"
+        h3.add_session("squat", 20, score=85.0, when=datetime.now() - timedelta(days=2))
+        _end2, shifted2 = resolve_window(h3, None, 14)
+        assert not shifted2, "有近期数据时不应该挪窗口"
+        print("  ✅ 趋势图可生成（脚本与 UI 内嵌共用同一套绘图逻辑；窗口会自动对齐到有数据的区间）\n")
     finally:
         os.environ.pop("FITNESS_DATA_DIR", None)
         shutil.rmtree(tmp, ignore_errors=True)

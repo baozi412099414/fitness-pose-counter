@@ -70,6 +70,30 @@ def daily_series(hist, action, days=14, now=None):
     return x, y
 
 
+def resolve_window(hist, action=None, days=14, now=None):
+    """
+    算出趋势图该展示哪一段日期。
+
+    默认是「最近 N 天」。但如果那段时间**完全没记录**（例如两周没训练），
+    图会全是空的 —— 用户看到空图会很自然地以为「功能坏了」，而历史数据其实都在。
+
+    这时把窗口往前挪到「最后一次训练」那天，并（在标题里）写明实际区间。
+    ⚠ **不会假装那是最近的数据** —— 只是别让空图误导人。
+
+    返回 (结束日期, 是否挪动过)。
+    """
+    now = now or datetime.now()
+    end_str = now.strftime("%Y-%m-%d")
+    start_str = (now - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    if hist.sessions(action=action, since=start_str, until=end_str):
+        return now, False                       # 最近 N 天有数据，正常显示
+    sessions = hist.sessions(action=action)
+    if not sessions:
+        return now, False                       # 压根没有记录
+    last = datetime.strptime(sessions[-1]["date"], "%Y-%m-%d")
+    return last.replace(hour=12), True
+
+
 def build_axes(fig, axes, hist, goals, action=None, weeks=8, days=14):
     """
     把三张子图都画到给定的 `axes` 上，并设置总标题。
@@ -77,10 +101,13 @@ def build_axes(fig, axes, hist, goals, action=None, weeks=8, days=14):
     `axes` 需要是长度 ≥ 3 的序列。命令行脚本和 UI 内嵌画布都调这个函数，
     保证两处呈现完全一致。返回「最常犯的错」文本，方便调用方另外展示。
     """
-    weekly = hist.weekly_trend(action=action, weeks=weeks)
+    # 窗口对齐全：很久没训练时自动挪到有数据的区间，避免显示一张空图
+    end, shifted = resolve_window(hist, action, days)
+
+    weekly = hist.weekly_trend(action=action, weeks=weeks, now=end)
     wk_labels = [w["week_start"][5:] for w in weekly]
     wk_values = [w["reps"] for w in weekly]
-    d_labels, d_values = daily_series(hist, action, days=days)
+    d_labels, d_values = daily_series(hist, action, days=days, now=end)
 
     # 目标线：按动作设的目标（不区分动作时取各动作目标之和作参考）
     if action:
@@ -118,7 +145,7 @@ def build_axes(fig, axes, hist, goals, action=None, weeks=8, days=14):
 
     # ---- 图三：每日平均动作评分（0~100）----
     ax = axes[2]
-    st = hist.score_trend(action=action, days=days)
+    st = hist.score_trend(action=action, days=days, now=end)
     sx = [t["date"][5:] for t in st]
     sy = [t["score"] for t in st]
     # 没有数据的点保持 None —— matplotlib 会自动断开，正好表示「那天没练」，
@@ -137,10 +164,13 @@ def build_axes(fig, axes, hist, goals, action=None, weeks=8, days=14):
     total = sum(v for v in d_values)
     errs = hist.error_summary(action=action)
     top = "、".join(f"{k}×{v}" for k, v in list(errs.items())[:3]) or "无记录"
-    avg = hist.avg_score(action=action, days=days)
-    avg_txt = f"；近期平均评分 {avg} 分" if avg is not None else ""
+    avg = hist.avg_score(action=action, days=days, now=end)
+    avg_txt = f"；平均评分 {avg} 分" if avg is not None else ""
+    # 挪过窗口就如实写出来，不能让人误以为这是「最近 N 天」的数据
+    range_txt = (f"截至 {end.strftime('%Y-%m-%d')}（最近 {days} 天无记录，已向前对齐）"
+                 if shifted else f"最近 {days} 天")
     fig.suptitle(f"训练趋势 —— 用户：{hist.user}　动作：{action or '全部'}　"
-                 f"（近期共 {total} 次{avg_txt}；最常出现的提示：{top}）", fontsize=12)
+                 f"（{range_txt}，共 {total} 次{avg_txt}；最常出现的提示：{top}）", fontsize=12)
     return top
 
 
