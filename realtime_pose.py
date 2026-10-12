@@ -395,6 +395,7 @@ def main():
     warmup_samples = []                 # 启动头 2 秒的信号采样（用来估算站立基线）
     baseline = None                     # 站立基线（自动校准结果）
     calib_done = False                  # 校准是否已判定完（成功或放弃）
+    calibration_announced = False       # 「校准完成」只提示一次，不要一直挂在画面上
     shown_hits = []                     # 最近命中的错误（保持显示一会儿，免得只闪一帧看不清）
     shown_until = 0.0
     last_err_say = 0.0                  # 错误播报节流（独立于报数）
@@ -628,6 +629,26 @@ def main():
             frame = blit_cn(frame, f"{action.name} · {stage_cn} · {count} 次{score_txt}",
                             (12, fh - 100), size=26,
                             color=(190, 255, 210), bg=(24, 30, 26))
+
+            # ---- 校准提示（很重要，之前只在终端打印，画面上看不到）----
+            # 站立基线要靠**启动后的头 2 秒**采样，那段时间你必须站直别动。
+            # 如果那时正在调机位或走进画面，基线就采错了 → 门槛被设到达不到的位置
+            # → 表现就是「怎么做都不计数」。所以在画面上明确提示。
+            if not calib_done:
+                if person_ok:
+                    left = max(0.0, warmup_until - time.time())
+                    hint = (f"请站直别动 · 正在校准基线 {left:.1f} 秒"
+                            if left > 0 else "正在校准基线…请站直别动")
+                else:
+                    hint = "请站到画面里 · 需要全身入镜才能校准"
+                frame = blit_cn(frame, hint, (12, 74), size=28,
+                                color=(30, 30, 30), bg=(255, 214, 102))
+            elif baseline is not None and not calibration_announced:
+                calibration_announced = True
+                frame = blit_cn(frame, f"基线校准完成：站立 {baseline:.0f}°",
+                                (12, 74), size=26,
+                                color=(20, 40, 20), bg=(150, 230, 160))
+
             if shown_hits:
                 # 只显示最高优先级的 1~2 条，避免文字太长铺满画面
                 tips = "；".join(h["tip"] for h in shown_hits[:2])
