@@ -887,7 +887,11 @@ class FitnessTestUI:
         # （见 CLAUDE.md「mediapipe 版本坑」）。不提前说明的话很容易被当成卡死。
         self.status_var.set("启动中…首次约需 1 分钟（MediaPipe 初始化），画面出现前请稍候")
         self._append_log("[提示] MediaPipe 首次初始化约需 1 分钟 —— 它在尝试上传遥测并等网络超时。\n"
-                         "       这段时间画面不会出现，**不是卡死**，请稍候。\n")
+                         "       这段时间画面不会出现，**不是卡死**，请稍候。\n"
+                         "[提示] 结束测试的三种方式：① 识别画面里按 q 或 ESC；"
+                         "② 点识别窗口的关闭按钮；③ 点这里的「停止」。\n"
+                         "       ⚠ 按 q 没反应时，先用鼠标点一下识别画面（macOS 上命令行窗口\n"
+                         "         默认拿不到键盘焦点，点一下就有了）。\n")
         self.start_btn.configure(state="disabled", relief="sunken")
         self.stop_btn.configure(state="normal", relief="raised")
         self.reset_btn.configure(state="normal", relief="raised")
