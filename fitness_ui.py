@@ -268,8 +268,40 @@ class ActionEditor(tk.Toplevel):
         self.existing_ids = list(existing_ids)
         self._user_edited_id = False
 
-        pad = tk.Frame(self, bg=BG, padx=20, pady=16)
-        pad.pack(fill="both", expand=True)
+        # 表单内容比较长（三块卡片 + 提示），小屏上会顶出屏幕、够不到「保存」。
+        # 所以：**底部按钮固定在窗口下方，中间内容区单独滚动** ——
+        # 这样无论屏幕多矮，保存/取消永远在眼前。
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"620x{min(720, int(sh * 0.82))}")
+
+        bottom = tk.Frame(self, bg=BG, padx=20, pady=12)
+        bottom.pack(side="bottom", fill="x")
+
+        shell = tk.Frame(self, bg=BG)
+        shell.pack(side="top", fill="both", expand=True)
+        canvas = tk.Canvas(shell, bg=BG, highlightthickness=0)
+        vbar = ttk.Scrollbar(shell, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vbar.set, yscrollincrement=20)
+        canvas.pack(side="left", fill="both", expand=True)
+        vbar.pack(side="right", fill="y")
+
+        pad = tk.Frame(canvas, bg=BG, padx=20, pady=16)
+        win = canvas.create_window((0, 0), window=pad, anchor="nw")
+        pad.bind("<Configure>",
+                 lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
+        # 滚轮只在这个窗口里生效，且做 16ms 节流（高频事件别直接怼 Python）
+        self._wheel_ts = 0.0
+
+        def _wheel(e):
+            now = time.time()
+            if now - self._wheel_ts < 0.016:
+                return
+            self._wheel_ts = now
+            canvas.yview_scroll(-1 if e.delta > 0 else 1, "units")
+
+        canvas.bind("<MouseWheel>", _wheel)
+        self._canvas = canvas
 
         tk.Label(pad, text="新建动作", bg=BG, fg=TEXT, font=F_TITLE).pack(anchor="w")
         tk.Label(pad, text="填完保存即可 —— 动作列表会自动多出一个，和内置动作一样能测。",
@@ -401,23 +433,27 @@ class ActionEditor(tk.Toplevel):
                  bg=BG, fg=MUTED, font=F_TINY, wraplength=460,
                  justify="left").pack(anchor="w", pady=(2, 10))
 
-        # ── 按钮 ──
-        btns = tk.Frame(pad, bg=BG)
-        btns.pack(fill="x")
+        # ── 按钮（固定在窗口底部，不随内容滚动）──
+        btns = bottom
         hover_btn(btns, "保存动作", self._save, SUCCESS, SUCCESS_HI).pack(side="left")
         tk.Button(btns, text="取消", command=self.destroy, bg=SOFT, fg=TEXT,
                   activebackground="#e4eaf1", font=F_BTN, relief="flat", bd=0,
                   highlightthickness=0, padx=18, pady=9,
                   cursor="pointinghand").pack(side="left", padx=8)
+        tk.Label(btns, text="保存前会自动校验配置", bg=BG, fg=MUTED,
+                 font=F_TINY).pack(side="right")
 
         self._on_signal()
         self._update_words()
         self.update_idletasks()
-        # 居中到父窗口
+        # 居中到父窗口，并保证不超出屏幕
         try:
-            x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
-            y = master.winfo_rooty() + 60
-            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+            w, h = 620, min(720, int(sh * 0.82))
+            x = master.winfo_rootx() + (master.winfo_width() - w) // 2
+            y = max(20, master.winfo_rooty() + 40)
+            x = max(0, min(x, sw - w))
+            y = max(0, min(y, sh - h - 40))
+            self.geometry(f"{w}x{h}+{x}+{y}")
         except tk.TclError:
             pass
         self.grab_set()
