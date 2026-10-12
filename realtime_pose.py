@@ -278,20 +278,84 @@ def _fmt_num(v, width=5):
     return " " * (width - 2) + "--" if v is None else f"{v:{width}.2f}"
 
 
-def bring_window_to_front():
+def bring_window_to_front(verbose=False):
     """
-    从终端启动的 GUI 窗口默认抢不到键盘焦点，按键（q / r）会没反应。
-    进程内直接调 Cocoa API 把自己设成前台 App，不经过任何外部自动化权限。
+    让识别窗口拿到**键盘焦点**（macOS）。
+
+    从终端启动的 GUI 窗口默认不是「活跃 App」，按键 q / r 会完全没反应。
+    这里做三步，**缺一不可**：
+
+      1. 把进程设成「常规 App」（Regular）—— 否则它压根不参与前台竞争。
+      2. **激活 App**：macOS 14+ 用 `activate()`；更老的系统才用已废弃的
+         `activateIgnoringOtherApps_()`。在 macOS 26 上**只调后者是无效的**。
+      3. **把窗口本身设为 key window**（`makeKeyAndOrderFront_`）——
+         ⚠ 这一步才是关键：**「激活 App」不等于「窗口拿到键盘」**。
+         之前只做了第 1、2 步，所以按 q 一直没反应。
+
+    返回是否至少置前了一个窗口（供调用方决定要不要提示用户手动点一下）。
     """
     if sys.platform != "darwin":
-        return
+        return False
     try:
         from AppKit import NSApplication, NSApplicationActivationPolicyRegular
+    except Exception as e:
+        if verbose:
+            print(f"  （没有 pyobjc，无法自动抢焦点：{e}）")
+        return False
+    try:
         app = NSApplication.sharedApplication()
         app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-        app.activateIgnoringOtherApps_(True)
+
+        # 第 2 步：激活 App。这里用**两种** API 各来一次 ——
+        # · NSApplication.activate()          macOS 14+ 的正规做法
+        # · NSRunningApplication.activate…    从「当前进程」角度激活，覆盖面更广
+        # （老的 activateIgnoringOtherApps_ 在 macOS 26 上已废弃且常常无效）
+        if hasattr(app, "activate"):
+            app.activate()
+        else:
+            app.activateIgnoringOtherApps_(True)
+        try:
+            from AppKit import (NSRunningApplication,
+                                NSApplicationActivateIgnoringOtherApps)
+            NSRunningApplication.currentApplication().activateWithOptions_(
+                NSApplicationActivateIgnoringOtherApps)
+        except Exception:
+            pass
+
+        # 第 3 步：把窗口设为 key window —— 这一步才真正让键盘事件送到窗口上
+        count = 0
+        for w in app.windows():
+            try:
+                w.makeKeyAndOrderFront_(None)
+                count += 1
+            except Exception:
+                pass
+
+        # 兜底诊断：NSApp.windows() 拿不到时，用 Quartz 按 PID 查系统级窗口列表，
+        # 至少能判断「窗口到底存不存在」——这决定了下一步该往哪个方向修。
+        if count == 0:
+            try:
+                import os as _os
+                from Quartz import (CGWindowListCopyWindowInfo,
+                                    kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                infos = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly,
+                                                   kCGNullWindowID)
+                mine = [i for i in infos if i.get("kCGWindowOwnerPID") == _os.getpid()]
+                if verbose:
+                    names = [i.get("kCGWindowName") or "(无标题)" for i in mine]
+                    print(f"  NSApp.windows() 为空；按 PID 查到系统级窗口 {len(mine)} 个：{names}")
+                count = len(mine)
+            except Exception as e:
+                if verbose:
+                    print(f"  （Quartz 兜底查询也失败：{e}）")
+
+        if verbose:
+            print(f"  抢焦点：已激活 App，处理了 {count} 个窗口")
+        return count > 0
     except Exception as e:
-        print(f"  （抢焦点失败，可以手动点一下画面窗口：{e}）")
+        if verbose:
+            print(f"  （抢焦点失败：{e}）")
+        return False
 
 
 # --------------------------------------------------------------------------
@@ -719,19 +783,27 @@ def main():
             # 用户不知道「点一下画面就好了」，所以直接把这句话写在画面上。
             # 一旦收到过任意按键，就说明焦点已经在窗口上，提示 15 秒后自动撤掉。
             if (not got_first_key) or (time.time() - t0 < 15.0):
-                lines = ["q / ESC = quit", "click the window if keys do nothing"]
+                # 8 秒还没收到任何按键 → 说明键盘焦点多半没抢到，提示要更醒目
+                stuck = (not got_first_key) and (time.time() - t0 > 8.0)
+                lines = (["KEYBOARD NOT ACTIVE — CLICK THIS WINDOW, THEN PRESS q"]
+                         if stuck else
+                         ["q / ESC = quit", "click the window if keys do nothing"])
+                color = (60, 60, 255) if stuck else (235, 235, 235)
                 for i, txt in enumerate(lines):
                     scale = 0.55 if i == 0 else 0.45
                     (tw, _th), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
                     cv2.putText(frame, txt, (w - tw - 14, 26 + i * 22),
-                                cv2.FONT_HERSHEY_SIMPLEX, scale, (235, 235, 235), 1,
+                                cv2.FONT_HERSHEY_SIMPLEX, scale, color, 1,
                                 cv2.LINE_AA)
 
             cv2.imshow("realtime pose", frame)
             if not got_first:
                 got_first = True
                 cv2.waitKey(1)              # 先让窗口把第一帧画出来，再抢焦点
-                bring_window_to_front()
+                ok = bring_window_to_front(verbose=True)
+                if not ok:
+                    print("  ⚠ 没能自动抢到键盘焦点 —— 请用鼠标点一下识别画面，"
+                          "之后 q / r 就能用了。")
                 focus_try_until = time.time() + 8.0
                 last_focus_try = time.time()
             elif not got_first_key and time.time() < focus_try_until:
