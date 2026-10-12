@@ -68,22 +68,18 @@
     },
     {
       "name": "knee_over_toe",
-      "signal": "dxs",
+      "signal": "tilt",
       "points": [
-        31,
-        25
-      ],
-      "unit_points": [
         25,
         27
       ],
-      "check": "valley_min",
-      "min": -0.15,
-      "priority": 90,
-      "tip": "膝盖超过脚尖了，试着把髋部向后坐",
+      "check": "peak_max",
+      "max": 45,
+      "ideal": 33,
       "when": "any",
-      "ideal": -0.06,
-      "face_relative": true
+      "priority": 70,
+      "confirm_frames": 4,
+      "tip": "小腿前倾太多，膝盖明显前移了 —— 试着把髋部向后坐（像坐椅子那样）"
     },
     {
       "name": "torso_shin_mismatch",

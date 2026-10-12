@@ -508,6 +508,23 @@ class Action:
                     # 那等于赌用户恰好面朝右边。判不了就不判，让这一帧无效。
                     return None
                 v *= self.face_sign
+        elif sig_type == "tilts":
+            # **带符号**的倾斜角：两点连线相对竖直方向的夹角。
+            # 正值表示 pts[0] 在 pts[1] 的「前方」（按人的朝向归一化之后）。
+            #
+            # 相比 dxs 的优势：atan2 自带归一化，**不需要额外的长度基准**。
+            # dxs 要除以肩宽 / 小腿长，而那个「尺子」本身就在抖（侧视下投影小、
+            # 脚部关键点还容易被遮挡）—— 除出来的比值自然不稳，于是误报。
+            # 角度就没有这个问题：站得远、站得近，角度都一样。
+            dx = pts[0][0] - pts[1][0]
+            dy = abs(pts[0][1] - pts[1][1])
+            if dx == 0 and dy == 0:
+                return None
+            if face_relative:
+                if not self.face_sign:
+                    return None       # 朝向判不出来就别硬判（同 dxs 的处理）
+                dx *= self.face_sign
+            return math.degrees(math.atan2(dx, dy))
         elif sig_type == "dy":
             v = pts[0][1] - pts[1][1]
         elif sig_type == "tilt":
