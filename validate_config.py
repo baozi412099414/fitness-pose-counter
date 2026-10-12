@@ -268,12 +268,17 @@ def validate_file(path):
                     rep.error(f"{where}：ideal={ideal} 应 ≥ min={lim}"
                               f"（这类约束「越大越好」，满分线要比及格线更大）")
 
-        if rule.get("face_relative") and rule.get("signal") != "dxs":
-            rep.warn(f"{where}：face_relative 只对 signal=dxs 有意义，当前 signal="
-                     f"「{rule.get('signal')}」，这个开关不会生效")
-        if rule.get("face_relative") and "unit_points" not in rule:
-            rep.warn(f"{where}：face_relative 通常要和 unit_points 一起用"
-                     f"（归一化基准也要跟着朝向走）")
+        # face_relative：把「左右方向」归一化到「人面朝右」的约定，避免配置偷偷绑定机位朝向。
+        # 目前 dxs（带符号水平差）和 tilts（带符号倾角）都支持。
+        if rule.get("face_relative"):
+            sig_name = rule.get("signal")
+            if sig_name not in ("dxs", "tilts"):
+                rep.warn(f"{where}：face_relative 只对 signal=dxs / tilts 有意义，"
+                         f"当前是「{sig_name}」，这个开关不会生效")
+            elif sig_name == "dxs" and "unit_points" not in rule:
+                # 只提醒 dxs：它是长度比值，必须有尺子；tilts 是角度，atan2 自带归一化
+                rep.warn(f"{where}：dxs + face_relative 通常要配 unit_points"
+                         f"（归一化用的那把「尺子」）")
 
         pr = rule.get("priority")
         if pr is not None and not isinstance(pr, (int, float)):
