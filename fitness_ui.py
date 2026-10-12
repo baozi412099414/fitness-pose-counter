@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "configs"
 REFERENCE_DIR = ROOT / "captures/reference"
 REFERENCE_EXTS = (".ogv", ".webm", ".mp4", ".mov", ".ogg", ".avi", ".mkv")
-SOURCE_TYPES = ("摄像头", "选择本地视频", "内置参考视频")
+SOURCE_TYPES = ("摄像头", "选择本地视频", "内置参考视频", "关键点数据")
 PHONE_CAMERA_INDEX = 1
 COMPUTER_CAMERA_INDEX = 0
 
@@ -212,6 +212,10 @@ def build_command(action_id, source_type, source_value, voice, report_path,
            "--action", str(action_id), "--report", str(report_path)]
     if source_type == "摄像头":
         cmd += ["--cam", str(int(source_value))]
+    elif source_type == "关键点数据":
+        # 关键点数据回放：走**和摄像头完全一样**的流程（HUD 计数 / 质量提示 /
+        # 语音 / 训练历史 / 报告），只是关键点来自文件而不是推理。
+        cmd += ["--data", str(source_value)]
     else:
         cmd += ["--src", str(source_value)]
     if not voice:
@@ -352,21 +356,45 @@ class FitnessTestUI:
         form.columnconfigure(1, weight=1)
 
         tk.Label(form, text="动作", bg=CARD, fg=MUTED, font=F_SMALL).grid(
-            row=0, column=0, sticky="w", padx=(0, 14), pady=(10, 0))
-        action_frame = tk.Frame(form, bg=CARD)
-        action_frame.grid(row=0, column=1, sticky="ew", pady=(10, 0))
-        for col, (name, _aid) in enumerate(self.actions):
-            action_frame.columnconfigure(col, weight=1, uniform="act")
+            row=0, column=0, sticky="nw", padx=(0, 14), pady=(10, 0))
+        action_area = tk.Frame(form, bg=CARD)
+        action_area.grid(row=0, column=1, columnspan=2, sticky="ew", pady=(10, 0))
+        action_area.columnconfigure(0, weight=1)
+
+        # 动作按钮**自动换行**：动作数量由 configs/ 决定，用户随时可能加，
+        # 横排一行迟早挤爆（4 个就已经很挤了）。这里按每行 PER_ROW 个排，
+        # 行数随动作数量自适应 —— 加动作时界面不用改，也不会把按钮压扁。
+        PER_ROW = 3
+        self._action_buttons = {}
+        for i, (name, _aid) in enumerate(self.actions):
+            r, c = divmod(i, PER_ROW)
             # indicatoron=False：把单选按钮画成「药丸按钮」，比小圆点更像 App。
             # 选中态用浅蓝底 —— tkinter 没法在选中时同时改字色，浅底黑字最稳妥。
-            tk.Radiobutton(
-                action_frame, text=name, variable=self.action_var, value=name,
+            btn = tk.Radiobutton(
+                action_area, text=name, variable=self.action_var, value=name,
                 command=self._sync_source, indicatoron=False,
                 bg=SOFT, fg=TEXT, selectcolor="#d6e8ff",
                 activebackground="#d6e8ff", activeforeground=TEXT,
                 font=F_BTN, relief="flat", bd=0, highlightthickness=0,
-                padx=16, pady=10, cursor="pointinghand",
-            ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 8, 0))
+                padx=16, pady=9, cursor="pointinghand",
+            )
+            btn.grid(row=r, column=c, sticky="ew", padx=(0 if c == 0 else 8, 0),
+                     pady=(0 if r == 0 else 8, 0))
+            self._action_buttons[name] = btn
+        for c in range(PER_ROW):
+            action_area.columnconfigure(c, weight=1, uniform="act")
+
+        # 加动作的入口直接放在动作区旁边 —— 用户最需要它的时候就在眼前
+        add_row = tk.Frame(form, bg=CARD)
+        add_row.grid(row=0, column=3, sticky="ne", padx=(10, 0), pady=(10, 0))
+        tk.Button(add_row, text="＋ 新建动作", command=self._open_configs_dir,
+                  bg="#e8f1ff", fg=PRIMARY, activebackground="#d6e8ff",
+                  font=F_SMALL, relief="flat", bd=0, highlightthickness=0,
+                  padx=14, pady=6, cursor="pointinghand").pack(fill="x")
+        tk.Button(add_row, text="校验配置", command=self._validate_configs,
+                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1",
+                  font=F_SMALL, relief="flat", bd=0, highlightthickness=0,
+                  padx=14, pady=6, cursor="pointinghand").pack(fill="x", pady=(6, 0))
 
         tk.Label(form, text="输入", bg=CARD, fg=MUTED, font=F_SMALL).grid(
             row=1, column=0, sticky="w", padx=(0, 14), pady=(12, 0))
@@ -808,6 +836,27 @@ class FitnessTestUI:
         if total_err:
             self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
 
+    def _open_configs_dir(self):
+        """打开 configs/ 目录 —— 自定义动作就是往里放一份 JSON。"""
+        cfg = ROOT / "configs"
+        cfg.mkdir(exist_ok=True)
+        guide = ROOT / "自定义动作指南.md"
+        n = len([p for p in cfg.glob("*.json")])
+        self._msg("showinfo", "新建动作 = 加一份 JSON 配置",
+                  f"动作列表是**自动扫描** configs/ 目录生成的，现在有 {n} 份配置。\n\n"
+                  f"新增一个动作只需：\n"
+                  f"  1. 在打开的目录里复制一份现成的 JSON（比如 squat.json）\n"
+                  f"  2. 改 id / name、判定用的关键点、关节角度信号、上下阈值\n"
+                  f"  3. 回到本界面点「校验配置」检查有没有写错\n"
+                  f"  4. 重启本界面 —— 动作按钮会自动多出来\n\n"
+                  f"全程不需要改任何代码。\n"
+                  f"字段说明见项目里的《自定义动作指南.md》"
+                  + (f"（已找到：{guide.name}）" if guide.is_file() else ""))
+        try:
+            subprocess.Popen(["open", str(cfg)])
+        except Exception:
+            pass
+
     def _open_reports_dir(self):
         """在访达里打开报告目录。"""
         path = ROOT / "captures/reports"
@@ -963,19 +1012,34 @@ class FitnessTestUI:
     def _sync_source(self):
         source_type = self.source_type_var.get()
         camera = source_type == "摄像头"
+        editable = source_type in ("选择本地视频", "关键点数据")
         if source_type == "内置参考视频":
             vid = find_reference_video(self.action_id())
             self.file_var.set(str(vid) if vid else "")
+        elif source_type == "关键点数据":
+            # 默认指向 samples/ 里的示例，省得用户空着手不知道填什么
+            cur = Path(self.file_var.get()).expanduser()
+            if not cur.is_file() or cur.suffix.lower() in (".mp4", ".mov", ".avi", ".mkv", ".webm"):
+                demo = ROOT / "samples" / "squat_minimal.json"
+                self.file_var.set(str(demo) if demo.is_file() else "")
         self.camera_frame.grid() if camera else self.camera_frame.grid_remove()
         self.file_entry.grid_remove() if camera else self.file_entry.grid()
         self.browse_btn.grid_remove() if camera else self.browse_btn.grid()
-        self.browse_btn.configure(state="normal" if source_type == "选择本地视频" else "disabled")
-        self.file_entry.configure(state="normal" if source_type == "选择本地视频" else "readonly")
+        self.browse_btn.configure(state="normal" if editable else "disabled")
+        self.file_entry.configure(state="normal" if editable else "readonly")
         # 动作变了，今日目标/完成量也要跟着刷新
         if hasattr(self, "goal_status_var"):
             self._sync_goal()
 
     def _browse(self):
+        if self.source_type_var.get() == "关键点数据":
+            path = filedialog.askopenfilename(
+                parent=self.root, title="选择关键点数据文件（JSON）",
+                initialdir=str(ROOT / "samples") if (ROOT / "samples").is_dir() else str(ROOT),
+                filetypes=[("关键点数据", "*.json"), ("所有文件", "*.*")])
+            if path:
+                self.file_var.set(path)
+            return
         path = filedialog.askopenfilename(parent=self.root, 
             title="选择动作视频",
             filetypes=[("视频文件", "*.mp4 *.mov *.avi *.mkv *.webm *.ogv *.ogg"),
@@ -992,6 +1056,11 @@ class FitnessTestUI:
             except ValueError as exc:
                 raise ValueError("摄像头设备号必须是整数") from exc
         path = Path(self.file_var.get()).expanduser()
+        if self.source_type_var.get() == "关键点数据":
+            if not path.is_file():
+                raise ValueError(f"找不到关键点数据文件：{path}\n"
+                                 f"可以先试 samples/squat_minimal.json")
+            return path
         if not path.is_file():
             raise ValueError(f"找不到视频文件：{path}")
         return path

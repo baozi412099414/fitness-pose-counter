@@ -714,6 +714,61 @@ def _curl_reps(n, top, bottom):
     return seq
 
 
+def test_data_replay_full_flow():
+    print("=== 测试 37：数据回放走完整流程（与摄像头同一条路径） ===")
+    from fitness_ui import build_command
+    from pose_player import load_data, play
+    from realtime_pose import KeypointSource
+
+    # ① UI 生成的命令要用 --data（而不是 --src / --cam）
+    cmd = build_command("squat", "关键点数据", "/tmp/d.json", True, "/tmp/r.json")
+    print(f"  UI 命令：{' '.join(cmd[-2:])}")
+    assert "--data" in cmd and "--src" not in cmd and "--cam" not in cmd
+
+    # ② 数据源：帧数、时间轴、画面
+    ks = KeypointSource("samples/squat_minimal.json")
+    assert ks.total == 180 and abs(ks.fps - 30.0) < 1e-6
+    st, frame, pts, vis = ks.read()
+    print(f"  数据源：{ks.total} 帧 / {ks.fps:g}fps；第一帧状态={st} "
+          f"画面={None if frame is None else frame.shape} 关键点={len(pts)}")
+    assert st == "frame" and frame is not None and len(pts) == 33
+    assert frame.shape[0] > 0 and frame.shape[1] > 0, "回放画面应该是一张真实图像"
+    print(f"  数据源时间轴：elapsed={ks.elapsed:.3f}s（按 fps 算，与墙上时间无关）")
+
+    # ③ 关键点确实来自文件（不是推理出来的）
+    raw = load_data("samples/squat_minimal.json")
+    # load_data 返回的每帧已经是「展开成 33 点」的形式（缺失的点是 (0,0) 占位）
+    assert pts[23] == raw["frames"][0][23] and pts[25] == raw["frames"][0][25]
+    assert pts[23] != (0, 0), "数据里给过的点不该是占位值"
+
+    # ④ 跑完整流程，结论必须与 pose_player 一致
+    #    （这是本轮最重要的保证：两条路径不能得出不同的计数）
+    from pose_logic import load_action
+    act = load_action("configs/squat.json")
+    ks2 = KeypointSource("samples/squat_minimal.json")
+    while True:
+        st, _f, p, v = ks2.read()
+        if st == "eof":
+            break
+        if st == "wait":
+            continue
+        # ⚠ 必须用**数据时间**：用墙上时间的话，主循环一慢就会「追帧」，
+        #    按秒的防抖判定全部失真（实测把 3 次数成 2 次）
+        act.update(p, v, now=ks2.elapsed)
+    res = play("squat", raw)
+    print(f"  回放路径：计数 {act.counter.count}　评分 {act.last_score}")
+    print(f"  报告路径：计数 {res['reps']}　评分 {res['score']}")
+    assert act.counter.count == res["reps"], "两条路径的计数必须一致"
+    assert abs(act.last_score - res["score"]) < 0.1, "两条路径的评分必须一致"
+
+    # ⑤ 错误动作的数据也要能被抓出来
+    shallow = play("squat", load_data("samples/squat_shallow.json"))
+    print(f"  浅蹲数据：计数 {shallow['reps']}　{shallow['score']} 分　"
+          f"错误 {list(shallow['errors'])}")
+    assert "not_deep_enough" in shallow["errors"]
+    print("  ✅ 数据回放与实时识别共用同一套流程，且结论可复现\n")
+
+
 def test_pose_player():
     print("=== 测试 36：用自带的关键点数据测试动作（数据回放） ===")
     import json
@@ -1277,6 +1332,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_data_replay_full_flow()
     test_pose_player()
     test_custom_action_end_to_end()
     test_cycles_per_rep()

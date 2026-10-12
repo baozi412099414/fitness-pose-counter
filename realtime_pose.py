@@ -19,6 +19,7 @@
 """
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -161,6 +162,112 @@ class Camera(threading.Thread):
         self._stop_event.set()
         self.join(timeout=1.0)
         self.cap.release()
+
+
+class KeypointSource:
+    """
+    关键点数据源：直接从 JSON 读关键点，**不经过摄像头、也不经过 MediaPipe**。
+
+    目的很明确 —— 让你手上的数据走一遍**和实时识别完全一样的流程**：
+    画面 + 骨架 + HUD 计数 + 质量提示 + 语音播报 + 分组间歇 + 训练历史 + JSON 报告，
+    一样都不少。区别只是「关键点从哪来」。
+
+    附带好处：不用推理，所以**启动是瞬间的**（不必等 MediaPipe 那约 61 秒）。
+
+    画面：数据里没有图像，所以自己画一张 —— 深色底 + 骨架，
+    一眼能看出「这是数据回放，不是真实画面」。
+    """
+
+    W, H = 960, 720          # 回放画面的固定尺寸
+
+    def __init__(self, path, speed=1.0):
+        from pose_player import DataError, load_data     # 复用同一套数据解析与校验
+        self.data = load_data(path)
+        self.name = self.data.get("name") or os.path.basename(path)
+        self.fps = self.data["fps"]
+        self.frames = self.data["frames"]
+        self.vis = self.data["vis"]
+        self.speed = max(0.1, float(speed))
+        self.i = 0
+        self._t0 = None
+        self._next_at = 0.0
+
+        # 坐标可能不在 0~1 的屏幕范围内（数据来源不同），统一缩放到画面里
+        used = [p for fr in self.frames for p in fr if p != (0, 0)]
+        if used:
+            xs = [p[0] for p in used]
+            ys = [p[1] for p in used]
+            self._x0, self._x1 = min(xs), max(xs)
+            self._y0, self._y1 = min(ys), max(ys)
+        else:
+            self._x0 = self._y0 = 0
+            self._x1 = self._y1 = 1
+        span_x = max(1, self._x1 - self._x0)
+        span_y = max(1, self._y1 - self._y0)
+        pad = 0.12
+        self._scale = min(self.W * (1 - 2 * pad) / span_x,
+                          self.H * (1 - 2 * pad) / span_y)
+        self._off_x = self.W / 2 - (self._x0 + span_x / 2) * self._scale
+        self._off_y = self.H / 2 - (self._y0 + span_y / 2) * self._scale
+
+    @property
+    def total(self):
+        return len(self.frames)
+
+    @property
+    def elapsed(self):
+        """已回放的数据时间（秒）—— 按 fps 算，不是墙上时间。"""
+        return self.i / self.fps
+
+    def _to_screen(self, pts):
+        return [(int(x * self._scale + self._off_x), int(y * self._scale + self._off_y))
+                for x, y in pts]
+
+    def _render(self, pts, vis, note):
+        """画一张回放画面：深色底 + 骨架 + 顶部说明。"""
+        import numpy as np
+        img = np.full((self.H, self.W, 3), 26, dtype=np.uint8)
+        # 淡淡的网格，让画面不至于太空
+        for gx in range(0, self.W, 60):
+            cv2.line(img, (gx, 0), (gx, self.H), (38, 38, 38), 1)
+        for gy in range(0, self.H, 60):
+            cv2.line(img, (0, gy), (self.W, gy), (38, 38, 38), 1)
+
+        sp = self._to_screen(pts)
+        ok = [i for i in range(33) if tuple(pts[i]) != (0, 0)]
+        good = [i for i in ok if vis[i] >= 0.5]
+        color = (0, 220, 180) if good else (110, 110, 110)
+        for a, b in SKELETON:
+            if a in ok and b in ok and vis[a] >= 0.5 and vis[b] >= 0.5:
+                cv2.line(img, sp[a], sp[b], color, 3, cv2.LINE_AA)
+        for i in ok:
+            if vis[i] >= 0.5:
+                cv2.circle(img, sp[i], 5, (60, 160, 255), -1, cv2.LINE_AA)
+        img = blit_cn(img, note, (14, 14), size=24, color=(255, 226, 150), bg=(48, 42, 18))
+        return img
+
+    def read(self):
+        """
+        取下一帧。返回 (状态, 画面, 关键点, 可见度)，状态 ∈ {"frame", "wait", "eof"}。
+
+        "wait" 的含义是「还没到下一帧的时间」—— 数据回放必须保持真实时间轴，
+        否则 enter_hold / min_interval 这些**按秒**的防抖参数会全部失真。
+        """
+        if self.i >= len(self.frames):
+            return "eof", None, None, None
+        now = time.time()
+        if self._t0 is None:
+            self._t0 = now
+        if now < self._next_at:
+            return "wait", None, None, None
+
+        pts, vis = self.frames[self.i], self.vis[self.i]
+        self.i += 1
+        # 下一帧的理论时刻（按数据 fps，可整体加速）
+        self._next_at = self._t0 + self.i / (self.fps * self.speed)
+        note = (f"数据回放 · {self.name} · 第 {self.i}/{self.total} 帧 "
+                f"· {self.elapsed:.1f}s")
+        return "frame", self._render(pts, vis, note), pts, vis
 
 
 class ResultBus:
@@ -387,6 +494,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cam", type=int, default=None, help="摄像头设备号")
     ap.add_argument("--src", type=str, default=None, help="视频文件路径")
+    ap.add_argument("--data", type=str, default=None,
+                    help="关键点数据文件（JSON）—— 用它代替摄像头/视频，"
+                         "走与实时识别完全相同的流程")
+    ap.add_argument("--data-speed", type=float, default=1.0,
+                    help="数据回放倍速，默认 1.0（按数据里的 fps 实时回放）")
+    ap.add_argument("--data-calibrate", action="store_true",
+                    help="数据回放时也做角度基线校准（默认不做，用配置里的固定门槛）")
     ap.add_argument("--list", action="store_true", help="列出可用摄像头后退出")
     ap.add_argument("--model", type=str, default=MODEL_PATH)
     ap.add_argument("--no-voice", action="store_true", help="关闭语音播报")
@@ -431,6 +545,9 @@ def main():
     from training_manager import SetManager, UserStore, History, Goals
     store = UserStore()
     user = store.switch_user(args.user) if args.user else store.current_user()
+    # 报告里的「数据来源」要能一眼看出这次跑的是什么
+    src_label = (os.path.basename(args.data) if args.data
+                 else (args.src if args.src else str(source)))
     history = History(store, user)
     goals = Goals(store, user)
     setman = SetManager(args.sets, args.reps_per_set, args.rest) if args.sets > 0 else None
@@ -447,8 +564,25 @@ def main():
         print(f"  分组：{setman.total_sets} 组 × {setman.reps_per_set} 次，"
               f"组间休息 {int(args.rest)} 秒")
 
-    # 选视频源
-    if args.src:
+    # 选输入源：关键点数据 > 视频文件 > 摄像头
+    data_source = None
+    if args.data:
+        try:
+            data_source = KeypointSource(args.data, speed=args.data_speed)
+        except Exception as e:
+            print(f"读取数据文件失败：{e}")
+            return
+        source = None
+        print(f"  输入源：关键点数据文件 {os.path.basename(args.data)}")
+        print(f"  数据名称：{data_source.name}")
+        print(f"  数据规模：{data_source.total} 帧 / {data_source.fps:g}fps / "
+              f"{data_source.total / data_source.fps:.1f} 秒")
+        if data_source.speed != 1.0:
+            print(f"  ⚠ 回放倍速 {data_source.speed:g}× —— 注意：防抖参数（enter_hold / "
+                  f"min_interval）是按**秒**算的，")
+            print("    加速回放会让两次动作在时间轴上挤得太近，计数可能少于实时。"
+                  "要复核真实计数请用默认倍速 1.0。")
+    elif args.src:
         source = args.src
     elif args.cam is not None:
         source = args.cam
@@ -474,9 +608,11 @@ def main():
     )
 
     fps_hist, t_prev = [], time.time()
-    cam = Camera(source)
-    cam.start()
-    time.sleep(0.4)                     # 等第一帧
+    cam = None
+    if data_source is None:
+        cam = Camera(source)
+        cam.start()
+        time.sleep(0.4)                 # 等第一帧
 
     # WINDOW_NORMAL 让窗口可拖拽缩放，也更容易拿到键盘焦点（默认 AUTOSIZE 会锁死尺寸）
     cv2.namedWindow("realtime pose", cv2.WINDOW_NORMAL)
@@ -514,9 +650,18 @@ def main():
 
     # MediaPipe 启动时可能尝试联网上报遥测，网络不通时会等一会儿才继续（见 CLAUDE.md）。
     # 这里提前说明，免得用户以为程序卡死了。
-    print("正在初始化姿态模型 …（首次启动可能要等十几秒到一分钟，请稍候）")
+    # 数据回放时**跳过 MediaPipe 初始化** —— 关键点已经在数据里，不需要推理。
+    # 顺带省掉那约 61 秒的遥测等待，回放几乎是瞬间启动的。
+    if data_source is not None:
+        print("数据回放模式：关键点直接来自数据文件，不经过摄像头与姿态模型。")
+        print("  除了「点从哪来」，后面的流程与实时识别完全一致 ——")
+        print("  画面骨架 / HUD 计数 / 质量提示 / 语音播报 / 分组间歇 / 报告，一样都不少。")
+        model_ctx = contextlib.nullcontext(None)
+    else:
+        print("正在初始化姿态模型 …（首次启动可能要等十几秒到一分钟，请稍候）")
+        model_ctx = vision.PoseLandmarker.create_from_options(options)
     t_init = time.time()
-    with vision.PoseLandmarker.create_from_options(options) as landmarker:
+    with model_ctx as landmarker:
         print(f"  模型就绪，初始化用时 {time.time() - t_init:.0f} 秒\n")
         t0 = time.time()
         while True:
@@ -548,37 +693,63 @@ def main():
                 except (OSError, ValueError, TypeError):
                     pass  # UI 正在替换文件的极短窗口，下一帧会重试
 
-            frame = cam.read()
-            if frame is None:
-                if cam.finished:
-                    stopped_reason = "eof"
-                    print("\n视频播放完成，自动结束测试。")
-                    break
-                if cv2.waitKey(10) & 0xFF == ord("q"):
-                    break
-                continue
-
-            total_frames += 1
-
-            frame = cv2.flip(frame, 1)          # 镜像，自己看着顺手
-            h, w = frame.shape[:2]
-
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            landmarker.detect_async(mp_img, int((time.time() - t0) * 1000))
-
-            res = bus.get()
+            # ---- 取帧：两条来源，后面完全共用同一套流程 ----
+            # ① 关键点数据回放：点已经在数据里了，跳过摄像头与推理
+            # ② 摄像头 / 视频：走原来的 MediaPipe 推理
             sig_txt = "--"
             count, stage, sig, hits, checks = 0, "ready", None, [], []
             conf = 0.0                      # 计数关键点的最低可信度
             person_ok = False               # 可信度够不够（不够就暂停计数）
-            if res and res.pose_landmarks:
+            pts = None
+
+            if data_source is not None:
+                st, frame, pts, vis = data_source.read()
+                if st == "eof":
+                    stopped_reason = "eof"
+                    print(f"\n数据回放完成（{data_source.total} 帧 / "
+                          f"{data_source.elapsed:.1f} 秒），自动结束测试。")
+                    break
+                if st == "wait":
+                    # 还没到下一帧的时刻 —— 保持真实时间轴（防抖参数按秒算）
+                    if quit_event.is_set():
+                        stopped_reason = "user"
+                        break
+                    if cv2.waitKey(4) & 0xFF == ord("q"):
+                        stopped_reason = "user"
+                        break
+                    continue
+                person_ok = True            # 数据里的点默认都是可信的
+                total_frames += 1
+            else:
+                frame = cam.read()
+                if frame is None:
+                    if cam.finished:
+                        stopped_reason = "eof"
+                        print("\n视频播放完成，自动结束测试。")
+                        break
+                    if cv2.waitKey(10) & 0xFF == ord("q"):
+                        break
+                    continue
+
+                total_frames += 1
+                frame = cv2.flip(frame, 1)          # 镜像，自己看着顺手
+                h, w = frame.shape[:2]
+
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                landmarker.detect_async(mp_img, int((time.time() - t0) * 1000))
+
+                res = bus.get()
+                if res and res.pose_landmarks:
+                    lm = res.pose_landmarks[0]
+                    pts = [(int(p.x * w), int(p.y * h)) for p in lm]
+                    # 关键点可信度：人没拍到 / 跟丢时 MediaPipe 会输出「幽灵骨架」，
+                    # 计数和质量判定都必须先看这个，否则会凭空加数、凭空报警
+                    vis = [p.visibility for p in lm]
+
+            h, w = frame.shape[:2]
+            if pts is not None:
                 detected_frames += 1
-                lm = res.pose_landmarks[0]
-                pts = [(int(p.x * w), int(p.y * h)) for p in lm]
-                # 关键点可信度：人没拍到 / 跟丢时 MediaPipe 会输出「幽灵骨架」，
-                # 计数和质量判定都必须先看这个，否则会凭空加数、凭空报警
-                vis = [p.visibility for p in lm]
                 counter_idxs = set()
                 for condition in (action.conditions or [{"points": action.signal_points}]):
                     counter_idxs.update(condition["points"])
@@ -595,7 +766,14 @@ def main():
                 # 开合跳是「角度变大」（举手），套这个公式会把门槛设到站立值以下 ——
                 # 站着就满足「手举起」，手机一晃就计数。所以配置里可以关掉校准。
                 if not calib_done and person_ok:
-                    if not getattr(action, "calibrate", True) or action.signal_type != "angle":
+                    # 数据回放时**默认不做基线校准**：校准假设「启动头 2 秒用户是站着的」，
+                    # 但一段录好的数据未必从站立开始；倍速回放时那 2 秒还会覆盖整段数据，
+                    # 采出来的基线完全是错的（实测采到 130°，把门槛带偏成 115°）。
+                    # 何况配置里的阈值本来就是针对这段数据调的 —— 固定门槛才可预测。
+                    if data_source is not None and not args.data_calibrate:
+                        calib_done = True
+                        print("  （数据回放：使用配置里的固定门槛，不做角度基线校准）")
+                    elif not getattr(action, "calibrate", True) or action.signal_type != "angle":
                         calib_done = True
                         print(f"  （{action.name} 用配置里的固定门槛，不做角度基线校准）")
                     elif time.time() < warmup_until:
@@ -628,8 +806,19 @@ def main():
                     cv2.circle(frame, p, 3, (255, 255, 255), -1)
 
                 # 配置驱动的判定：算信号 → 状态机计数 → 质量明细
-                if time.time() >= warmup_until:
-                    count, stage, sig, hits, checks = action.update(pts, vis)
+                # ⚠ 数据回放**不做启动预热**：那 2 秒是给「摄像头自动曝光、用户走进
+                # 画面」留的稳定期，数据里没有这些过程。而且预热按**墙上时间**算，
+                # 会把数据开头的几秒整段吃掉 —— 实测一段 6 秒的数据被吃掉 2 秒，
+                # 3 次动作只数出 2 次。
+                if data_source is not None or time.time() >= warmup_until:
+                    # ⚠ 数据回放必须用**数据时间**（elapsed），不能用墙上时间：
+                    # 主循环一旦慢于数据帧率（画骨架 + 中文 HUD 都不便宜），节流器就会
+                    # 连续「追帧」，而墙上时间几乎没推进 —— 于是 min_interval 这类
+                    # 按秒的防抖判定全部失真，实测把 3 次动作数成了 2 次。
+                    # 用数据时间还有个好处：同一份数据**结果完全可复现**，
+                    # 和 pose_player.py 跑出来的结论一致。
+                    _now = data_source.elapsed if data_source is not None else None
+                    count, stage, sig, hits, checks = action.update(pts, vis, now=_now)
                 else:
                     # 稳定期内只算信号拿来显示，不动状态机（避免凭空多计一次）
                     sig = action.signal(pts)
@@ -874,12 +1063,13 @@ def main():
                 last_count = 0
                 print("  已清零（计数与本轮判定状态）")
 
-    cam.stop()
+    if cam is not None:
+        cam.stop()
     cv2.destroyAllWindows()
     summary = {
         "action": action.id,
         "action_name": action.name,
-        "source": str(source),
+        "source": src_label,
         "reps": action.counter.count,
         "total_frames": total_frames,
         "detected_frames": detected_frames,
