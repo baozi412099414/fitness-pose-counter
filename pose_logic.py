@@ -666,6 +666,33 @@ class Action:
 
 
 def load_action(path):
-    """从 JSON 文件加载一个动作。"""
-    with open(path, encoding="utf-8") as f:
-        return Action(json.load(f))
+    """
+    从 JSON 文件加载一个动作。
+
+    配置写错时给**看得懂的错误**（说明是哪个文件、缺什么），而不是直接抛 KeyError ——
+    自定义动作的用户多半不是程序员，一句 "KeyError: 'counter'" 帮不上任何忙。
+
+    ⚠ 静态检查请优先用 `validate_config.py`（它能一次列出所有问题）；
+    这里的容错只是运行期的兜底。
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"找不到动作配置文件：{path}") from None
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"动作配置 {path} 不是合法 JSON：第 {e.lineno} 行第 {e.colno} 列 —— {e.msg}"
+        ) from None
+    if not isinstance(cfg, dict):
+        raise ValueError(f"动作配置 {path} 的根节点必须是一个对象 {{}}")
+    if "id" not in cfg:
+        raise ValueError(f"动作配置 {path} 缺少 id 字段（动作标识）")
+    if "counter" not in cfg:
+        raise ValueError(f"动作配置 {path} 缺少 counter 段（计数配置）")
+    if not cfg["counter"].get("conditions") and "signal" not in cfg["counter"]:
+        raise ValueError(
+            f"动作配置 {path} 的 counter 既没有 conditions，也没有 signal —— "
+            f"至少要给一种计数方式（建议先跑 validate_config.py 看看）"
+        )
+    return Action(cfg)
