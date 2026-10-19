@@ -600,13 +600,13 @@ class ActionEditor(tk.Toplevel):
         # 方向相关的合法性：先变小的动作，起始阈值必须低于还原阈值，否则永远进不了动作
         if first_lo and not (start_th < end_th):
             messagebox.showwarning("阈值方向反了",
-                                   "「先变小」的动作：开始阈值要**小于**完成阈值。\n"
+                                   "「先变小」的动作：开始阈值要小于完成阈值。\n"
                                    f"现在填的是 开始 {start_th:g} / 完成 {end_th:g}。",
                                    parent=self)
             return
         if (not first_lo) and not (start_th > end_th):
             messagebox.showwarning("阈值方向反了",
-                                   "「先变大」的动作：开始阈值要**大于**完成阈值。\n"
+                                   "「先变大」的动作：开始阈值要大于完成阈值。\n"
                                    f"现在填的是 开始 {start_th:g} / 完成 {end_th:g}。",
                                    parent=self)
             return
@@ -1255,7 +1255,7 @@ class FitnessTestUI:
         """把选中的报告读出来，用人能看懂的方式展示。"""
         sel = self.report_list.curselection()
         if not sel:
-            self._msg("showinfo", "未选择", "先在列表里点一条历史报告。")
+            self.status_var.set("先在下面列表里点一条历史报告，再点「查看详情」")
             return
         idx = sel[0]
         if idx >= len(self._report_paths):
@@ -1402,8 +1402,8 @@ class FitnessTestUI:
         """表单保存成功 → 刷新动作列表并选中新动作。"""
         self._reload_actions(select=cfg["name"])
         self._flash_topmost()
-        self._msg("showinfo", "动作已添加", msg + "\n\n"
-                  "动作按钮已经自动出现，可以直接选它开始测试。")
+        # 不弹窗 —— 保存成功后动作按钮已经出现在眼前，弹窗只会挡路
+        self.status_var.set("动作已添加，可以直接选了开始测试")
 
     def _reload_actions(self, select=None):
         """
@@ -1447,7 +1447,7 @@ class FitnessTestUI:
         guide = ROOT / "自定义动作指南.md"
         n = len([p for p in cfg.glob("*.json")])
         self._msg("showinfo", "新建动作 = 加一份 JSON 配置",
-                  f"动作列表是**自动扫描** configs/ 目录生成的，现在有 {n} 份配置。\n\n"
+                  f"动作列表是自动扫描 configs/ 目录生成的，现在有 {n} 份配置。\n\n"
                   f"新增一个动作只需：\n"
                   f"  1. 在打开的目录里复制一份现成的 JSON（比如 squat.json）\n"
                   f"  2. 改 id / name、判定用的关键点、关节角度信号、上下阈值\n"
@@ -1818,24 +1818,21 @@ class FitnessTestUI:
                 # 人不在画面里时模型照样会吐「幽灵骨架」，检出率反而显示 100%。
                 rate = float(data.get("person_rate", data.get("detection_rate")) or 0)
                 frames = int(data.get("total_frames") or 0)
+                # ⚠ 这里**不弹窗** —— 弹窗会打断操作，而且用户已经明确说过不想要。
+                # 改成状态栏一行 + 日志里的原因说明，信息一样给到，但不挡路。
                 if frames and rate <= 0.001:
+                    self.status_var.set(
+                        f"完成，但没检测到人（{frames} 帧，检出率 0%）—— 见运行日志")
                     self._append_log(
-                        "\n⚠ 本次一帧都没检测到人（检出率 0%）—— 不是程序坏了，是画面里没有人。\n"
-                        "   请依次检查：\n"
-                        "     1. 摄像头拍到的画面里，**你的全身是否入镜**（退到 2.5~3 米外）；\n"
-                        "     2. 光线是否够亮（逆光/太暗都会检测不到）；\n"
-                        "     3. 用的是不是对的摄像头（界面里可切「电脑摄像头」试试）；\n"
-                        "     4. 识别画面里有没有骨架线 —— 没有就说明确实没识别到人。\n")
-                    self._msg("showwarning", "没有检测到人",
-                              f"本次跑了 {frames} 帧，但**一帧都没有检测到人**"
-                              f"（检出率 0%）。\n\n"
-                              f"这不是程序故障 —— 画面里没有人，所以计数只能是 0。\n\n"
-                              f"请检查：\n"
-                              f"  · 全身是否在画面里（需要退到 2.5~3 米外）\n"
-                              f"  · 光线是否足够（太暗或逆光都检测不到）\n"
-                              f"  · 摄像头是否选对了\n\n"
-                              f"识别窗口里如果**没有骨架线**，就说明确实没识别到人。")
+                        "\n⚠ 本次一帧都没检测到人（检出率 0%）。\n"
+                        "   这不是程序故障：画面里没有人，计数只能是 0。\n"
+                        "   按这几点检查一遍：\n"
+                        "     1. 全身是否入镜（需要退到 2.5~3 米外）\n"
+                        "     2. 光线是否够亮（太暗或逆光都检测不到）\n"
+                        "     3. 摄像头是否选对了（可切「电脑摄像头」试试）\n"
+                        "     4. 识别画面里有没有骨架线 —— 没有就说明确实没识别到人\n")
                 elif frames and rate < 0.3:
+                    self.status_var.set(f"完成，检出率偏低（{rate*100:.0f}%）")
                     self._append_log(
                         f"\n⚠ 检出率偏低（{rate*100:.0f}%）—— 人体经常不在画面里或拍不全，"
                         f"计数会被暂停。建议调整机位让全身稳定入镜。\n")
