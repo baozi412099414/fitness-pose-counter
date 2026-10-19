@@ -1,0 +1,47 @@
+# 健身动作计数与姿态纠正 —— 依赖清单
+#
+# 用法（在项目根目录）：
+#   python -m venv .venv
+#   .venv/bin/pip install -r requirements.txt        # macOS / Linux
+#   .venv\Scripts\pip install -r requirements.txt    # Windows
+#
+# 说明：
+#   · 只有 mediapipe 锁了**精确版本**（原因见下），其余给的是下限。
+#   · `; sys_platform == "darwin"` 是 pip 的「环境标记」——在非 macOS 上会自动跳过，
+#     所以这一份文件可以直接在三个平台上用。
+
+# ── 运行环境 ────────────────────────────────────────────────────────────
+# Python 3.11（3.10 / 3.12 大概率也行，但只在 3.11.7 上验证过）
+
+# ── 核心依赖 ────────────────────────────────────────────────────────────
+numpy>=1.24,<3
+opencv-python>=4.8
+
+# ⚠⚠ 这个版本**不能动**。
+# mediapipe 1.0.x 是极简纯 C API 版，在 macOS 26 上初始化 graph 时必崩：
+#   F0000 graph_service.h:139] Check failed: service_ Service is unavailable.
+#   @ -[DrishtiMetalHelper initWithCalculatorContext:]
+# 实测 delegate=CPU 也没用。0.10.35 是 IMAGE / LIVE_STREAM 都正常的最后一个版本。
+# 如果你在 Windows / Linux 上跑，可以试试更新的版本；macOS 上请保持 0.10.35。
+mediapipe==0.10.35
+
+# 画面中文叠加用（cv2.putText 画不了中文，改用 PIL 渲染后贴图）
+Pillow>=10.0
+
+# 训练趋势图
+matplotlib>=3.7
+
+# ── 仅 macOS：窗口抢焦点（AppKit / Quartz）──────────────────────────────
+# 作用：从命令行启动的 OpenCV 窗口默认拿不到键盘焦点，导致按 q 退不出去。
+# 这几个包用来把窗口设成 key window。
+# 非 macOS 会自动跳过；代码里也有 try/except，缺了不影响其他功能。
+pyobjc-core>=10.0 ; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10.0 ; sys_platform == "darwin"
+
+# ── 模型文件（不是 pip 包，需要单独下载）────────────────────────────────
+# 项目根目录需要 pose_landmarker_lite.task（约 5.6 MB）
+# 下载地址：https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+# 或从 MediaPipe 官方模型页选其它规格：
+#   https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker
+# 本项目里应该已经带了，换机器时记得一起拷过去。
