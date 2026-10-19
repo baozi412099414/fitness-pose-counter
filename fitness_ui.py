@@ -730,28 +730,49 @@ class FitnessTestUI:
         self.canvas.bind_all("<Button-4>", self._on_wheel_linux)
         self.canvas.bind_all("<Button-5>", self._on_wheel_linux)
 
-        # ══════════ App 顶栏：图标 + 标题 + 状态徽章 ══════════
+        # ══════════ App 顶栏：返回 + 标题 + 状态徽章 ══════════
         head = tk.Frame(outer, bg=BG)
-        head.pack(fill="x", pady=(0, 18))
+        head.pack(fill="x", pady=(0, 16))
 
         # 右侧状态徽章（运行时会变色，见 _set_badge）
         self.badge = tk.Label(head, text="●  空闲", bg="#e8f5ec", fg=SUCCESS,
                               font=F_BTN, padx=16, pady=7)
         self.badge.pack(side="right", anchor="ne")
 
-        brand = tk.Frame(head, bg=BG)
-        brand.pack(side="left", anchor="w")
-        tk.Label(brand, text="🏋️", bg=BG, font=("Helvetica", 34)).pack(
-            side="left", padx=(0, 12))
-        titles = tk.Frame(brand, bg=BG)
-        titles.pack(side="left", anchor="w")
-        tk.Label(titles, text="健身动作识别测试台", bg=BG, fg=TEXT,
-                 font=F_TITLE).pack(anchor="w")
-        tk.Label(titles, text="选好动作直接开始 —— 默认摄像头，也可用内置视频或关键点数据回放",
-                 bg=BG, fg=MUTED, font=F_SMALL).pack(anchor="w", pady=(3, 0))
+        # 左侧：返回按钮（子页才显示）+ 图标 + 标题
+        left = tk.Frame(head, bg=BG)
+        left.pack(side="left", anchor="w")
 
-        # ══════════ 卡片 1：测试设置 ══════════
-        form = card(outer, "⚙️  测试设置", "动作的判定逻辑全部来自 configs/ 下的配置文件")
+        self.back_btn = tk.Button(left, text="←  返回", command=lambda: self._show_page("home"),
+                                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1",
+                                  font=F_SMALL, relief="flat", bd=0,
+                                  highlightthickness=0, padx=14, pady=7,
+                                  cursor="pointinghand")
+
+        self.head_icon = tk.Label(left, text="🏋️", bg=BG, font=(FAMILY, 30))
+        self.head_icon.pack(side="left", padx=(0, 10))
+        titles = tk.Frame(left, bg=BG)
+        titles.pack(side="left", anchor="w")
+        self.head_title = tk.Label(titles, text="健身动作识别", bg=BG, fg=TEXT,
+                                   font=F_TITLE)
+        self.head_title.pack(anchor="w")
+        self.head_sub = tk.Label(titles, text="点一个功能开始", bg=BG, fg=MUTED,
+                                 font=F_SMALL)
+        self.head_sub.pack(anchor="w", pady=(2, 0))
+
+        # ══════════ 页面容器：每个功能一页，一次只显示一页 ══════════
+        self.page_host = tk.Frame(outer, bg=BG)
+        self.page_host.pack(fill="both", expand=True)
+        self.pages = {}
+        for _name in ("home", "test", "data", "actions", "log"):
+            _f = tk.Frame(self.page_host, bg=BG)
+            self.pages[_name] = _f
+
+        # ══════════ 测试页 ══════════
+        page = self.pages["test"]
+
+        # ---- 卡片 1：测试设置 ----
+        form = card(page, "⚙️  测试设置", "动作的判定逻辑全部来自 configs/ 下的配置文件")
         form.columnconfigure(1, weight=1)
 
         tk.Label(form, text="动作", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -836,7 +857,7 @@ class FitnessTestUI:
                                                       pady=(12, 0))
 
         # ══════════ 卡片 2：训练管理（模块 7 / 8 / 10）══════════
-        train = card(outer, "🎯  训练管理", "多用户档案 · 分组间歇 · 每日目标 · 训练历史")
+        train = card(page, "🎯  训练管理", "多用户档案 · 分组间歇 · 每日目标 · 训练历史")
         train.columnconfigure(1, weight=1)
 
         tk.Label(train, text="用户", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -890,8 +911,8 @@ class FitnessTestUI:
             side="left", padx=10)
 
         # ══════════ 主操作按钮 ══════════
-        section_gap(outer, "操作")
-        buttons = tk.Frame(outer, bg=BG)
+        section_gap(page, "操作")
+        buttons = tk.Frame(page, bg=BG)
         buttons.pack(fill="x", pady=(2, 14))
         self.start_btn = hover_btn(buttons, "▶  开始测试", self.start, PRIMARY, PRIMARY_HI)
         self.start_btn.pack(side="left")
@@ -915,7 +936,7 @@ class FitnessTestUI:
         self.root.bind("<Escape>", lambda _e: self.stop())
 
         # ══════════ 卡片 3：最近一次结果 ══════════
-        res = card(outer, "📊  最近一次测试结果")
+        res = card(page, "📊  最近一次测试结果")
         for col in range(4):
             res.columnconfigure(col, weight=1, uniform="res")
         for col, (icon, label, var, color, font) in enumerate((
@@ -928,9 +949,9 @@ class FitnessTestUI:
             tk.Label(res, textvariable=var, bg=CARD, fg=color, font=font,
                      wraplength=230, justify="center").grid(row=1, column=col, pady=(10, 2))
 
-        # ══════════ 下方标签页：趋势图 / 历史统计 / 运行日志 ══════════
-        section_gap(outer, "数据与日志")
-        notebook = ttk.Notebook(outer)
+        # ══════════ 数据页：趋势图 + 历史统计 ══════════
+        dp = self.pages["data"]
+        notebook = ttk.Notebook(dp)
         notebook.pack(fill="x")
 
         trend_tab = tk.Frame(notebook, bg=CARD, padx=10, pady=8)
@@ -995,18 +1016,75 @@ class FitnessTestUI:
                       highlightthickness=0, padx=14, pady=5, width=9,
                       cursor="pointinghand").pack(pady=3)
 
-        # ══════════ 标签页 3：运行日志（深色控制台，和浅色界面形成对比）══════════
-        log_box = tk.Frame(notebook, bg=CARD, padx=10, pady=10)
-        notebook.add(log_box, text="  运行日志  ")
-        self.log = tk.Text(log_box, height=14, wrap="word", state="disabled",
+        # ══════════ 日志页（独立一页，不再是标签页）══════════
+        lp = self.pages["log"]
+        log_box = tk.Frame(lp, bg=CARD, padx=10, pady=10)
+        log_box.pack(fill="both", expand=True)
+        self.log = tk.Text(log_box, height=24, wrap="word", state="disabled",
                            background="#1c2128", foreground="#d7dde5",
                            insertbackground="white", relief="flat", bd=0,
                            highlightthickness=0, font=("Menlo", 11),
-                           padx=12, pady=10)
+                           padx=14, pady=12)
         scroll = ttk.Scrollbar(log_box, orient="vertical", command=self.log.yview)
         self.log.configure(yscrollcommand=scroll.set)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
+
+        # ══════════ 动作管理页 ══════════
+        ap = self.pages["actions"]
+        acard = card(ap, "⚙️  动作管理", "动作列表由 configs/ 目录自动生成")
+        self._action_admin_area = acard      # 这里列出所有动作（可选中/新建）
+        tk.Button(acard, text="＋  新建动作（填表即可，不用写 JSON）",
+                  command=self._new_action, bg="#e8f1ff", fg=PRIMARY,
+                  activebackground="#d6e8ff", font=F_BTN, relief="flat", bd=0,
+                  highlightthickness=0, padx=20, pady=12,
+                  cursor="pointinghand").pack(fill="x", pady=(6, 4))
+        tk.Button(acard, text="校验全部配置", command=self._validate_configs,
+                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1", font=F_SMALL,
+                  relief="flat", bd=0, highlightthickness=0, padx=16, pady=8,
+                  cursor="pointinghand").pack(fill="x", pady=(4, 0))
+        self._rebuild_admin_list()
+
+        # ══════════ 首页：四个大功能卡片 ══════════
+        hp = self.pages["home"]
+        intro = tk.Frame(hp, bg=BG)
+        intro.pack(fill="x", pady=(4, 14))
+        tk.Label(intro, text="选择要做什么", bg=BG, fg=TEXT, font=F_H2).pack(anchor="w")
+        tk.Label(intro, text="动作判定全部由配置驱动 —— 加动作只需在「动作管理」里填张表",
+                 bg=BG, fg=MUTED, font=F_SMALL).pack(anchor="w", pady=(3, 0))
+
+        grid = tk.Frame(hp, bg=BG)
+        grid.pack(fill="both", expand=True)
+        for c in range(2):
+            grid.columnconfigure(c, weight=1, uniform="tile")
+        tiles = [
+            ("▶", "开始测试", "选动作与输入方式，开始计数和姿态纠正", "test", PRIMARY),
+            ("📊", "训练数据", "趋势图、历史记录、目标进度、错误排行", "data", "#8b5cf6"),
+            ("⚙️", "动作管理", "查看现有动作、新建自定义动作、校验配置", "actions", SUCCESS),
+            ("📝", "运行日志", "识别过程的完整输出（排错看这里）", "log", "#64748b"),
+        ]
+        for i, (icon, title, desc, page_name, color) in enumerate(tiles):
+            r, c = divmod(i, 2)
+            tile = tk.Frame(grid, bg=CARD, cursor="pointinghand")
+            tile.grid(row=r, column=c, sticky="nsew",
+                      padx=(0 if c == 0 else 10, 0), pady=(0 if r == 0 else 10, 0))
+            inner = tk.Frame(tile, bg=CARD, padx=20, pady=18)
+            inner.pack(fill="both", expand=True)
+            tk.Label(inner, text=icon, bg=CARD, fg=color,
+                     font=(FAMILY, 30)).pack(anchor="w")
+            tk.Label(inner, text=title, bg=CARD, fg=TEXT, font=F_H2).pack(
+                anchor="w", pady=(6, 2))
+            tk.Label(inner, text=desc, bg=CARD, fg=MUTED, font=F_SMALL,
+                     wraplength=260, justify="left").pack(anchor="w")
+            # 整块卡片都能点（含里面的文字），点哪儿都算
+            for w in (tile, inner, *inner.winfo_children()):
+                w.bind("<Button-1>", lambda _e, p=page_name: self._show_page(p))
+            tile.bind("<Enter>", lambda _e, f=tile, b=inner: (
+                f.configure(bg="#f2f7ff"), b.configure(bg="#f2f7ff")))
+            tile.bind("<Leave>", lambda _e, f=tile, b=inner: (
+                f.configure(bg=CARD), b.configure(bg=CARD)))
+
+        self._show_page("home")
 
     def _msg(self, kind, title, message, **kw):
         """
@@ -1240,6 +1318,62 @@ class FitnessTestUI:
         if total_err:
             self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
 
+    # 每个页面的顶栏文案：(图标, 标题, 副标题)
+    PAGE_TITLES = {
+        "home": ("🏋️", "健身动作识别", "点一个功能开始"),
+        "test": ("▶", "开始测试", "选动作与输入方式，开始计数和姿态纠正"),
+        "data": ("📊", "训练数据", "趋势图、历史记录、目标进度"),
+        "actions": ("⚙️", "动作管理", "查看与新建动作 —— 加动作不用改代码"),
+        "log": ("📝", "运行日志", "识别过程的完整输出，排错看这里"),
+    }
+
+    def _show_page(self, name):
+        """
+        切换页面：一次只显示一页。
+
+        这样每个界面都只有一件事，不会像原来那样把
+        「设置 + 训练管理 + 按钮 + 结果 + 三张图表」全堆在一屏，
+        按钮小、点不准。
+        """
+        if not hasattr(self, "pages") or name not in self.pages:
+            return
+        for k, f in self.pages.items():
+            if k == name:
+                f.pack(fill="both", expand=True)
+            else:
+                f.pack_forget()
+        icon, title, sub = self.PAGE_TITLES.get(name, ("•", name, ""))
+        self.head_icon.configure(text=icon)
+        self.head_title.configure(text=title)
+        self.head_sub.configure(text=sub)
+        if name == "home":
+            self.back_btn.pack_forget()
+        else:
+            self.back_btn.pack(side="left", padx=(0, 12), before=self.head_icon)
+        self.current_page = name
+        self._on_outer_configure()
+        if name == "data" and getattr(self, "trend_canvas", None) is not None:
+            self.root.after(60, self._draw_trend)   # 页面刚显示时尺寸才算得准
+        if name == "actions":
+            self._rebuild_admin_list()
+
+    def _rebuild_admin_list(self):
+        """动作管理页里列出所有动作（每次新建/删除后重建）。"""
+        area = getattr(self, "_action_admin_area", None)
+        if area is None:
+            return
+        for w in getattr(self, "_admin_rows", []):
+            w.destroy()
+        self._admin_rows = []
+        for name, aid in self.actions:
+            row = tk.Frame(area, bg=SOFT, padx=12, pady=8)
+            row.pack(fill="x", pady=3)
+            tk.Label(row, text=action_label(name, aid), bg=SOFT, fg=TEXT,
+                     font=F_BODY).pack(side="left")
+            tk.Label(row, text=f"configs/{aid}.json", bg=SOFT, fg=MUTED,
+                     font=F_TINY).pack(side="right")
+            self._admin_rows.append(row)
+
     def _set_badge(self, text, fg, bg):
         """更新右上角状态徽章（空闲 = 绿、运行中 = 蓝、异常 = 红）。"""
         if hasattr(self, "badge"):
@@ -1303,6 +1437,7 @@ class FitnessTestUI:
             self.action_var.set(select)
         self._paint_actions()
         self._sync_source()
+        self._rebuild_admin_list()
         self._on_outer_configure()
 
     def _open_configs_dir(self):
