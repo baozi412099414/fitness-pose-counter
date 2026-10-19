@@ -48,8 +48,11 @@ from matplotlib import font_manager                  # noqa: E402
 from training_manager import UserStore, History, Goals   # noqa: E402
 
 # 中文字体：不设置的话图上中文会变成方框
-for _name in ("STHeiti", "Heiti TC", "Hiragino Sans GB", "PingFang SC",
-              "Arial Unicode MS", "Songti SC"):
+# 三个平台的中文字体名都列上（只列 macOS 的，换平台图上中文会变方框）
+for _name in ("PingFang SC", "STHeiti", "Hiragino Sans GB", "Songti SC",
+              "Microsoft YaHei", "SimHei", "SimSun",          # Windows
+              "Noto Sans CJK SC", "WenQuanYi Zen Hei",       # Linux
+              "Arial Unicode MS"):
     try:
         font_manager.findfont(_name, fallback_to_default=False)
         plt.rcParams["font.sans-serif"] = [_name]

@@ -301,12 +301,26 @@ def say(text):
 # --------------------------------------------------------------------------
 # 中文文字叠加（PIL 渲染一次 → 缓存成小图 → 每帧只做 numpy 贴图）
 # --------------------------------------------------------------------------
-# 系统自带中文字体，按优先级取第一个存在的
+# 系统中文字体，按优先级取第一个存在的。
+# 三个平台都列上 —— 只写 macOS 的话，换到 Windows/Linux 上画面里的中文会变成方块。
 CN_FONT_CANDIDATES = [
+    # macOS
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
     "/System/Library/Fonts/Songti.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
+    # Windows
+    "C:/Windows/Fonts/msyh.ttc",          # 微软雅黑
+    "C:/Windows/Fonts/msyhbd.ttc",
+    "C:/Windows/Fonts/simhei.ttf",        # 黑体
+    "C:/Windows/Fonts/simsun.ttc",        # 宋体
+    # Linux
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/truetype/arphic/uming.ttc",
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 ]
 _cn_font_cache = {}      # 字号 -> ImageFont
 _cn_img_cache = {}       # (文字, 字号, 颜色, 底色) -> numpy 小图
