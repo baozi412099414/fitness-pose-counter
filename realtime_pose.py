@@ -545,9 +545,6 @@ def main():
     from training_manager import SetManager, UserStore, History, Goals
     store = UserStore()
     user = store.switch_user(args.user) if args.user else store.current_user()
-    # 报告里的「数据来源」要能一眼看出这次跑的是什么
-    src_label = (os.path.basename(args.data) if args.data
-                 else (args.src if args.src else str(source)))
     history = History(store, user)
     goals = Goals(store, user)
     setman = SetManager(args.sets, args.reps_per_set, args.rest) if args.sets > 0 else None
@@ -594,6 +591,13 @@ def main():
         source = cams[0][0]
         print(f"自动选用设备号 {source}（{cams[0][1]}x{cams[0][2]}）"
               f"，不对就用 --cam 手动指定")
+
+    # 报告里的「数据来源」要能一眼看出这次跑的是什么。
+    # ⚠ 必须放在 source / data_source 确定**之后** —— 之前放早了，
+    # 走 --cam 分支时会引用还没赋值的 source，直接 UnboundLocalError，
+    # 表现为「点了开始测试连不到摄像头」。
+    src_label = (os.path.basename(args.data) if args.data
+                 else (args.src if args.src else str(source)))
 
     bus = ResultBus()
     options = vision.PoseLandmarkerOptions(

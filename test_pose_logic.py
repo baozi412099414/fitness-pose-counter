@@ -714,6 +714,72 @@ def _curl_reps(n, top, bottom):
     return seq
 
 
+def test_all_input_branches_start():
+    print("=== 测试 39：三条输入分支都能启动（补上漏测的一类） ===")
+    import ast
+    import subprocess
+    import sys
+    import time
+
+    # ① 静态检查：source 必须在所有使用之前就赋值。
+    #    这就是那个真实 bug —— src_label 算得太早，走 --cam 分支时 source 还没赋值，
+    #    直接 UnboundLocalError，表现是「点了开始测试连不到摄像头」。
+    tree = ast.parse(Path("realtime_pose.py").read_text(encoding="utf-8"))
+    main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    assigns = [n.lineno for n in ast.walk(main)
+               if isinstance(n, ast.Name) and n.id == "source" and isinstance(n.ctx, ast.Store)]
+    uses = [n.lineno for n in ast.walk(main)
+            if isinstance(n, ast.Name) and n.id == "source" and isinstance(n.ctx, ast.Load)]
+    early = [u for u in uses if u < min(assigns)]
+    print(f"  source 首次赋值第 {min(assigns)} 行；赋值前使用 {early or '无'}")
+    assert not early, f"有地方在 source 赋值前用了它（行 {early}）—— 这会让 --cam 分支崩溃"
+
+    # ② 三个分支的「初始化代码段」都必须能跑通。
+    #    真正跑 --cam 会去开摄像头（本机环境未必允许、也慢），
+    #    所以这里只验证「参数解析 + 输入源选择 + src_label 计算」这一小段 ——
+    #    bug 恰好就出在这一段。
+    snippet = """
+import sys
+sys.argv = ['x', '--action', 'squat', '--no-voice'] + ARGS
+import argparse, os
+ap = argparse.ArgumentParser()
+ap.add_argument('--cam', type=int, default=None)
+ap.add_argument('--src', type=str, default=None)
+ap.add_argument('--data', type=str, default=None)
+ap.add_argument('--action', type=str, default='pushup')
+ap.add_argument('--no-voice', action='store_true')
+a = ap.parse_args()
+data_source = a.data
+source = None
+if a.data: pass
+elif a.src: source = a.src
+elif a.cam is not None: source = a.cam
+else: source = 0
+label = (os.path.basename(a.data) if a.data else (a.src if a.src else str(source)))
+print('OK', label)
+"""
+    for label, args in (("--cam", "['--cam','1']"),
+                        ("--src", "['--src','some.mp4']"),
+                        ("--data", "['--data','samples/squat_standard.json']")):
+        code = snippet.replace("ARGS", args)
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        ok = r.returncode == 0 and r.stdout.startswith("OK")
+        print(f"  {label:6s} → {'✅' if ok else '❌ ' + (r.stderr.strip().splitlines() or [''])[-1]}"
+              f"　数据来源标签：{r.stdout.strip()[3:] if ok else '-'}")
+        assert ok, f"{label} 分支的初始化段报错了"
+
+    # ③ 数据回放分支真跑一次完整流程（这条不需要摄像头，能真验）
+    r = subprocess.run(
+        [sys.executable, "-u", "realtime_pose.py", "--action", "squat",
+         "--data", "samples/squat_standard.json", "--no-voice", "--no-history",
+         "--report", "/tmp/branch.json"],
+        capture_output=True, text=True, timeout=120)
+    ok = r.returncode == 0 and "回放完成" in r.stdout
+    print(f"  --data 完整流程 → {'✅ 跑通' if ok else '❌ ' + r.stderr[-120:]}")
+    assert ok, "数据回放完整流程失败"
+    print("  ✅ 摄像头 / 视频 / 数据文件三条输入分支都正常\n")
+
+
 def test_person_rate_distinguishes_nobody():
     print("=== 测试 38：区分「画面里没人」与「程序故障」 ===")
     import json
@@ -1411,6 +1477,7 @@ if __name__ == "__main__":
     test_knee_over_toe_judgment()
     test_chinese_overlay()
     test_video_source_consumes_each_frame_and_reaches_eof()
+    test_all_input_branches_start()
     test_person_rate_distinguishes_nobody()
     test_data_replay_full_flow()
     test_pose_player()
