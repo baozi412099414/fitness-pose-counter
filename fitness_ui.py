@@ -72,13 +72,29 @@ WARN       = "#f2c94c"
 WARN_HI    = "#ffdd77"
 GREY       = "#a8b2bd"      # 禁用态
 
-F_TITLE = ("Helvetica", 22, "bold")
-F_H2    = ("Helvetica", 14, "bold")
-F_BODY  = ("Helvetica", 12)
-F_SMALL = ("Helvetica", 11)
-F_TINY  = ("Helvetica", 10)
-F_NUM   = ("Helvetica", 26, "bold")
-F_BTN   = ("Helvetica", 13, "bold")
+# 字体族：macOS 上中文用 PingFang SC 最好看（Helvetica 的中文是回退字形，偏细偏挤）。
+# 写上完整回退链，别的系统上也能正常显示。
+def _pick_font(*names):
+    import tkinter.font as tkfont
+    try:
+        avail = set(tkfont.families())
+    except Exception:
+        return names[0]
+    for n in names:
+        if n in avail:
+            return n
+    return names[0]
+
+
+FAMILY = _pick_font("PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+                    "Noto Sans CJK SC", "Helvetica")
+F_TITLE = (FAMILY, 23, "bold")
+F_H2    = (FAMILY, 14, "bold")
+F_BODY  = (FAMILY, 12)
+F_SMALL = (FAMILY, 11)
+F_TINY  = (FAMILY, 10)
+F_NUM   = (FAMILY, 27, "bold")
+F_BTN   = (FAMILY, 13, "bold")
 
 
 def setup_style(root):
@@ -110,6 +126,19 @@ def setup_style(root):
     st.configure("Trend.Horizontal.TProgressbar", troughcolor="#e7ecf2",
                  background=PRIMARY, borderwidth=0, thickness=12)
     return st
+
+
+def section_gap(parent, text=None):
+    """
+    区块之间的分隔：一条细线（可带小标题）。
+    App 里常用这种「留白 + 一条极淡的线」来分 section，比粗边框干净得多。
+    """
+    box = tk.Frame(parent, bg=BG)
+    box.pack(fill="x", pady=(2, 10))
+    if text:
+        tk.Label(box, text=text, bg=BG, fg=MUTED, font=F_TINY).pack(anchor="w", pady=(0, 4))
+    tk.Frame(box, bg="#dde3ea", height=1).pack(fill="x")
+    return box
 
 
 def card(parent, title=None, subtitle=None, pady=(0, 12)):
@@ -157,7 +186,7 @@ def hover_btn(parent, text, command, bg=PRIMARY, hi=None, fg="white", **kw):
                     activebackground=hi, activeforeground=fg,
                     disabledforeground="#f0f0f0",
                     relief="flat", bd=0, highlightthickness=0,
-                    font=F_BTN, cursor="pointinghand", padx=18, pady=9, **kw)
+                    font=F_BTN, cursor="pointinghand", padx=22, pady=11, **kw)
 
     def _enter(_e=None):
         if str(btn["state"]) != "disabled":
@@ -170,6 +199,20 @@ def hover_btn(parent, text, command, bg=PRIMARY, hi=None, fg="white", **kw):
     btn.bind("<Enter>", _enter)
     btn.bind("<Leave>", _leave)
     return btn
+
+
+# 动作 id → 图标。加新动作时没配图标也不影响（走默认的 •）
+ACTION_ICONS = {
+    "squat": "🏋️",
+    "pushup": "💪",
+    "jumping_jack": "🤸",
+    "curl": "🦾",
+}
+
+
+def action_label(name, aid):
+    """按钮上显示的文字：图标 + 中文名。"""
+    return f"{ACTION_ICONS.get(aid, '•')}  {name}"
 
 
 def paint_action_button(btn, selected):
@@ -687,16 +730,28 @@ class FitnessTestUI:
         self.canvas.bind_all("<Button-4>", self._on_wheel_linux)
         self.canvas.bind_all("<Button-5>", self._on_wheel_linux)
 
-        # ══════════ 顶部标题 ══════════
+        # ══════════ App 顶栏：图标 + 标题 + 状态徽章 ══════════
         head = tk.Frame(outer, bg=BG)
-        head.pack(fill="x", pady=(0, 16))
-        tk.Label(head, text="健身动作识别测试台", bg=BG, fg=TEXT,
+        head.pack(fill="x", pady=(0, 18))
+
+        # 右侧状态徽章（运行时会变色，见 _set_badge）
+        self.badge = tk.Label(head, text="●  空闲", bg="#e8f5ec", fg=SUCCESS,
+                              font=F_BTN, padx=16, pady=7)
+        self.badge.pack(side="right", anchor="ne")
+
+        brand = tk.Frame(head, bg=BG)
+        brand.pack(side="left", anchor="w")
+        tk.Label(brand, text="🏋️", bg=BG, font=("Helvetica", 34)).pack(
+            side="left", padx=(0, 12))
+        titles = tk.Frame(brand, bg=BG)
+        titles.pack(side="left", anchor="w")
+        tk.Label(titles, text="健身动作识别测试台", bg=BG, fg=TEXT,
                  font=F_TITLE).pack(anchor="w")
-        tk.Label(head, text="选好动作直接开始即可 —— 默认使用摄像头，内置参考视频仅用于调试。",
+        tk.Label(titles, text="选好动作直接开始 —— 默认摄像头，也可用内置视频或关键点数据回放",
                  bg=BG, fg=MUTED, font=F_SMALL).pack(anchor="w", pady=(3, 0))
 
         # ══════════ 卡片 1：测试设置 ══════════
-        form = card(outer, "测试设置", "动作的判定逻辑全部来自 configs/ 下的配置文件")
+        form = card(outer, "⚙️  测试设置", "动作的判定逻辑全部来自 configs/ 下的配置文件")
         form.columnconfigure(1, weight=1)
 
         tk.Label(form, text="动作", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -716,7 +771,8 @@ class FitnessTestUI:
             # indicatoron=False：把单选按钮画成「药丸按钮」，比小圆点更像 App。
             # 选中态用浅蓝底 —— tkinter 没法在选中时同时改字色，浅底黑字最稳妥。
             btn = tk.Radiobutton(
-                action_area, text=name, variable=self.action_var, value=name,
+                action_area, text=action_label(name, _aid), variable=self.action_var,
+                value=name,
                 command=self._on_action_click, indicatoron=False,
                 bg=SOFT, fg=MUTED, selectcolor=SOFT,
                 activebackground="#e4eaf1", activeforeground=TEXT,
@@ -780,7 +836,7 @@ class FitnessTestUI:
                                                       pady=(12, 0))
 
         # ══════════ 卡片 2：训练管理（模块 7 / 8 / 10）══════════
-        train = card(outer, "训练管理", "多用户档案 · 分组间歇 · 每日目标 · 训练历史")
+        train = card(outer, "🎯  训练管理", "多用户档案 · 分组间歇 · 每日目标 · 训练历史")
         train.columnconfigure(1, weight=1)
 
         tk.Label(train, text="用户", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -834,6 +890,7 @@ class FitnessTestUI:
             side="left", padx=10)
 
         # ══════════ 主操作按钮 ══════════
+        section_gap(outer, "操作")
         buttons = tk.Frame(outer, bg=BG)
         buttons.pack(fill="x", pady=(2, 14))
         self.start_btn = hover_btn(buttons, "▶  开始测试", self.start, PRIMARY, PRIMARY_HI)
@@ -858,20 +915,21 @@ class FitnessTestUI:
         self.root.bind("<Escape>", lambda _e: self.stop())
 
         # ══════════ 卡片 3：最近一次结果 ══════════
-        res = card(outer, "最近一次测试结果")
+        res = card(outer, "📊  最近一次测试结果")
         for col in range(4):
             res.columnconfigure(col, weight=1, uniform="res")
-        for col, (label, var, color, font) in enumerate((
-                ("次数", self.reps_var, TEXT, F_NUM),
-                ("动作评分", self.score_var, "#b5651d", F_NUM),
-                ("关键点检出率", self.rate_var, PRIMARY, ("Helvetica", 20, "bold")),
-                ("错误事件", self.errors_var, DANGER, F_SMALL))):
-            tk.Label(res, text=label, bg=CARD, fg=MUTED, font=F_SMALL).grid(
+        for col, (icon, label, var, color, font) in enumerate((
+                ("🔢", "完成次数", self.reps_var, TEXT, F_NUM),
+                ("⭐", "动作评分", self.score_var, "#b5651d", F_NUM),
+                ("👁", "关键点检出率", self.rate_var, PRIMARY, ("Helvetica", 20, "bold")),
+                ("⚠", "错误事件", self.errors_var, DANGER, F_SMALL))):
+            tk.Label(res, text=f"{icon} {label}", bg=CARD, fg=MUTED, font=F_SMALL).grid(
                 row=0, column=col)
             tk.Label(res, textvariable=var, bg=CARD, fg=color, font=font,
-                     wraplength=230, justify="center").grid(row=1, column=col, pady=(8, 2))
+                     wraplength=230, justify="center").grid(row=1, column=col, pady=(10, 2))
 
         # ══════════ 下方标签页：趋势图 / 历史统计 / 运行日志 ══════════
+        section_gap(outer, "数据与日志")
         notebook = ttk.Notebook(outer)
         notebook.pack(fill="x")
 
@@ -1182,6 +1240,11 @@ class FitnessTestUI:
         if total_err:
             self._msg("showwarning", "配置有问题", summary + "\n详情见下方运行日志。")
 
+    def _set_badge(self, text, fg, bg):
+        """更新右上角状态徽章（空闲 = 绿、运行中 = 蓝、异常 = 红）。"""
+        if hasattr(self, "badge"):
+            self.badge.configure(text=text, fg=fg, bg=bg)
+
     def _paint_actions(self):
         """按当前选中项重画所有动作按钮（选中 = 主色底白字，未选中 = 浅灰底）。"""
         cur = self.action_var.get()
@@ -1227,7 +1290,7 @@ class FitnessTestUI:
         for i, (name, _aid) in enumerate(self.actions):
             r, c = divmod(i, 3)
             btn = tk.Radiobutton(
-                area, text=name, variable=self.action_var, value=name,
+                area, text=action_label(name, _aid), variable=self.action_var, value=name,
                 command=self._on_action_click, indicatoron=False,
                 bg=SOFT, fg=MUTED, selectcolor=SOFT,
                 activebackground="#e4eaf1", activeforeground=TEXT,
@@ -1506,6 +1569,7 @@ class FitnessTestUI:
 
         # MediaPipe 0.10.35 启动时会尝试上传遥测，网络超时导致**卡约 61 秒**才出画面
         # （见 CLAUDE.md「mediapipe 版本坑」）。不提前说明的话很容易被当成卡死。
+        self._set_badge("●  运行中", PRIMARY, "#e6f0ff")
         self.status_var.set("启动中…首次约需 1 分钟（MediaPipe 初始化），画面出现前请稍候")
         self._append_log("[提示] MediaPipe 首次初始化约需 1 分钟 —— 它在尝试上传遥测并等网络超时。\n"
                          "       这段时间画面不会出现，**不是卡死**，请稍候。\n"
@@ -1587,6 +1651,10 @@ class FitnessTestUI:
 
     def _finished(self, return_code):
         self.process = None
+        if return_code == 0:
+            self._set_badge("●  完成", SUCCESS, "#e8f5ec")
+        else:
+            self._set_badge("●  已停止", MUTED, "#eef1f5")
         set_btn_enabled(self.start_btn, True, PRIMARY)
         set_btn_enabled(self.stop_btn, False, DANGER)
         set_btn_enabled(self.reset_btn, False, WARN)
