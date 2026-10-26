@@ -154,11 +154,38 @@ export interface User {
   id: string;
   name: string;
   initials: string;
+  /** 创建日期（YYYY-MM-DD） */
+  created_at: string;
+  height?: number | null;
+  weight?: number | null;
+  total_sessions: number;
+  today_sessions: number;
+  badge?: string | null;
+}
+
+export interface CreateUserInput {
+  name: string;
+  height?: number | null;
+  weight?: number | null;
+}
+
+export interface UserOpResult {
+  ok: boolean;
+  errors: SaveError[];
+  user?: User;
 }
 
 export interface Health {
   ok: boolean;
   mode: "mock" | "live";
+  version: string;
+  python_version: string;
+  mediapipe_version: string;
+  model: string;
+  device: string;
+  data_dir: string;
+  configs_dir: string;
+  backend_url: string;
 }
 
 export interface DailyGoal {

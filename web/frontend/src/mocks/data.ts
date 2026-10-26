@@ -3,6 +3,8 @@ import type {
   ActionDetail,
   ActionValidationResult,
   CounterSpec,
+  CreateUserInput,
+  DailyGoal,
   Health,
   NewActionDraft,
   Overview,
@@ -10,6 +12,7 @@ import type {
   SaveError,
   SaveResult,
   User,
+  UserOpResult,
 } from "@/lib/types";
 import {
   isValidId,
@@ -293,16 +296,132 @@ export function createAction(draft: NewActionDraft): SaveResult {
   return { ok: true, errors: [], warnings, detail };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 用户（可变 store）：新建用户仅本次会话有效，刷新后回到初始快照。
+// ─────────────────────────────────────────────────────────────
+
 export const MOCK_USERS: User[] = [
-  { id: "default", name: "默认用户", initials: "默" },
-  { id: "tester", name: "测试用户", initials: "测" },
+  {
+    id: "default",
+    name: "默认用户",
+    initials: "默",
+    created_at: "2026-09-01",
+    height: 176,
+    weight: 68,
+    total_sessions: 128,
+    today_sessions: 42,
+    badge: "坚持之星",
+  },
+  {
+    id: "tester",
+    name: "测试用户",
+    initials: "测",
+    created_at: "2026-10-18",
+    height: null,
+    weight: null,
+    total_sessions: 0,
+    today_sessions: 0,
+    badge: null,
+  },
 ];
 
-export const MOCK_OVERVIEW: Overview = {
+function generateUserId(name: string): string {
+  const existing = new Set(MOCK_USERS.map((u) => u.id));
+  // ASCII 且非纯数字可直接作为 id；否则退化为带时间戳的 user_ 前缀
+  const base =
+    /^[0-9a-zA-Z_]+$/.test(name) && !/^\d+$/.test(name)
+      ? name
+      : `user_${Date.now().toString(36)}${Math.floor(Math.random() * 36).toString(36)}`;
+  if (!existing.has(base)) return base;
+  let i = 2;
+  while (existing.has(`${base}_${i}`)) i += 1;
+  return `${base}_${i}`;
+}
+
+/** 每次返回新数组引用，保证 React Query invalidate 后能重渲染 */
+export function getUsersSnapshot(): User[] {
+  return [...MOCK_USERS];
+}
+
+export function createUser(input: CreateUserInput): UserOpResult {
+  const name = input.name.trim();
+  if (!name) {
+    return { ok: false, errors: [{ field: "name", message: "用户名不能为空" }] };
+  }
+  if (MOCK_USERS.some((u) => u.name === name)) {
+    return {
+      ok: false,
+      errors: [{ field: "name", message: `用户名「${name}」已存在` }],
+    };
+  }
+  const user: User = {
+    id: generateUserId(name),
+    name,
+    initials: name[0] ?? "?",
+    created_at: new Date().toISOString().slice(0, 10),
+    height: input.height ?? null,
+    weight: input.weight ?? null,
+    total_sessions: 0,
+    today_sessions: 0,
+    badge: null,
+  };
+  MOCK_USERS.push(user);
+  return { ok: true, errors: [], user };
+}
+
+export function deleteUser(id: string): { ok: boolean; errors: SaveError[] } {
+  if (MOCK_USERS.length <= 1) {
+    return { ok: false, errors: [{ message: "至少保留一个用户，无法删除" }] };
+  }
+  const idx = MOCK_USERS.findIndex((u) => u.id === id);
+  if (idx < 0) {
+    return { ok: false, errors: [{ message: "用户不存在或已被删除" }] };
+  }
+  MOCK_USERS.splice(idx, 1);
+  return { ok: true, errors: [] };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 每日目标（可变 store）：单一数据源，总览目标环由它求和派生。
+// ─────────────────────────────────────────────────────────────
+
+const MOCK_GOALS: DailyGoal[] = [
+  { action_id: "squat", action_name: "深蹲", target: 50, done: 30 },
+  { action_id: "pushup", action_name: "俯卧撑", target: 40, done: 40 },
+  { action_id: "jumping_jack", action_name: "开合跳", target: 60, done: 58 },
+];
+
+export function setGoal(action_id: string, target: number): void {
+  if (target <= 0) {
+    clearGoal(action_id);
+    return;
+  }
+  const existing = MOCK_GOALS.find((g) => g.action_id === action_id);
+  if (existing) {
+    existing.target = target;
+  } else {
+    const a = MOCK_ACTION_DETAILS.find((d) => d.id === action_id);
+    MOCK_GOALS.push({ action_id, action_name: a?.name ?? action_id, target, done: 0 });
+  }
+}
+
+export function clearGoal(action_id: string): void {
+  const idx = MOCK_GOALS.findIndex((g) => g.action_id === action_id);
+  if (idx >= 0) MOCK_GOALS.splice(idx, 1);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 总览：静态部分 + 按目标求和派生 daily_goal_target / daily_goal_done
+// ─────────────────────────────────────────────────────────────
+
+type OverviewBase = Omit<
+  Overview,
+  "daily_goal_target" | "daily_goal_done" | "goals"
+>;
+
+const MOCK_OVERVIEW_BASE: OverviewBase = {
   today_reps: 128,
   yesterday_reps: 96,
-  daily_goal_target: 150,
-  daily_goal_done: 128,
   last_7_days: [
     { date: "10-19", reps: 0 },
     { date: "10-20", reps: 62 },
@@ -322,11 +441,6 @@ export const MOCK_OVERVIEW: Overview = {
     { week_start: "10-13", reps: 390 },
     { week_start: "10-20", reps: 490 },
   ],
-  goals: [
-    { action_id: "squat", action_name: "深蹲", target: 50, done: 30 },
-    { action_id: "pushup", action_name: "俯卧撑", target: 40, done: 40 },
-    { action_id: "jumping_jack", action_name: "开合跳", target: 60, done: 58 },
-  ],
   top_errors: [
     { tip: "蹲得不够深", count: 12 },
     { tip: "站起时腿没伸直", count: 8 },
@@ -341,4 +455,28 @@ export const MOCK_OVERVIEW: Overview = {
   ],
 };
 
-export const MOCK_HEALTH: Health = { ok: true, mode: "mock" };
+/** 每次返回新对象 + goals 逐项拷贝（daily_goal_target/done 由 goals 求和派生） */
+export function getOverviewData(): Overview {
+  const goals = MOCK_GOALS.map((g) => ({ ...g }));
+  const daily_goal_target = goals.reduce((sum, g) => sum + g.target, 0);
+  const daily_goal_done = goals.reduce((sum, g) => sum + g.done, 0);
+  return {
+    ...MOCK_OVERVIEW_BASE,
+    goals,
+    daily_goal_target,
+    daily_goal_done,
+  };
+}
+
+export const MOCK_HEALTH: Health = {
+  ok: true,
+  mode: "mock",
+  version: "0.1.0",
+  python_version: "3.11",
+  mediapipe_version: "0.10.35",
+  model: "pose_landmarker_lite.task",
+  device: "CPU",
+  data_dir: "data/users",
+  configs_dir: "configs",
+  backend_url: "http://127.0.0.1:8000",
+};

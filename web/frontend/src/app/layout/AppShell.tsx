@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { client } from "@/lib/api";
 import { NAV_ITEMS } from "@/app/nav";
 import { cn } from "@/lib/cn";
+import { useUser } from "@/providers/UserProvider";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -44,13 +43,7 @@ function MobileTabBar() {
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
-  const [activeUserId, setActiveUserId] = useState<string | undefined>();
-
-  const { data: users } = useQuery({
-    queryKey: ["users"],
-    queryFn: client.getUsers,
-  });
-  const user = users?.find((u) => u.id === activeUserId) ?? users?.[0];
+  const { currentUser: user, users, switchUser } = useUser();
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg0">
@@ -62,7 +55,7 @@ export function AppShell() {
           onToggle={() => setCollapsed((c) => !c)}
           user={user}
           users={users}
-          onSelectUser={setActiveUserId}
+          onSelectUser={switchUser}
         />
 
         <main className="flex-1 overflow-y-auto px-4 py-6 pb-24 md:px-8 md:py-8 lg:pb-8">

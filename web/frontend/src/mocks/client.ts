@@ -2,20 +2,27 @@ import type {
   Action,
   ActionDetail,
   ActionValidationResult,
+  CreateUserInput,
   Health,
   NewActionDraft,
   Overview,
+  SaveError,
   SaveResult,
   User,
+  UserOpResult,
 } from "@/lib/types";
 import {
+  clearGoal as clearGoalFn,
   createAction as saveAction,
+  createUser as createUserFn,
+  deleteUser as deleteUserFn,
   getActionSummaries,
+  getOverviewData,
+  getUsersSnapshot,
   getValidationResults,
   MOCK_ACTION_DETAILS,
   MOCK_HEALTH,
-  MOCK_OVERVIEW,
-  MOCK_USERS,
+  setGoal as setGoalFn,
 } from "./data";
 
 const latency = () => 300 + Math.random() * 300;
@@ -33,15 +40,23 @@ export interface ApiClient {
   validateActions(): Promise<ActionValidationResult[]>;
   getUsers(): Promise<User[]>;
   createAction(draft: NewActionDraft): Promise<SaveResult>;
+  createUser(input: CreateUserInput): Promise<UserOpResult>;
+  deleteUser(id: string): Promise<{ ok: boolean; errors: SaveError[] }>;
+  setGoal(actionId: string, target: number): Promise<void>;
+  clearGoal(actionId: string): Promise<void>;
 }
 
 export const mockClient: ApiClient = {
   getHealth: () => delay(MOCK_HEALTH),
-  getOverview: () => delay(MOCK_OVERVIEW),
+  getOverview: () => delay(getOverviewData()),
   getActions: () => delay(getActionSummaries()),
   getAction: (id) =>
     delay(MOCK_ACTION_DETAILS.find((d) => d.id === id) ?? null),
   validateActions: () => delay(getValidationResults()),
-  getUsers: () => delay(MOCK_USERS),
+  getUsers: () => delay(getUsersSnapshot()),
   createAction: (draft) => delay(saveAction(draft)),
+  createUser: (input) => delay(createUserFn(input)),
+  deleteUser: (id) => delay(deleteUserFn(id)),
+  setGoal: (actionId, target) => delay(setGoalFn(actionId, target)),
+  clearGoal: (actionId) => delay(clearGoalFn(actionId)),
 };
