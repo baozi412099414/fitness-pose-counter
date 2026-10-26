@@ -28,3 +28,9 @@ data/
 node_modules/
 dist/
 .env.local
+.vite/
+
+# 本地编辑器与备份（不入库）
+.vscode/
+*.bak
+*.bak-*
