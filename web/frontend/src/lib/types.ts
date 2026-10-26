@@ -64,6 +64,7 @@ export interface CounterSpec {
   lo?: number;
   hi?: number;
   first?: "lo" | "hi";
+  unit_points?: number[];
   conditions?: CounterCondition[];
   min_interval?: number;
   enter_hold?: number;
@@ -86,6 +87,7 @@ export interface ActionDetail {
   /** 原始机位：侧 / 正（与 backend 一致） */
   camera_side: string;
   calibrate: boolean;
+  builtin: boolean;
   counter: CounterSpec;
   quality: QualityRule[];
   /** 前端元信息（不参与「原始 JSON」序列化） */
@@ -102,6 +104,46 @@ export interface ActionValidationResult {
   ok: boolean;
   errors: string[];
   warnings: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// 新建动作：向导草稿 + 保存/校验结果
+// ─────────────────────────────────────────────────────────────
+
+/** 枚举错误：field 为能对应到表单字段的路径（用于失败时标红），可为空 */
+export interface SaveError {
+  field?: string;
+  message: string;
+}
+
+export interface SaveResult {
+  ok: boolean;
+  errors: SaveError[];
+  warnings: string[];
+  detail?: ActionDetail;
+}
+
+/** 新建向导的草稿（POST /api/actions 的请求体契约） */
+export interface NewActionDraft {
+  name: string;
+  id: string;
+  camera_side: "侧" | "正";
+  calibrate: boolean;
+  cycles_per_rep: number;
+  // 判定信号
+  signal: string;
+  points: number[];
+  /** 恒定 lo < hi；进入/计一次的方向由 first 决定 */
+  lo: number;
+  hi: number;
+  first: "lo" | "hi";
+  min_interval: number;
+  enter_hold: number;
+  exit_hold: number;
+  min_active_duration: number;
+  // 质量规则模板（可选）
+  depth: { enabled: boolean; threshold: number; tip: string; priority: number };
+  straight: { enabled: boolean; threshold: number; tip: string; priority: number };
 }
 
 // ─────────────────────────────────────────────────────────────

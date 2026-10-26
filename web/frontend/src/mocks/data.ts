@@ -2,11 +2,18 @@ import type {
   Action,
   ActionDetail,
   ActionValidationResult,
+  CounterSpec,
   Health,
+  NewActionDraft,
   Overview,
+  QualityRule,
+  SaveError,
+  SaveResult,
   User,
 } from "@/lib/types";
 import {
+  isValidId,
+  RATIO_SIGNALS,
   signalKindOf,
   signalShortLabel,
   thresholdSummary,
@@ -16,7 +23,7 @@ import {
  * 演示数据。字段与后端 API 契约保持一致，
  * 后续接入真实 /api/* 时，用这里的数据结构做对照即可，不改组件。
  *
- * 动作摘要（MOCK_ACTIONS）从详情（MOCK_ACTION_DETAILS）派生，单一数据源。
+ * 动作摘要（getActionSummaries()）从详情（MOCK_ACTION_DETAILS）派生，单一数据源。
  */
 
 // ── 动作详情（faithful 镜像 configs/*.json） ──────────────────────
@@ -26,6 +33,7 @@ export const MOCK_ACTION_DETAILS: ActionDetail[] = [
     name: "深蹲",
     camera_side: "侧",
     calibrate: true,
+    builtin: true,
     counter: {
       signal: "angle",
       points: [23, 25, 27],
@@ -55,6 +63,7 @@ export const MOCK_ACTION_DETAILS: ActionDetail[] = [
     name: "俯卧撑",
     camera_side: "侧",
     calibrate: true,
+    builtin: true,
     counter: {
       signal: "angle",
       points: [11, 13, 15],
@@ -84,6 +93,7 @@ export const MOCK_ACTION_DETAILS: ActionDetail[] = [
     name: "开合跳",
     camera_side: "正",
     calibrate: false,
+    builtin: true,
     counter: {
       conditions: [
         { signal: "angle", points: [13, 11, 23], direction: "hi", on: 75, off: 45 },
@@ -117,7 +127,7 @@ function toSummary(d: ActionDetail): Action {
     signal_kind: signalKindOf(d),
     rule_count: d.quality.length,
     thresholds: thresholdSummary(d),
-    builtin: true,
+    builtin: d.builtin,
     validation: {
       ok: d.validation.ok,
       error_count: d.validation.errors.length,
@@ -126,10 +136,13 @@ function toSummary(d: ActionDetail): Action {
   };
 }
 
-export const MOCK_ACTIONS: Action[] = MOCK_ACTION_DETAILS.map(toSummary);
+/** 摘要随 store 实时派生（新建动作后 op 到最新列表） */
+export function getActionSummaries(): Action[] {
+  return MOCK_ACTION_DETAILS.map(toSummary);
+}
 
-export const MOCK_VALIDATION_RESULTS: ActionValidationResult[] =
-  MOCK_ACTION_DETAILS.map((d) => ({
+export function getValidationResults(): ActionValidationResult[] {
+  return MOCK_ACTION_DETAILS.map((d) => ({
     action_id: d.id,
     action_name: d.name,
     file_path: d.file_path,
@@ -137,6 +150,148 @@ export const MOCK_VALIDATION_RESULTS: ActionValidationResult[] =
     errors: d.validation.errors,
     warnings: d.validation.warnings,
   }));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 新建动作（mock「后端」）：镜像 action_editor.build_action_config +
+// validate_config 的一致性检查。本轮不落盘 configs/*.json。
+// ─────────────────────────────────────────────────────────────
+
+function buildCounter(draft: NewActionDraft): CounterSpec {
+  const counter: CounterSpec = {
+    signal: draft.signal,
+    points: draft.points,
+    lo: draft.lo,
+    hi: draft.hi,
+    first: draft.first,
+    enter_hold: draft.enter_hold,
+    exit_hold: draft.exit_hold,
+    min_active_duration: draft.min_active_duration,
+    min_interval: draft.min_interval,
+    cycles_per_rep: draft.cycles_per_rep,
+  };
+  // 距离类信号必须有归一化基准，默认肩宽
+  if (RATIO_SIGNALS.has(draft.signal)) counter.unit_points = [11, 12];
+  return counter;
+}
+
+function buildQuality(draft: NewActionDraft): QualityRule[] {
+  const rules: QualityRule[] = [];
+  const firstLo = draft.first === "lo";
+  if (draft.depth.enabled) {
+    rules.push({
+      name: "not_enough_range",
+      check: firstLo ? "valley_max" : "peak_min",
+      ...(firstLo
+        ? { max: draft.depth.threshold }
+        : { min: draft.depth.threshold }),
+      when: "on_rep",
+      priority: draft.depth.priority,
+      tip: draft.depth.tip,
+    });
+  }
+  if (draft.straight.enabled) {
+    rules.push({
+      name: "not_returned",
+      check: firstLo ? "peak_min" : "valley_max",
+      ...(firstLo
+        ? { min: draft.straight.threshold }
+        : { max: draft.straight.threshold }),
+      when: "on_rep",
+      priority: draft.straight.priority,
+      tip: draft.straight.tip,
+    });
+  }
+  return rules;
+}
+
+/** 一致性校验（镜像 validate_config 的核心约束 + 幅度方向一致性） */
+function validateDraft(draft: NewActionDraft, existing: Set<string>): SaveError[] {
+  const errors: SaveError[] = [];
+  if (!draft.name.trim()) {
+    errors.push({ field: "name", message: "动作名称不能为空" });
+  }
+  if (!isValidId(draft.id)) {
+    errors.push({ field: "id", message: "ID 只能包含字母、数字、下划线" });
+  } else if (existing.has(draft.id)) {
+    errors.push({ field: "id", message: `ID「${draft.id}」已存在，请换一个` });
+  }
+
+  if (draft.points.length === 3 && draft.signal !== "angle") {
+    errors.push({ field: "signal", message: "三点部位只能用「关节角度」信号" });
+  } else if (draft.points.length === 2 && draft.signal === "angle") {
+    errors.push({ field: "signal", message: "两点部位不能选「关节角度」信号" });
+  }
+  if (draft.lo >= draft.hi) {
+    errors.push({
+      field: "signal.lo",
+      message: `lo(${draft.lo}) 必须小于 hi(${draft.hi})，否则迟滞区不成立`,
+    });
+  }
+
+  // 幅度/回位阈值方向一致性：进入值越「深」，回位值越「回到起始」。
+  // 先变小（first=lo）：幅度必须 ≤ 进入(lo)；先变大（first=hi）：幅度必须 ≥ 进入(hi)。
+  const firstLo = draft.first === "lo";
+  if (draft.depth.enabled) {
+    const bad = firstLo
+      ? draft.depth.threshold > draft.lo
+      : draft.depth.threshold < draft.hi;
+    if (bad) {
+      errors.push({
+        field: "quality.0.threshold",
+        message: firstLo
+          ? `「幅度不够」阈值(${draft.depth.threshold}) 必须 ≤ 进入阈值(${draft.lo})，否则永远不触发`
+          : `「幅度不够」阈值(${draft.depth.threshold}) 必须 ≥ 进入阈值(${draft.hi})，否则永远不触发`,
+      });
+    }
+  }
+  if (draft.straight.enabled) {
+    const bad = firstLo
+      ? draft.straight.threshold < draft.hi
+      : draft.straight.threshold > draft.lo;
+    if (bad) {
+      errors.push({
+        field: "quality.1.threshold",
+        message: firstLo
+          ? `「没回到起始」阈值(${draft.straight.threshold}) 必须 ≥ 计一次阈值(${draft.hi})，否则永远不触发`
+          : `「没回到起始」阈值(${draft.straight.threshold}) 必须 ≤ 计一次阈值(${draft.lo})，否则永远不触发`,
+      });
+    }
+  }
+  return errors;
+}
+
+export function createAction(draft: NewActionDraft): SaveResult {
+  const existing = new Set(MOCK_ACTION_DETAILS.map((d) => d.id));
+  const errors = validateDraft(draft, existing);
+  if (errors.length > 0) {
+    return { ok: false, errors, warnings: [] };
+  }
+
+  const warnings: string[] = [];
+  if (
+    [31, 32].some((p) => draft.points.includes(p)) &&
+    !["侧", "侧面"].includes(draft.camera_side)
+  ) {
+    warnings.push("用到了脚尖关键点（31/32），建议机位设为侧面");
+  }
+
+  const detail: ActionDetail = {
+    id: draft.id,
+    name: draft.name,
+    camera_side: draft.camera_side,
+    calibrate: draft.calibrate,
+    builtin: false,
+    counter: buildCounter(draft),
+    quality: buildQuality(draft),
+    file_path: `configs/${draft.id}.json`,
+    last_validated_at: null,
+    validation: { ok: true, errors: [], warnings },
+  };
+  // 本轮 mock：不写 configs/*.json，直接进内存 store，列表/详情立即可见
+  MOCK_ACTION_DETAILS.push(detail);
+  return { ok: true, errors: [], warnings, detail };
+}
 
 export const MOCK_USERS: User[] = [
   { id: "default", name: "默认用户", initials: "默" },

@@ -4,6 +4,7 @@ import { StyleGuidePage } from "@/app/styleguide/StyleGuidePage";
 import { OverviewPage } from "@/features/overview/OverviewPage";
 import { ActionsPage } from "@/features/actions/ActionsPage";
 import { ActionDetailPage } from "@/features/actions/ActionDetailPage";
+import { NewActionPage } from "@/features/actions/new/NewActionPage";
 import { PlaceholderPage } from "@/components/placeholder/PlaceholderPage";
 
 export const router = createBrowserRouter([
@@ -16,7 +17,7 @@ export const router = createBrowserRouter([
       { path: "/train", element: <PlaceholderPage title="训练" /> },
       { path: "/train/:id", element: <PlaceholderPage title="实时训练" /> },
       { path: "/actions", element: <ActionsPage /> },
-      { path: "/actions/new", element: <PlaceholderPage title="新建动作" /> },
+      { path: "/actions/new", element: <NewActionPage /> },
       { path: "/actions/:id", element: <ActionDetailPage /> },
       { path: "/data", element: <PlaceholderPage title="训练数据" /> },
       { path: "/settings", element: <PlaceholderPage title="设置" /> },

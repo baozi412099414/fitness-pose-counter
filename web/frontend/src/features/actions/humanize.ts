@@ -315,3 +315,115 @@ export function conditionThresholds(cond: CounterCondition): {
     count: up ? `${cond.off}${u} ↓` : `${cond.off}${u} ↑`,
   };
 }
+
+// ─────────────────────────────────────────────────────────────
+// 新建动作向导：部位目录 / 信号目录 / 阈值量程 / id 生成
+// 映射来自 action_editor.py（ANGLE_PARTS / PAIR_PARTS / SIGNALS）
+// -------------------------------------------------------------
+
+export interface PartOption {
+  label: string;
+  points: number[];
+  /** 3 = 三点夹角（仅 angle）；2 = 两点（tilt/tilts/distance/dx/dxs/dy） */
+  arity: 3 | 2;
+}
+
+/** 三点组合：只能量关节角度（order 敏感，中间是顶点） */
+export const ANGLE_PARTS: PartOption[] = [
+  { label: "左肘角（肩-肘-腕）", points: [11, 13, 15], arity: 3 },
+  { label: "右肘角（肩-肘-腕）", points: [12, 14, 16], arity: 3 },
+  { label: "左膝角（髋-膝-踝）", points: [23, 25, 27], arity: 3 },
+  { label: "右膝角（髋-膝-踝）", points: [24, 26, 28], arity: 3 },
+  { label: "左肩角（肘-肩-髋）", points: [13, 11, 23], arity: 3 },
+  { label: "右肩角（肘-肩-髋）", points: [14, 12, 24], arity: 3 },
+  { label: "左髋角（肩-髋-膝）", points: [11, 23, 25], arity: 3 },
+  { label: "右髋角（肩-髋-膝）", points: [12, 24, 26], arity: 3 },
+  { label: "左踝角（膝-踝-趾）", points: [25, 27, 31], arity: 3 },
+  { label: "右踝角（膝-踝-趾）", points: [26, 28, 32], arity: 3 },
+  { label: "躯干-左大腿夹角", points: [11, 23, 25], arity: 3 },
+  { label: "躯干-右大腿夹角", points: [12, 24, 26], arity: 3 },
+];
+
+/** 两点组合：量距离/水平差/竖直差/倾角（order 对 dxs/tilts 有意义） */
+export const PAIR_PARTS: PartOption[] = [
+  { label: "左右肩（肩宽）", points: [11, 12], arity: 2 },
+  { label: "左右髋（髋宽）", points: [23, 24], arity: 2 },
+  { label: "左右膝（膝距）", points: [25, 26], arity: 2 },
+  { label: "左右脚踝（脚距）", points: [27, 28], arity: 2 },
+  { label: "左脚踝→左膝（小腿）", points: [27, 25], arity: 2 },
+  { label: "左脚踝→左脚尖（脚掌）", points: [27, 31], arity: 2 },
+  { label: "左肩→左髋（躯干）", points: [11, 23], arity: 2 },
+  { label: "左髋→左膝（大腿）", points: [23, 25], arity: 2 },
+  { label: "左肩→左肘（上臂）", points: [11, 13], arity: 2 },
+  { label: "左肘→左腕（前臂）", points: [13, 15], arity: 2 },
+  { label: "左手腕→左肩", points: [15, 11], arity: 2 },
+  { label: "右手腕→右肩", points: [16, 12], arity: 2 },
+  { label: "左脚踝→左髋（腿全长）", points: [27, 23], arity: 2 },
+];
+
+/** 距离类信号：归一化基准（unit_points 默认肩宽） */
+export const RATIO_SIGNALS = new Set(["distance", "dx", "dxs", "dy"]);
+
+/** 信号类型：三点只 angle；两点只这几种（按 SIGNALS 顺序给出） */
+export const THREE_POINT_SIGNALS = ["angle"];
+export const TWO_POINT_SIGNALS = ["tilt", "tilts", "distance", "dx", "dxs", "dy"];
+
+export function signalsForPointCount(n: number): string[] {
+  if (n === 3) return THREE_POINT_SIGNALS;
+  if (n === 2) return TWO_POINT_SIGNALS;
+  return [];
+}
+
+export const SIGNAL_HINTS: Record<string, string> = {
+  angle: "三点夹角，最稳，优先用",
+  tilt: "两点连线偏离竖直方向多少度",
+  tilts: "带方向，能分「偏前/偏后」",
+  distance: "两点直线距离（按肩宽归一）",
+  dx: "两点水平方向差多少",
+  dxs: "带符号水平差（分前后）",
+  dy: "两点竖直方向差多少",
+};
+
+/** 阈值量程：角度 0~180（步长 1），距离 0~3.0（步长 0.05） */
+export function thresholdRange(signal: string): {
+  min: number;
+  max: number;
+  step: number;
+} {
+  return RATIO_SIGNALS.has(signal)
+    ? { min: 0, max: 3, step: 0.05 }
+    : { min: 0, max: 180, step: 1 };
+}
+
+/** 信号默认阈值：角度 120/150、距离 0.8/1.2 */
+export function defaultThresholds(signal: string): { lo: number; hi: number } {
+  return RATIO_SIGNALS.has(signal)
+    ? { lo: 0.8, hi: 1.2 }
+    : { lo: 120, hi: 150 };
+}
+
+const ID_RE = /^[0-9a-zA-Z_]+$/;
+
+/** id 只允许字母/数字/下划线（镜像 validate_config 的文件名约束） */
+export function isValidId(id: string): boolean {
+  return ID_RE.test(id);
+}
+
+/**
+ * 从中文名生成合法 id（镜像 action_editor.slugify_id）：
+ * 保留英数、其余并成下划线；纯中文/空/纯数字 → 通用前缀 action，
+ * 冲突时按 action_2 / action_3 … 递增。
+ */
+export function slugifyId(name: string, existing: readonly string[]): string {
+  const existingSet = new Set(existing);
+  let base = (name || "")
+    .trim()
+    .replace(/[^0-9a-zA-Z_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+  if (!base || /^\d+$/.test(base)) base = "action";
+  if (!existingSet.has(base)) return base;
+  let i = 2;
+  while (existingSet.has(`${base}_${i}`)) i += 1;
+  return `${base}_${i}`;
+}
