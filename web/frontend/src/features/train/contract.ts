@@ -46,7 +46,7 @@ export interface CheckItem {
   score: number | null;
 }
 
-/** 单个骨架关键点（37 归一化坐标，v=0 表示缺失） */
+/** 单个骨架关键点（33 个归一化坐标，v=0 表示缺失） */
 export interface Landmark {
   x: number; // 0~1
   y: number; // 0~1

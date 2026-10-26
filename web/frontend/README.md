@@ -89,6 +89,7 @@ web/frontend/
 
 - `mockTrainTransport.ts`：本地计时 + `samples/*.json` 回放（默认）。
 - `liveTrainTransport.ts`：WebSocket `/ws/train` 客户端（`VITE_TRAIN_MODE=live` 时启用，经 Vite 的 `/ws` 代理到 `127.0.0.1:8000`）。
+  live 模式会从 `<video>` 按 12fps 抓 640px JPEG 帧，通过 `frame` 消息发送；`start.user` 取当前用户显示名。
 
 后端 `/ws/train` 的消息契约（字段以 `src/features/train/contract.ts` 为准，即 Prompt C §6 + 附录 A）：
 

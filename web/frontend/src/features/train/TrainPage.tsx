@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { cn } from "@/lib/cn";
+import { useUser } from "@/providers/UserProvider";
 import { CameraPreview } from "./CameraPreview";
 import { SkeletonCanvas } from "./SkeletonCanvas";
 import { ChecksPanel, ScoreRing, SummaryPanel } from "./TrainPanels";
@@ -41,6 +42,7 @@ function Kbd({ children }: { children: string }) {
 
 export function TrainPage() {
   const navigate = useNavigate();
+  const { currentUser } = useUser();
   const { id } = useParams();
   const action: ActionKey = isActionKey(id) ? id : "squat";
   const actionSamples = SAMPLES.filter((sample) => sample.action === action);
@@ -68,8 +70,49 @@ export function TrainPage() {
     sample,
     sets,
     restSeconds: REST_SECONDS,
+    userName: currentUser?.name ?? "默认用户",
   });
   const { phase, frame, summary, error, currentSet, restLeft } = session;
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const handleVideoReady = useCallback(
+    (video: HTMLVideoElement | null) => {
+      videoRef.current = video;
+    },
+    [],
+  );
+
+  // live 模式：从 camera 按 12fps 抓 640px JPEG 帧发给 /ws/train。
+  // 只在 running 阶段发送；停止/切回放时自动清理。
+  useEffect(() => {
+    if (mode !== "live" || phase !== "running") return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    let frameId = 0;
+    let cancelled = false;
+    let timer = 0;
+
+    const tick = () => {
+      if (cancelled) return;
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        const scale = 640 / Math.max(video.videoWidth, video.videoHeight);
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        session.sendFrame(++frameId, canvas.toDataURL("image/jpeg", 0.72));
+      }
+      timer = window.setTimeout(tick, 1000 / 12);
+    };
+
+    timer = window.setTimeout(tick, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mode, phase, session.sendFrame]);
   const busy =
     phase === "calibrating" || phase === "running" || phase === "resting";
 
@@ -269,7 +312,11 @@ export function TrainPage() {
         <section className="order-1 col-span-12 lg:order-2 lg:col-span-7">
           <div className="relative aspect-video overflow-hidden rounded-card border border-line1 bg-[#07090c]">
             {mode === "live" ? (
-              <CameraPreview active onError={setCameraError} />
+              <CameraPreview
+                active
+                onError={setCameraError}
+                onVideoReady={handleVideoReady}
+              />
             ) : (
               <>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,#121722_0%,#07090c_70%)]" />

@@ -19,6 +19,15 @@ export interface TrainCheckState {
   key: string;
   label: string;
   ok: boolean;
+  // 以下字段来自后端 CheckItem，当前 UI 只渲染 ok；
+  // 先保留完整信息，等 C 接入后按附录 A.3 的语义决定怎么展示。
+  value?: number | null;
+  limit?: number | null;
+  visible?: boolean;
+  checked?: boolean;
+  priority?: number;
+  score?: number | null;
+  tip?: string;
 }
 
 export interface TrainFrame {

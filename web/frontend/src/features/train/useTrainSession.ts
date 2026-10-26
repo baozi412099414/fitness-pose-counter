@@ -14,6 +14,7 @@ interface Options {
   sample: SampleMeta;
   sets: number;
   restSeconds: number;
+  userName: string;
 }
 
 /**
@@ -70,7 +71,12 @@ export function useTrainSession(options: Options) {
       sample: optsRef.current.sample,
       sets: optsRef.current.sets,
       restSeconds: optsRef.current.restSeconds,
+      userName: optsRef.current.userName,
     });
+  }, []);
+
+  const sendFrame = useCallback((frameId: number, image: string) => {
+    transportRef.current!.sendFrame(frameId, image);
   }, []);
 
   const stop = useCallback(() => {
@@ -97,5 +103,6 @@ export function useTrainSession(options: Options) {
     stop,
     skipRest,
     reset,
+    sendFrame,
   };
 }

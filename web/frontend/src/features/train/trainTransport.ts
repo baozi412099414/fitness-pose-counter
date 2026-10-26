@@ -11,6 +11,8 @@ export interface TrainStartConfig {
   sample: SampleMeta;
   sets: number;
   restSeconds: number;
+  /** 当前用户显示名，live 的 start 消息需要写入 data/users/<用户名> */
+  userName: string;
 }
 
 /**

@@ -18,7 +18,7 @@ import type {
 } from "./types";
 
 const WS_URL = "/ws/train";
-const USER = "演示用户";
+const STOP_TIMEOUT_MS = 2000;
 
 function toGrade(
   grade: string | null | undefined,
@@ -35,6 +35,13 @@ function mapChecks(checks: CheckItem[]): TrainCheckState[] {
     key: check.name || check.tip,
     label: check.name || check.tip,
     ok: check.ok,
+    value: check.value,
+    limit: check.limit,
+    visible: check.visible,
+    checked: check.checked,
+    priority: check.priority,
+    score: check.score,
+    tip: check.tip,
   }));
 }
 
@@ -89,6 +96,7 @@ function mapError(msg: ErrorMessage): string {
 export function createLiveTrainTransport(): TrainTransport {
   let ws: WebSocket | null = null;
   let closed = false;
+  let stopTimer: number | null = null;
 
   const transport: TrainTransport = {
     onPhase: null,
@@ -99,6 +107,11 @@ export function createLiveTrainTransport(): TrainTransport {
     onError: null,
 
     start(config: TrainStartConfig) {
+      if (stopTimer != null) {
+        window.clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      close();
       closed = false;
       transport.onPhase?.("calibrating");
 
@@ -120,7 +133,7 @@ export function createLiveTrainTransport(): TrainTransport {
             JSON.stringify({
               type: "start",
               action_id: config.sample.action,
-              user: USER,
+              user: config.userName,
               sets: config.sets,
               reps_per_set: config.sample.count,
               rest_seconds: config.restSeconds,
@@ -144,7 +157,8 @@ export function createLiveTrainTransport(): TrainTransport {
       };
 
       ws.onclose = () => {
-        if (closed) return;
+        // stop() 正在等 summary 时由超时兜底；其余非主动关闭才报连接错误
+        if (closed || stopTimer != null) return;
         transport.onError?.(
           "无法连接 /ws/train，请确认后端已启动，或切回回放模式",
         );
@@ -163,16 +177,29 @@ export function createLiveTrainTransport(): TrainTransport {
     },
 
     stop() {
-      // TODO(接入 C 后)：服务端收到 stop 会回 summary；当前先通知后断连，
-      // 联调时若需要保留 summary，则改为等待服务端 summary 再 close。
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "stop" }));
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        closed = true;
+        close();
+        transport.onPhase?.("idle");
+        return;
       }
-      closed = true;
-      close();
+      // 服务端收到 stop 后会先回 summary，再断开；这里等 summary，2s 超时兜底。
+      ws.send(JSON.stringify({ type: "stop" }));
+      if (stopTimer != null) window.clearTimeout(stopTimer);
+      stopTimer = window.setTimeout(() => {
+        stopTimer = null;
+        closed = true;
+        close();
+        transport.onPhase?.("idle");
+        transport.onError?.("未收到训练汇总，连接已关闭");
+      }, STOP_TIMEOUT_MS);
     },
 
     reset() {
+      if (stopTimer != null) {
+        window.clearTimeout(stopTimer);
+        stopTimer = null;
+      }
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "reset" }));
       }
@@ -182,6 +209,10 @@ export function createLiveTrainTransport(): TrainTransport {
     },
 
     dispose() {
+      if (stopTimer != null) {
+        window.clearTimeout(stopTimer);
+        stopTimer = null;
+      }
       closed = true;
       close();
     },
@@ -218,12 +249,24 @@ export function createLiveTrainTransport(): TrainTransport {
         handleEvent(msg);
         break;
       case "summary":
+        if (stopTimer != null) {
+          window.clearTimeout(stopTimer);
+          stopTimer = null;
+        }
         transport.onSummary?.(mapSummary(msg));
         transport.onPhase?.("finished");
+        closed = true;
+        close();
         break;
       case "error":
         transport.onError?.(mapError(msg));
         if (msg.code === "BUSY" || msg.code === "MODEL_ERROR") {
+          if (stopTimer != null) {
+            window.clearTimeout(stopTimer);
+            stopTimer = null;
+          }
+          closed = true;
+          close();
           transport.onPhase?.("idle");
         }
         break;

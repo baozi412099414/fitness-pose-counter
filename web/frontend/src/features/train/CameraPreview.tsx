@@ -3,13 +3,23 @@ import { useEffect, useRef } from "react";
 export function CameraPreview({
   active,
   onError,
+  onVideoReady,
 }: {
   active: boolean;
   onError: (message: string) => void;
+  /** 把 <video> 暴露给父组件，供 live 模式按 12fps 抓帧发送 */
+  onVideoReady?: (video: HTMLVideoElement | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onVideoReadyRef = useRef(onVideoReady);
+  onVideoReadyRef.current = onVideoReady;
+
+  useEffect(() => {
+    onVideoReadyRef.current?.(videoRef.current);
+    return () => onVideoReadyRef.current?.(null);
+  }, []);
 
   useEffect(() => {
     if (!active) return;
