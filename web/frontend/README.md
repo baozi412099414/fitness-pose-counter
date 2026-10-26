@@ -111,6 +111,14 @@ web/frontend/
 
 前端只负责画 keypoints、展示后端返回的 `count / checks / score`，不在前端重写判定逻辑。
 
+## 已知限制
+
+- 传输层无自动重连与指数退避：`/ws/train` 断开后仅报错并回到 idle，需用户手动重开。
+- `skip_rest` 客户端消息尚未支持：live 模式下「跳过休息」按钮已禁用，回放模式不受影响。
+- live 的 `start.reps_per_set` 暂取样本 `sample.count`，与真后端的目标次数/组数尚未完全对齐。
+- `VITE_TRAIN_MODE` 是全局开关：设为 `live` 时，回放模式同样走 WebSocket（`start_replay`）。
+- live 抓帧（12fps / 640px JPEG）尚未与真后端联调，帧率、分辨率与消息时序以接入 C 后实测为准。
+
 ## 备注
 
 - `node_modules/`、`dist/`、`.vite/` 已在根 `.gitignore` 中忽略。

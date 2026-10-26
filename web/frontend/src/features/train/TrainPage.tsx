@@ -392,10 +392,15 @@ export function TrainPage() {
                 <Button
                   variant="secondary"
                   className="mt-2"
+                  disabled={mode === "live"}
+                  title={mode === "live" ? "待后端支持" : undefined}
                   onClick={session.skipRest}
                 >
                   <SkipForward size={15} /> 跳过休息
                 </Button>
+                {mode === "live" && (
+                  <p className="text-[11px] text-text3">跳过休息待后端支持</p>
+                )}
               </div>
             )}
 
@@ -446,7 +451,11 @@ export function TrainPage() {
                 </Button>
               )}
               {phase === "resting" && (
-                <Button onClick={session.skipRest}>
+                <Button
+                  disabled={mode === "live"}
+                  title={mode === "live" ? "待后端支持" : undefined}
+                  onClick={session.skipRest}
+                >
                   <SkipForward size={15} /> 跳过休息
                 </Button>
               )}
