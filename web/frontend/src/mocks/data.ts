@@ -6,14 +6,19 @@ import type {
   CreateUserInput,
   DailyGoal,
   Health,
+  HistoryQuery,
+  HistoryRecord,
+  HistoryResult,
   NewActionDraft,
   Overview,
   QualityRule,
   SaveError,
   SaveResult,
+  ScoreTrendPoint,
   User,
   UserOpResult,
 } from "@/lib/types";
+import { gradeOf } from "@/lib/format";
 import {
   isValidId,
   RATIO_SIGNALS,
@@ -382,89 +387,264 @@ export function deleteUser(id: string): { ok: boolean; errors: SaveError[] } {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 每日目标（可变 store）：单一数据源，总览目标环由它求和派生。
+// 训练历史（可变 store）：/data 与总览共用同一份数据
 // ─────────────────────────────────────────────────────────────
 
-const MOCK_GOALS: DailyGoal[] = [
-  { action_id: "squat", action_name: "深蹲", target: 50, done: 30 },
-  { action_id: "pushup", action_name: "俯卧撑", target: 40, done: 40 },
-  { action_id: "jumping_jack", action_name: "开合跳", target: 60, done: 58 },
+const MOCK_TODAY = "2026-10-26";
+const ACTION_NAMES: Record<string, string> = Object.fromEntries(
+  MOCK_ACTION_DETAILS.map((d) => [d.id, d.name]),
+);
+
+function dateOffset(base: string, delta: number): string {
+  const d = new Date(`${base}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+const mmdd = (date: string) => date.slice(5);
+
+type HistorySeed = [
+  date: string,
+  clock: string,
+  actionId: string,
+  reps: number,
+  sets: number,
+  score: number | null,
+  duration: number,
+  errors: string[],
 ];
 
-export function setGoal(action_id: string, target: number): void {
+/** 固定日期的演示历史（26 条，跨 30 天，部分天无记录用于折线断开） */
+const HISTORY_SEED: HistorySeed[] = [
+  ["2026-09-28", "19:30", "squat", 40, 3, 82, 520, ["蹲得不够深"]],
+  ["2026-09-30", "08:10", "pushup", 30, 3, 78, 480, ["下压不够深"]],
+  ["2026-10-02", "20:05", "jumping_jack", 55, 3, 90, 600, []],
+  ["2026-10-04", "19:20", "squat", 42, 3, 85, 560, []],
+  ["2026-10-06", "21:00", "squat", 38, 3, 76, 540, ["站起时腿没伸直"]],
+  ["2026-10-08", "08:30", "pushup", 28, 3, null, 450, ["收紧核心，头肩髋踝保持一条直线"]],
+  ["2026-10-10", "20:10", "jumping_jack", 60, 4, 92, 660, []],
+  ["2026-10-12", "19:40", "squat", 45, 3, 88, 600, []],
+  ["2026-10-14", "21:15", "squat", 36, 3, 71, 520, ["蹲得不够深", "小腿前倾太多"]],
+  ["2026-10-16", "08:20", "pushup", 32, 3, 80, 500, []],
+  ["2026-10-16", "19:50", "squat", 39, 3, 84, 520, []],
+  ["2026-10-18", "20:25", "jumping_jack", 50, 3, 84, 540, ["腿没张开"]],
+  ["2026-10-20", "19:30", "squat", 40, 3, 86, 530, []],
+  ["2026-10-20", "20:10", "pushup", 26, 3, 74, 460, ["撑起时手臂没伸直"]],
+  ["2026-10-21", "19:45", "jumping_jack", 58, 4, 91, 620, []],
+  ["2026-10-21", "20:30", "squat", 41, 3, 89, 550, []],
+  ["2026-10-23", "19:20", "squat", 37, 3, 77, 510, ["蹲得不够深"]],
+  ["2026-10-23", "20:00", "pushup", 30, 3, 82, 480, []],
+  ["2026-10-24", "19:55", "jumping_jack", 62, 4, 94, 640, []],
+  ["2026-10-24", "20:40", "squat", 44, 3, 90, 580, []],
+  ["2026-10-25", "19:30", "squat", 40, 3, 86, 540, []],
+  ["2026-10-25", "20:05", "pushup", 32, 3, 78, 470, ["下压不够深"]],
+  ["2026-10-25", "20:45", "jumping_jack", 56, 3, 91, 600, []],
+  ["2026-10-26", "09:10", "squat", 43, 3, 88, 560, []],
+  ["2026-10-26", "09:50", "pushup", 30, 3, 81, 480, []],
+  ["2026-10-26", "10:30", "jumping_jack", 55, 4, 93, 630, []],
+];
+
+const MOCK_HISTORY: HistoryRecord[] = HISTORY_SEED.map(
+  ([date, clock, actionId, reps, sets, score, duration, errors], i) => ({
+    id: `h${String(i + 1).padStart(2, "0")}`,
+    time: `${mmdd(date)} ${clock}`,
+    date,
+    action_id: actionId,
+    action_name: ACTION_NAMES[actionId] ?? actionId,
+    reps,
+    sets,
+    score,
+    duration,
+    errors,
+  }),
+);
+
+const MOCK_WEEKLY_TREND: Overview["weekly_trend"] = [
+  { week_start: "09-01", reps: 180 },
+  { week_start: "09-08", reps: 240 },
+  { week_start: "09-15", reps: 210 },
+  { week_start: "09-22", reps: 360 },
+  { week_start: "09-29", reps: 300 },
+  { week_start: "10-06", reps: 420 },
+  { week_start: "10-13", reps: 390 },
+  { week_start: "10-20", reps: 594 },
+];
+
+const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+
+const byTimeDesc = (a: HistoryRecord, b: HistoryRecord) =>
+  `${b.date} ${b.time.slice(6)}`.localeCompare(`${a.date} ${a.time.slice(6)}`);
+
+function deriveTopErrors(records: HistoryRecord[]): Overview["top_errors"] {
+  const map = new Map<string, number>();
+  for (const r of records) {
+    for (const tip of r.errors) map.set(tip, (map.get(tip) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([tip, count]) => ({ tip, count }));
+}
+
+function buildScoreTrend(
+  records: HistoryRecord[],
+  days: number,
+): ScoreTrendPoint[] {
+  const points: ScoreTrendPoint[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const date = dateOffset(MOCK_TODAY, -i);
+    const scores = records
+      .filter((r) => r.date === date && r.score != null)
+      .map((r) => r.score as number);
+    points.push({
+      date: mmdd(date),
+      score: scores.length
+        ? Math.round((sum(scores) / scores.length) * 10) / 10
+        : null,
+    });
+  }
+  return points;
+}
+
+function toSession(r: HistoryRecord): Overview["recent_sessions"][number] {
+  return {
+    time: r.time,
+    action_id: r.action_id,
+    action_name: r.action_name,
+    reps: r.reps,
+    score: r.score,
+    errors: r.errors.length,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 每日目标（按用户隔离，可变 store）：总览目标环由它求和派生。
+// ─────────────────────────────────────────────────────────────
+
+const MOCK_GOALS_BY_USER: Record<string, DailyGoal[]> = {
+  default: [
+    { action_id: "squat", action_name: "深蹲", target: 50, done: 30 },
+    { action_id: "pushup", action_name: "俯卧撑", target: 40, done: 40 },
+    { action_id: "jumping_jack", action_name: "开合跳", target: 60, done: 58 },
+  ],
+  tester: [],
+};
+
+function getGoalsFor(userId: string): DailyGoal[] {
+  if (!MOCK_GOALS_BY_USER[userId]) MOCK_GOALS_BY_USER[userId] = [];
+  return MOCK_GOALS_BY_USER[userId];
+}
+
+export function setGoal(
+  userId: string,
+  action_id: string,
+  target: number,
+): void {
   if (target <= 0) {
-    clearGoal(action_id);
+    clearGoal(userId, action_id);
     return;
   }
-  const existing = MOCK_GOALS.find((g) => g.action_id === action_id);
+  const goals = getGoalsFor(userId);
+  const existing = goals.find((g) => g.action_id === action_id);
   if (existing) {
     existing.target = target;
   } else {
     const a = MOCK_ACTION_DETAILS.find((d) => d.id === action_id);
-    MOCK_GOALS.push({ action_id, action_name: a?.name ?? action_id, target, done: 0 });
+    goals.push({
+      action_id,
+      action_name: a?.name ?? action_id,
+      target,
+      done: 0,
+    });
   }
 }
 
-export function clearGoal(action_id: string): void {
-  const idx = MOCK_GOALS.findIndex((g) => g.action_id === action_id);
-  if (idx >= 0) MOCK_GOALS.splice(idx, 1);
+export function clearGoal(userId: string, action_id: string): void {
+  const goals = getGoalsFor(userId);
+  const idx = goals.findIndex((g) => g.action_id === action_id);
+  if (idx >= 0) goals.splice(idx, 1);
 }
 
 // ─────────────────────────────────────────────────────────────
-// 总览：静态部分 + 按目标求和派生 daily_goal_target / daily_goal_done
+// 总览：由历史 / 目标实时派生，不再维护第二份静态数据
 // ─────────────────────────────────────────────────────────────
 
-type OverviewBase = Omit<
-  Overview,
-  "daily_goal_target" | "daily_goal_done" | "goals"
->;
+export function getOverviewData(userId?: string, days = 14): Overview {
+  const uid = userId ?? "default";
+  const user = MOCK_USERS.find((u) => u.id === uid);
+  const isDefault = uid === "default";
+  const goals = getGoalsFor(uid).map((g) => ({ ...g }));
+  const history = isDefault ? MOCK_HISTORY : [];
 
-const MOCK_OVERVIEW_BASE: OverviewBase = {
-  today_reps: 128,
-  yesterday_reps: 96,
-  last_7_days: [
-    { date: "10-19", reps: 0 },
-    { date: "10-20", reps: 62 },
-    { date: "10-21", reps: 84 },
-    { date: "10-22", reps: 0 },
-    { date: "10-23", reps: 120 },
-    { date: "10-24", reps: 96 },
-    { date: "10-25", reps: 128 },
-  ],
-  weekly_trend: [
-    { week_start: "09-01", reps: 180 },
-    { week_start: "09-08", reps: 240 },
-    { week_start: "09-15", reps: 210 },
-    { week_start: "09-22", reps: 360 },
-    { week_start: "09-29", reps: 300 },
-    { week_start: "10-06", reps: 420 },
-    { week_start: "10-13", reps: 390 },
-    { week_start: "10-20", reps: 490 },
-  ],
-  top_errors: [
-    { tip: "蹲得不够深", count: 12 },
-    { tip: "站起时腿没伸直", count: 8 },
-    { tip: "双脚张开不足", count: 5 },
-  ],
-  recent_sessions: [
-    { time: "10-25 21:40", action_id: "squat", action_name: "深蹲", reps: 40, score: 86, errors: 3 },
-    { time: "10-25 08:12", action_id: "pushup", action_name: "俯卧撑", reps: 32, score: 78, errors: 5 },
-    { time: "10-24 21:05", action_id: "jumping_jack", action_name: "开合跳", reps: 56, score: 91, errors: 1 },
-    { time: "10-23 21:32", action_id: "squat", action_name: "深蹲", reps: 36, score: 74, errors: 6 },
-    { time: "10-21 08:20", action_id: "pushup", action_name: "俯卧撑", reps: 28, score: 69, errors: 8 },
-  ],
-};
+  const cutoff = dateOffset(MOCK_TODAY, -(days - 1));
+  const inRange = history.filter(
+    (r) => r.date >= cutoff && r.date <= MOCK_TODAY,
+  );
+  const todayReps = sum(
+    history.filter((r) => r.date === MOCK_TODAY).map((r) => r.reps),
+  );
+  const yesterdayDate = dateOffset(MOCK_TODAY, -1);
+  const yesterdayReps = sum(
+    history.filter((r) => r.date === yesterdayDate).map((r) => r.reps),
+  );
 
-/** 每次返回新对象 + goals 逐项拷贝（daily_goal_target/done 由 goals 求和派生） */
-export function getOverviewData(): Overview {
-  const goals = MOCK_GOALS.map((g) => ({ ...g }));
-  const daily_goal_target = goals.reduce((sum, g) => sum + g.target, 0);
-  const daily_goal_done = goals.reduce((sum, g) => sum + g.done, 0);
+  const last7: Overview["last_7_days"] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const date = dateOffset(MOCK_TODAY, -i);
+    last7.push({
+      date: mmdd(date),
+      reps: sum(history.filter((r) => r.date === date).map((r) => r.reps)),
+    });
+  }
+
+  const weekStart = dateOffset(MOCK_TODAY, -6);
+  const weekReps = sum(last7.map((d) => d.reps));
+  const weekSessions = history.filter(
+    (r) => r.date >= weekStart && r.date <= MOCK_TODAY,
+  ).length;
+  const scores = inRange
+    .map((r) => r.score)
+    .filter((s): s is number => s != null);
+  const avgScore = scores.length
+    ? Math.round((sum(scores) / scores.length) * 10) / 10
+    : null;
+
   return {
-    ...MOCK_OVERVIEW_BASE,
+    today_reps: todayReps,
+    yesterday_reps: yesterdayReps,
+    daily_goal_target: goals.reduce((s, g) => s + g.target, 0),
+    daily_goal_done: goals.reduce((s, g) => s + g.done, 0),
+    last_7_days: last7,
+    weekly_trend: isDefault ? MOCK_WEEKLY_TREND : [],
     goals,
-    daily_goal_target,
-    daily_goal_done,
+    top_errors: deriveTopErrors(inRange),
+    recent_sessions: [...history].sort(byTimeDesc).slice(0, 5).map(toSession),
+    week_reps: weekReps,
+    week_sessions: weekSessions,
+    total_sessions: user?.total_sessions ?? 0,
+    avg_score: avgScore,
+    avg_score_grade: gradeOf(avgScore),
+    score_trend: isDefault ? buildScoreTrend(inRange, days) : [],
+  };
+}
+
+export function getHistoryData(q: HistoryQuery): HistoryResult {
+  const uid = q.userId ?? "default";
+  if (uid !== "default") return { total: 0, items: [] };
+
+  const days = q.days ?? 30;
+  const cutoff = dateOffset(MOCK_TODAY, -(days - 1));
+  const filtered = MOCK_HISTORY.filter(
+    (r) =>
+      r.date >= cutoff &&
+      r.date <= MOCK_TODAY &&
+      (!q.actionId || r.action_id === q.actionId) &&
+      (!q.error || r.errors.includes(q.error)),
+  ).sort(byTimeDesc);
+
+  return {
+    total: filtered.length,
+    items: filtered.slice(q.offset, q.offset + q.limit),
   };
 }
 

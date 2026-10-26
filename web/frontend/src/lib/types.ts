@@ -221,6 +221,41 @@ export interface Session {
   errors: number;
 }
 
+export type Grade = "优秀" | "良好" | "及格" | "待改进";
+
+export interface ScoreTrendPoint {
+  date: string; // MM-DD
+  score: number | null; // null = 当天无记录，折线断开
+}
+
+/** 训练历史记录（/api/history） */
+export interface HistoryRecord {
+  id: string;
+  time: string; // 展示用 "MM-DD HH:mm"
+  date: string; // YYYY-MM-DD
+  action_id: string;
+  action_name: string;
+  reps: number;
+  sets: number;
+  score: number | null;
+  duration: number; // 秒
+  errors: string[]; // 错误 tip 列表
+}
+
+export interface HistoryQuery {
+  userId?: string;
+  actionId?: string;
+  days?: number;
+  error?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface HistoryResult {
+  total: number;
+  items: HistoryRecord[];
+}
+
 export interface Overview {
   today_reps: number;
   yesterday_reps: number;
@@ -231,4 +266,11 @@ export interface Overview {
   goals: DailyGoal[];
   top_errors: TopError[];
   recent_sessions: Session[];
+  // /data 页汇总字段
+  week_reps: number;
+  week_sessions: number;
+  total_sessions: number;
+  avg_score: number | null;
+  avg_score_grade: Grade | null;
+  score_trend: ScoreTrendPoint[];
 }

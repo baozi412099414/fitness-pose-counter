@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { client } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useUser } from "@/providers/UserProvider";
 import type {
   Action,
   DailyGoal,
@@ -412,9 +413,10 @@ function RecentSessions({ sessions }: { sessions?: Session[] }) {
 }
 
 export function OverviewPage() {
+  const { activeUserId } = useUser();
   const overview = useQuery({
-    queryKey: ["overview"],
-    queryFn: () => client.getOverview(),
+    queryKey: ["overview", activeUserId],
+    queryFn: () => client.getOverview(activeUserId),
   });
   const actions = useQuery({
     queryKey: ["actions"],

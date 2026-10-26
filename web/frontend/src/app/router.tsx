@@ -6,6 +6,7 @@ import { ActionsPage } from "@/features/actions/ActionsPage";
 import { ActionDetailPage } from "@/features/actions/ActionDetailPage";
 import { NewActionPage } from "@/features/actions/new/NewActionPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import { DataPage } from "@/features/data/DataPage";
 import { PlaceholderPage } from "@/components/placeholder/PlaceholderPage";
 
 export const router = createBrowserRouter([
@@ -20,7 +21,7 @@ export const router = createBrowserRouter([
       { path: "/actions", element: <ActionsPage /> },
       { path: "/actions/new", element: <NewActionPage /> },
       { path: "/actions/:id", element: <ActionDetailPage /> },
-      { path: "/data", element: <PlaceholderPage title="训练数据" /> },
+      { path: "/data", element: <DataPage /> },
       { path: "/settings", element: <SettingsPage /> },
     ],
   },

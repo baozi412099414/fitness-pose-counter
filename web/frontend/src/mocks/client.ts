@@ -4,6 +4,8 @@ import type {
   ActionValidationResult,
   CreateUserInput,
   Health,
+  HistoryQuery,
+  HistoryResult,
   NewActionDraft,
   Overview,
   SaveError,
@@ -17,6 +19,7 @@ import {
   createUser as createUserFn,
   deleteUser as deleteUserFn,
   getActionSummaries,
+  getHistoryData,
   getOverviewData,
   getUsersSnapshot,
   getValidationResults,
@@ -34,7 +37,7 @@ function delay<T>(data: T): Promise<T> {
 /** 数据访问契约：后续接入真实后端时保持同一份签名。 */
 export interface ApiClient {
   getHealth(): Promise<Health>;
-  getOverview(userId?: string): Promise<Overview>;
+  getOverview(userId?: string, days?: number): Promise<Overview>;
   getActions(): Promise<Action[]>;
   getAction(id: string): Promise<ActionDetail | null>;
   validateActions(): Promise<ActionValidationResult[]>;
@@ -42,13 +45,14 @@ export interface ApiClient {
   createAction(draft: NewActionDraft): Promise<SaveResult>;
   createUser(input: CreateUserInput): Promise<UserOpResult>;
   deleteUser(id: string): Promise<{ ok: boolean; errors: SaveError[] }>;
-  setGoal(actionId: string, target: number): Promise<void>;
-  clearGoal(actionId: string): Promise<void>;
+  getHistory(q: HistoryQuery): Promise<HistoryResult>;
+  setGoal(userId: string, actionId: string, target: number): Promise<void>;
+  clearGoal(userId: string, actionId: string): Promise<void>;
 }
 
 export const mockClient: ApiClient = {
   getHealth: () => delay(MOCK_HEALTH),
-  getOverview: () => delay(getOverviewData()),
+  getOverview: (userId, days) => delay(getOverviewData(userId, days)),
   getActions: () => delay(getActionSummaries()),
   getAction: (id) =>
     delay(MOCK_ACTION_DETAILS.find((d) => d.id === id) ?? null),
@@ -57,6 +61,8 @@ export const mockClient: ApiClient = {
   createAction: (draft) => delay(saveAction(draft)),
   createUser: (input) => delay(createUserFn(input)),
   deleteUser: (id) => delay(deleteUserFn(id)),
-  setGoal: (actionId, target) => delay(setGoalFn(actionId, target)),
-  clearGoal: (actionId) => delay(clearGoalFn(actionId)),
+  getHistory: (q) => delay(getHistoryData(q)),
+  setGoal: (userId, actionId, target) =>
+    delay(setGoalFn(userId, actionId, target)),
+  clearGoal: (userId, actionId) => delay(clearGoalFn(userId, actionId)),
 };

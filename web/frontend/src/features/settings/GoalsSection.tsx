@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api";
+import { useUser } from "@/providers/UserProvider";
 import type { Action, DailyGoal } from "@/lib/types";
 import { useToast } from "@/providers/Toaster";
 import { Button } from "@/components/ui/Button";
@@ -9,7 +10,15 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { NumberStepper } from "@/components/ui/NumberStepper";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-function GoalRow({ action, goal }: { action: Action; goal?: DailyGoal }) {
+function GoalRow({
+  action,
+  goal,
+  userId,
+}: {
+  action: Action;
+  goal?: DailyGoal;
+  userId: string;
+}) {
   const [value, setValue] = useState(goal?.target ?? 0);
   const [dirty, setDirty] = useState(false);
   const queryClient = useQueryClient();
@@ -22,7 +31,7 @@ function GoalRow({ action, goal }: { action: Action; goal?: DailyGoal }) {
   }, [goal?.target]);
 
   const save = useMutation({
-    mutationFn: (target: number) => client.setGoal(action.id, target),
+    mutationFn: (target: number) => client.setGoal(userId, action.id, target),
     onSuccess: (_d, target) => {
       queryClient.invalidateQueries({ queryKey: ["overview"] });
       toast.push(
@@ -35,7 +44,7 @@ function GoalRow({ action, goal }: { action: Action; goal?: DailyGoal }) {
   });
 
   const clear = useMutation({
-    mutationFn: () => client.clearGoal(action.id),
+    mutationFn: () => client.clearGoal(userId, action.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["overview"] });
       toast.push(`已清除「${action.name}」目标`, "neutral");
@@ -101,7 +110,12 @@ function GoalRow({ action, goal }: { action: Action; goal?: DailyGoal }) {
 }
 
 export function GoalsSection() {
-  const overview = useQuery({ queryKey: ["overview"], queryFn: () => client.getOverview() });
+  const { activeUserId } = useUser();
+  const userId = activeUserId ?? "default";
+  const overview = useQuery({
+    queryKey: ["overview", activeUserId],
+    queryFn: () => client.getOverview(activeUserId),
+  });
   const actions = useQuery({ queryKey: ["actions"], queryFn: client.getActions });
 
   const loading = overview.isLoading || actions.isLoading;
@@ -132,6 +146,7 @@ export function GoalsSection() {
             <GoalRow
               key={a.id}
               action={a}
+              userId={userId}
               goal={overview.data?.goals.find((g) => g.action_id === a.id)}
             />
           ))
