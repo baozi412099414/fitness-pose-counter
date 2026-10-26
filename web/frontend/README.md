@@ -70,10 +70,45 @@ web/frontend/
 
 ## 状态与接口约定
 
-- 当前只有 `/styleguide` 路由，`App.tsx` 其余路径会重定向到它。
-- 业务页面的数据将按 `docs/网页版前端_TRAE提示词.md` 中的 API/WebSocket 契约接入；
-  开发期允许用 `src/mocks/` + `VITE_USE_MOCK`，但必须在答辩前切换为真实接口。
+- 业务页面的数据按 `docs/网页版前端_TRAE提示词.md` 中的 REST/WebSocket 契约接入。
 - 所有计数、质量判定、评分、历史、目标、多用户逻辑由 Python 后端提供，前端不重写判定算法。
+
+### 环境变量开关
+
+| 变量 | 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `VITE_USE_MOCK` | `true` / `false` | `true` | REST 数据层是否走 `src/mocks/`（`VITE_USE_MOCK !== "false"` 即 mock） |
+| `VITE_TRAIN_MODE` | `mock` / `live` | `mock` | 实时训练传输层：`mock` 本地计时 + `samples/` 回放；`live` 走 WebSocket `/ws/train` |
+
+> 答辩前切换为真实接口：`VITE_USE_MOCK=false` + `VITE_TRAIN_MODE=live`，并保证后端 `uvicorn web.backend.app:app` 已启动。
+
+## 实时训练传输层与 WebSocket 契约
+
+`/train` 页面通过 `TrainTransport` 接口（`src/features/train/trainTransport.ts`）消费数据，
+`useTrainSession` 与页面组件不感知实现是 mock 还是 live：
+
+- `mockTrainTransport.ts`：本地计时 + `samples/*.json` 回放（默认）。
+- `liveTrainTransport.ts`：WebSocket `/ws/train` 客户端（`VITE_TRAIN_MODE=live` 时启用，经 Vite 的 `/ws` 代理到 `127.0.0.1:8000`）。
+
+后端 `/ws/train` 的消息契约（字段以 `src/features/train/contract.ts` 为准，即 Prompt C §6 + 附录 A）：
+
+```text
+客户端 → 服务端：
+  {"type":"start","action_id":"squat","user":"演示用户","sets":3,"reps_per_set":10,"rest_seconds":30}
+  {"type":"frame","frame_id":123,"image":"data:image/jpeg;base64,..."}
+  {"type":"start_replay","sample_id":"squat_standard","action_id":"squat","record_history":false}
+  {"type":"reset"}
+  {"type":"stop"}
+
+服务端 → 客户端：
+  {"type":"ready","session_id":"...","mode":"camera"|"replay","action":{"id","name","camera_side"},"calibration":{"needed":bool}}
+  {"type":"state",...checks/landmarks/score/grade/person/calibration/sets/metrics...}
+  {"type":"event","event":"set_done"|"rest_start"|"rest_end"|"all_done"|"calibrated",...}
+  {"type":"summary","reps","score","grade","duration_sec","errors","error_tips",...}
+  {"type":"error","code":"NO_PERSON"|"MODEL_ERROR"|"BAD_FRAME"|"BUSY","message":"..."}
+```
+
+前端只负责画 keypoints、展示后端返回的 `count / checks / score`，不在前端重写判定逻辑。
 
 ## 备注
 
