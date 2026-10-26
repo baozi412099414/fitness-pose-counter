@@ -23,3 +23,8 @@ data/
 
 # matplotlib 字体缓存（本机生成，不入库）
 .matplotlib_cache/
+
+# 网页前端（web/frontend）
+node_modules/
+dist/
+.env.local

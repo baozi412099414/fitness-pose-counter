@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * FORM LAB · 形实验室 设计 token
+ * 颜色只用 RGB 通道变量，Tailwind 里以 rgb(var(--x-rgb) / <alpha>) 取用。
+ * 每个变量的十六进制值以注释标注，方便对照。
+ * ------------------------------------------------------------------------- */
+:root {
+  /* 底色 */
+  --bg-0-rgb: 6 7 9;            /* #060709 */
+  --bg-1-rgb: 11 13 17;         /* #0B0D11 */
+
+  /* 表面 */
+  --surface-1-rgb: 16 19 24;    /* #101318 卡片 */
+  --surface-2-rgb: 21 25 34;    /* #151922 卡片内嵌 */
+  --surface-3-rgb: 27 32 42;    /* #1B202A hover / 选中 */
+
+  /* 描边 */
+  --line-1-rgb: 35 40 51;       /* #232833 1px 描边 */
+  --line-2-rgb: 46 53 66;       /* #2E3542 强描边 */
+
+  /* 文字 */
+  --text-1-rgb: 245 247 250;    /* #F5F7FA */
+  --text-2-rgb: 163 172 186;    /* #A3ACBA */
+  --text-3-rgb: 108 118 134;    /* #6C7686 */
+
+  /* 强调 */
+  --accent-rgb: 214 255 63;     /* #D6FF3F 荧光绿：主操作 / 当前计数 / 达标 */
+  --accent-ink-rgb: 10 12 5;    /* #0A0C05 荧光绿上的文字 */
+
+  /* 语义辅助（一屏最多两种） */
+  --cyan-rgb: 111 227 255;      /* #6FE3FF 数据 / 图表 */
+  --amber-rgb: 255 180 84;      /* #FFB454 休息 / 校准 */
+  --coral-rgb: 255 107 92;      /* #FF6B5C 错误 / 危险 */
+  --mint-rgb: 69 224 168;       /* #45E0A8 成功 */
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--line-1-rgb));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: rgb(var(--bg-0-rgb));
+    color: rgb(var(--text-1-rgb));
+    font-family: "MiSans", "HarmonyOS Sans SC", "PingFang SC",
+      "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "tnum" 0;
+  }
+
+  /* 数字 / 英文标签用 display 字体，等宽数字对齐 */
+  .font-num {
+    font-family: "Bebas Neue", "DIN Condensed", Impact, sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+
+  /* 焦点统一：2px 荧光绿 outline */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent-rgb));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* 右上角极淡荧光绿径向光 */
+  .bg-glow {
+    background-image: radial-gradient(
+      circle at 82% -6%,
+      rgba(var(--accent-rgb) / 0.06),
+      transparent 46%
+    );
+  }
+
+  /* 2.5% SVG 噪点叠加 */
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* 实时舞台专用点阵网格（仅用于实时页） */
+  .bg-dotgrid {
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px
+    );
+    background-size: 32px 32px;
+  }
+}
+
+/* 细滚动条（暗色） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--line-2-rgb));
+  border-radius: 999px;
+  border: 2px solid rgb(var(--bg-0-rgb));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--text-3-rgb));
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 动效统一缓动 + 尊重系统减弱动效 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
