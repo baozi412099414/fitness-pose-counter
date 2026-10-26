@@ -19,7 +19,8 @@ pose_landmarker_lite.task
 选题/_backup/
 
 # 训练管理模块的用户数据（运行时生成，含个人训练记录，不进版本库）
-data/
+# 只忽略仓库根目录的 data/，避免误伤 web/frontend/src/features/data/
+/data/
 
 # matplotlib 字体缓存（本机生成，不入库）
 .matplotlib_cache/
