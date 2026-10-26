@@ -17,6 +17,7 @@ export interface ToastProps {
   tone?: BadgeTone;
   onDismiss: () => void;
   duration?: number;
+  className?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function Toast({
   tone = "neutral",
   onDismiss,
   duration = 3000,
+  className,
 }: ToastProps) {
   useEffect(() => {
     const t = setTimeout(onDismiss, duration);
@@ -38,7 +40,10 @@ export function Toast({
     <div
       role="status"
       aria-live="polite"
-      className="fixed right-5 top-5 z-50 flex items-center gap-3 rounded-card border border-line1 bg-surface1 py-3 pl-4 pr-2 shadow-xl"
+      className={cn(
+        "fixed right-5 top-5 z-50 flex items-center gap-3 rounded-card border border-line1 bg-surface1 py-3 pl-4 pr-2 shadow-xl",
+        className,
+      )}
     >
       <span className={cn("h-4 w-1 rounded-full", bars[tone])} />
       <span className="text-sm text-text1">{message}</span>

@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 
 export interface ProgressRingProps {
   value: number; // 0~100
-  size?: 120 | 160;
+  size?: number;
   strokeWidth?: number;
   label?: string;
   className?: string;
