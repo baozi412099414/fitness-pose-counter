@@ -56,21 +56,31 @@ COMPUTER_CAMERA_INDEX = 0
 #   · 页面底色浅灰，功能区用纯白「卡片」浮在上面
 #   · 卡片之间留足间距 —— 比画边框更能区分区块，也更干净
 #   · 标题 / 说明 / 数值三种字号，一眼看出主次
-BG         = "#eef1f5"      # 页面底色
+# ══════════════════════════════════════════════════════════════════
+# 配色方案：靛蓝（Indigo）+ 琥珀金（Amber）强调
+# 灵感：运动/效率类 App 的调性 —— 靛蓝沉稳专业，琥珀金点缀关键数据
+# ══════════════════════════════════════════════════════════════════
+BG         = "#f0f2f8"      # 页面底色（稍带靛蓝调的灰白）
 CARD       = "#ffffff"      # 卡片底色
-SOFT       = "#f7f9fb"      # 输入框等「凹下去」的区域
-BORDER     = "#dfe4ea"      # 分隔线
-TEXT       = "#1f2933"      # 主文字
-MUTED      = "#7b8794"      # 次要说明文字
-PRIMARY    = "#2f80ed"      # 主色（开始 / 强调）
-PRIMARY_HI = "#5a9bf5"
-SUCCESS    = "#27ae60"
-SUCCESS_HI = "#3fc97a"
-DANGER     = "#eb5757"
-DANGER_HI  = "#f57b7b"
-WARN       = "#f2c94c"
-WARN_HI    = "#ffdd77"
-GREY       = "#a8b2bd"      # 禁用态
+SOFT       = "#f5f6fa"      # 输入框等「凹下去」的区域
+BORDER     = "#e2e4ee"      # 分隔线
+TEXT       = "#1a1b26"      # 主文字（更深的墨色）
+MUTED      = "#6b7280"      # 次要说明文字（Tailwind gray-500）
+# —— 主色：靛蓝 Indigo ——
+PRIMARY    = "#4F46E5"      # 主色 Indigo-600（开始 / 强调）
+PRIMARY_HI = "#4338CA"      # Indigo-700（hover 按下态）
+PRIMARY_SOFT = "#EEF2FF"    # Indigo-50（淡色底，用于标签 hover）
+# —— 强调色：琥珀金 Amber ——
+ACCENT     = "#F59E0B"      # Amber-500（强调数字 / 徽章）
+ACCENT_HI  = "#D97706"      # Amber-600
+# —— 语义色：更明快的 Tailwind 500 色 ——
+SUCCESS    = "#10B981"      # Emerald-500
+SUCCESS_HI = "#059669"      # Emerald-600
+DANGER     = "#EF4444"      # Red-500
+DANGER_HI  = "#DC2626"      # Red-600
+WARN       = "#F59E0B"      # 和 ACCENT 统一（琥珀金即警告色）
+WARN_HI    = "#D97706"
+GREY       = "#9CA3AF"      # 禁用态 gray-400
 
 # 字体族：macOS 上中文用 PingFang SC 最好看（Helvetica 的中文是回退字形，偏细偏挤）。
 # 写上完整回退链，别的系统上也能正常显示。
@@ -120,10 +130,10 @@ def setup_style(root):
                      foreground=TEXT, arrowcolor=MUTED, padding=5)
     st.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 6, 0, 0))
     st.configure("TNotebook.Tab", padding=(20, 9), font=F_BODY,
-                 background="#dce3ea", foreground=MUTED, borderwidth=0)
+                 background="#e2e4ee", foreground=MUTED, borderwidth=0)
     st.map("TNotebook.Tab",
            background=[("selected", CARD)], foreground=[("selected", PRIMARY)])
-    st.configure("Trend.Horizontal.TProgressbar", troughcolor="#e7ecf2",
+    st.configure("Trend.Horizontal.TProgressbar", troughcolor="#e5e7f0",
                  background=PRIMARY, borderwidth=0, thickness=12)
     return st
 
@@ -137,7 +147,7 @@ def section_gap(parent, text=None):
     box.pack(fill="x", pady=(2, 10))
     if text:
         tk.Label(box, text=text, bg=BG, fg=MUTED, font=F_TINY).pack(anchor="w", pady=(0, 4))
-    tk.Frame(box, bg="#dde3ea", height=1).pack(fill="x")
+    tk.Frame(box, bg=BORDER, height=1).pack(fill="x")
     return box
 
 
@@ -186,7 +196,7 @@ def hover_btn(parent, text, command, bg=PRIMARY, hi=None, fg="white", **kw):
                     activebackground=hi, activeforeground=fg,
                     disabledforeground="#f0f0f0",
                     relief="flat", bd=0, highlightthickness=0,
-                    font=F_BTN, cursor="pointinghand", padx=22, pady=11, **kw)
+                    font=F_BTN, cursor="hand2", padx=22, pady=11, **kw)
 
     def _enter(_e=None):
         if str(btn["state"]) != "disabled":
@@ -227,14 +237,14 @@ def paint_action_button(btn, selected):
         btn.configure(bg=PRIMARY, fg="white", activebackground=PRIMARY_HI,
                       activeforeground="white")
     else:
-        btn.configure(bg=SOFT, fg=MUTED, activebackground="#e4eaf1",
+        btn.configure(bg=SOFT, fg=MUTED, activebackground="#e5e7f0",
                       activeforeground=TEXT)
 
 
 def set_btn_enabled(btn, enabled, base):
     """统一处理按钮启用/禁用（顺带把颜色切到灰，一眼看出能不能点）。"""
     btn.configure(state="normal" if enabled else "disabled",
-                  bg=base if enabled else GREY, cursor="pointinghand" if enabled else "arrow")
+                  bg=base if enabled else GREY, cursor="hand2" if enabled else "arrow")
 
 
 def discover_actions(config_dir=None):
@@ -496,9 +506,9 @@ class ActionEditor(tk.Toplevel):
         btns = bottom
         hover_btn(btns, "保存动作", self._save, SUCCESS, SUCCESS_HI).pack(side="left")
         tk.Button(btns, text="取消", command=self._close_editor, bg=SOFT, fg=TEXT,
-                  activebackground="#e4eaf1", font=F_BTN, relief="flat", bd=0,
+                  activebackground="#e5e7f0", font=F_BTN, relief="flat", bd=0,
                   highlightthickness=0, padx=18, pady=9,
-                  cursor="pointinghand").pack(side="left", padx=8)
+                  cursor="hand2").pack(side="left", padx=8)
         tk.Label(btns, text="保存前会自动校验配置", bg=BG, fg=MUTED,
                  font=F_TINY).pack(side="right")
 
@@ -735,7 +745,7 @@ class FitnessTestUI:
         head.pack(fill="x", pady=(0, 16))
 
         # 右侧状态徽章（运行时会变色，见 _set_badge）
-        self.badge = tk.Label(head, text="●  空闲", bg="#e8f5ec", fg=SUCCESS,
+        self.badge = tk.Label(head, text="●  空闲", bg="#D1FAE5", fg=SUCCESS,
                               font=F_BTN, padx=16, pady=7)
         self.badge.pack(side="right", anchor="ne")
 
@@ -744,10 +754,10 @@ class FitnessTestUI:
         left.pack(side="left", anchor="w")
 
         self.back_btn = tk.Button(left, text="←  返回", command=lambda: self._show_page("home"),
-                                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1",
+                                  bg=SOFT, fg=TEXT, activebackground="#e5e7f0",
                                   font=F_SMALL, relief="flat", bd=0,
                                   highlightthickness=0, padx=14, pady=7,
-                                  cursor="pointinghand")
+                                  cursor="hand2")
 
         self.head_icon = tk.Label(left, text="🏋️", bg=BG, font=(FAMILY, 30))
         self.head_icon.pack(side="left", padx=(0, 10))
@@ -796,9 +806,9 @@ class FitnessTestUI:
                 value=name,
                 command=self._on_action_click, indicatoron=False,
                 bg=SOFT, fg=MUTED, selectcolor=SOFT,
-                activebackground="#e4eaf1", activeforeground=TEXT,
+                activebackground="#e5e7f0", activeforeground=TEXT,
                 font=F_BTN, relief="flat", bd=0, highlightthickness=0,
-                padx=16, pady=9, cursor="pointinghand",
+                padx=16, pady=9, cursor="hand2",
             )
             btn.grid(row=r, column=c, sticky="ew", padx=(0 if c == 0 else 8, 0),
                      pady=(0 if r == 0 else 8, 0))
@@ -811,13 +821,13 @@ class FitnessTestUI:
         add_row = tk.Frame(form, bg=CARD)
         add_row.grid(row=0, column=3, sticky="ne", padx=(10, 0), pady=(10, 0))
         tk.Button(add_row, text="＋ 新建动作", command=self._new_action,
-                  bg="#e8f1ff", fg=PRIMARY, activebackground="#d6e8ff",
+                  bg="#EEF2FF", fg=PRIMARY, activebackground="#E0E7FF",
                   font=F_SMALL, relief="flat", bd=0, highlightthickness=0,
-                  padx=14, pady=6, cursor="pointinghand").pack(fill="x")
+                  padx=14, pady=6, cursor="hand2").pack(fill="x")
         tk.Button(add_row, text="校验配置", command=self._validate_configs,
-                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1",
+                  bg=SOFT, fg=TEXT, activebackground="#e5e7f0",
                   font=F_SMALL, relief="flat", bd=0, highlightthickness=0,
-                  padx=14, pady=6, cursor="pointinghand").pack(fill="x", pady=(6, 0))
+                  padx=14, pady=6, cursor="hand2").pack(fill="x", pady=(6, 0))
 
         tk.Label(form, text="输入", bg=CARD, fg=MUTED, font=F_SMALL).grid(
             row=1, column=0, sticky="w", padx=(0, 14), pady=(12, 0))
@@ -829,7 +839,7 @@ class FitnessTestUI:
                 command=self._sync_source, bg=CARD, fg=TEXT, selectcolor=SOFT,
                 activebackground=CARD, activeforeground=TEXT,
                 font=F_BODY, relief="flat", bd=0, highlightthickness=0,
-                cursor="pointinghand",
+                cursor="hand2",
             ).grid(row=0, column=col, sticky="w", padx=(0, 18))
 
         tk.Label(form, text="视频/设备", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -847,7 +857,7 @@ class FitnessTestUI:
                            value=val, bg=CARD, fg=TEXT, selectcolor=SOFT,
                            activebackground=CARD, activeforeground=TEXT, font=F_BODY,
                            relief="flat", bd=0, highlightthickness=0,
-                           cursor="pointinghand").pack(side="left", padx=pad)
+                           cursor="hand2").pack(side="left", padx=pad)
         self.camera_box = ttk.Spinbox(self.camera_frame, from_=0, to=9, width=4,
                                       textvariable=self.custom_camera_var)
         self.camera_box.pack(side="left")
@@ -866,16 +876,16 @@ class FitnessTestUI:
                                      values=self.store.list_users(), width=14)
         self.user_box.grid(row=0, column=1, sticky="w", pady=(10, 0))
         tk.Button(train, text="切换", command=self._switch_user, bg=SOFT, fg=TEXT,
-                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
-                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+                  activebackground="#e5e7f0", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="hand2").grid(
             row=0, column=2, sticky="w", padx=6, pady=(10, 0))
         tk.Button(train, text="新建用户…", command=self._new_user, bg=SOFT, fg=TEXT,
-                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
-                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+                  activebackground="#e5e7f0", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="hand2").grid(
             row=0, column=3, sticky="w", pady=(10, 0))
         tk.Button(train, text="删除用户…", command=self._delete_user, bg=SOFT, fg=DANGER,
-                  activebackground="#ffe3e3", font=F_SMALL, relief="flat", bd=0,
-                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").grid(
+                  activebackground="#FEE2E2", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="hand2").grid(
             row=0, column=4, sticky="w", padx=(6, 0), pady=(10, 0))
         tk.Label(train, textvariable=self.goal_status_var, bg=CARD, fg=PRIMARY,
                  font=F_SMALL).grid(row=0, column=5, sticky="w", padx=14, pady=(10, 0))
@@ -903,11 +913,11 @@ class FitnessTestUI:
                     textvariable=self.goal_var).pack(side="left")
         tk.Label(tframe, text="次", bg=CARD, fg=TEXT).pack(side="left", padx=(5, 12))
         tk.Button(tframe, text="保存目标", command=self._save_goal, bg=SOFT, fg=TEXT,
-                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
-                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").pack(side="left")
+                  activebackground="#e5e7f0", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="hand2").pack(side="left")
         tk.Button(tframe, text="查看趋势图", command=self._show_trend, bg=SOFT, fg=PRIMARY,
-                  activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
-                  highlightthickness=0, padx=14, pady=5, cursor="pointinghand").pack(
+                  activebackground="#e5e7f0", font=F_SMALL, relief="flat", bd=0,
+                  highlightthickness=0, padx=14, pady=5, cursor="hand2").pack(
             side="left", padx=10)
 
         # ══════════ 主操作按钮 ══════════
@@ -918,7 +928,7 @@ class FitnessTestUI:
         self.start_btn.pack(side="left")
         self.stop_btn = hover_btn(buttons, "■  停止", self.stop, DANGER, DANGER_HI)
         self.stop_btn.pack(side="left", padx=8)
-        self.reset_btn = hover_btn(buttons, "↺  清零", self.reset, WARN, WARN_HI, fg="#3a2f00")
+        self.reset_btn = hover_btn(buttons, "↺  清零", self.reset, WARN, WARN_HI, fg="#78350F")
         self.reset_btn.pack(side="left", padx=8)
         self.restart_btn = hover_btn(buttons, "⟳  重新启动", self.restart, SUCCESS, SUCCESS_HI)
         self.restart_btn.pack(side="left", padx=8)
@@ -941,7 +951,7 @@ class FitnessTestUI:
             res.columnconfigure(col, weight=1, uniform="res")
         for col, (icon, label, var, color, font) in enumerate((
                 ("🔢", "完成次数", self.reps_var, TEXT, F_NUM),
-                ("⭐", "动作评分", self.score_var, "#b5651d", F_NUM),
+                ("⭐", "动作评分", self.score_var, ACCENT, F_NUM),
                 ("👁", "关键点检出率", self.rate_var, PRIMARY, ("Helvetica", 20, "bold")),
                 ("⚠", "错误事件", self.errors_var, DANGER, F_SMALL))):
             tk.Label(res, text=f"{icon} {label}", bg=CARD, fg=MUTED, font=F_SMALL).grid(
@@ -998,7 +1008,7 @@ class FitnessTestUI:
         list_frame.grid(row=2, column=1, sticky="ew", pady=(12, 0))
         self.report_list = tk.Listbox(
             list_frame, height=5, activestyle="none", font=("Menlo", 11),
-            bg=SOFT, fg=TEXT, selectbackground="#d6e8ff", selectforeground=TEXT,
+            bg=SOFT, fg=TEXT, selectbackground="#E0E7FF", selectforeground=TEXT,
             relief="flat", bd=0, highlightthickness=0)
         self.report_list.pack(side="left", fill="x", expand=True)
         rscroll = ttk.Scrollbar(list_frame, orient="vertical",
@@ -1012,9 +1022,9 @@ class FitnessTestUI:
                            ("打开目录", self._open_reports_dir),
                            ("校验配置", self._validate_configs)):
             tk.Button(rbtns, text=label, command=cmd, bg=SOFT, fg=TEXT,
-                      activebackground="#e4eaf1", font=F_SMALL, relief="flat", bd=0,
+                      activebackground="#e5e7f0", font=F_SMALL, relief="flat", bd=0,
                       highlightthickness=0, padx=14, pady=5, width=9,
-                      cursor="pointinghand").pack(pady=3)
+                      cursor="hand2").pack(pady=3)
 
         # ══════════ 日志页（独立一页，不再是标签页）══════════
         lp = self.pages["log"]
@@ -1035,14 +1045,14 @@ class FitnessTestUI:
         acard = card(ap, "⚙️  动作管理", "动作列表由 configs/ 目录自动生成")
         self._action_admin_area = acard      # 这里列出所有动作（可选中/新建）
         tk.Button(acard, text="＋  新建动作（填表即可，不用写 JSON）",
-                  command=self._new_action, bg="#e8f1ff", fg=PRIMARY,
-                  activebackground="#d6e8ff", font=F_BTN, relief="flat", bd=0,
+                  command=self._new_action, bg="#EEF2FF", fg=PRIMARY,
+                  activebackground="#E0E7FF", font=F_BTN, relief="flat", bd=0,
                   highlightthickness=0, padx=20, pady=12,
-                  cursor="pointinghand").pack(fill="x", pady=(6, 4))
+                  cursor="hand2").pack(fill="x", pady=(6, 4))
         tk.Button(acard, text="校验全部配置", command=self._validate_configs,
-                  bg=SOFT, fg=TEXT, activebackground="#e4eaf1", font=F_SMALL,
+                  bg=SOFT, fg=TEXT, activebackground="#e5e7f0", font=F_SMALL,
                   relief="flat", bd=0, highlightthickness=0, padx=16, pady=8,
-                  cursor="pointinghand").pack(fill="x", pady=(4, 0))
+                  cursor="hand2").pack(fill="x", pady=(4, 0))
         self._rebuild_admin_list()
 
         # ══════════ 首页：四个大功能卡片 ══════════
@@ -1059,13 +1069,13 @@ class FitnessTestUI:
             grid.columnconfigure(c, weight=1, uniform="tile")
         tiles = [
             ("▶", "开始测试", "选动作与输入方式，开始计数和姿态纠正", "test", PRIMARY),
-            ("📊", "训练数据", "趋势图、历史记录、目标进度、错误排行", "data", "#8b5cf6"),
+            ("📊", "训练数据", "趋势图、历史记录、目标进度、错误排行", "data", "#6366F1"),
             ("⚙️", "动作管理", "查看现有动作、新建自定义动作、校验配置", "actions", SUCCESS),
-            ("📝", "运行日志", "识别过程的完整输出（排错看这里）", "log", "#64748b"),
+            ("📝", "运行日志", "识别过程的完整输出（排错看这里）", "log", "#475569"),
         ]
         for i, (icon, title, desc, page_name, color) in enumerate(tiles):
             r, c = divmod(i, 2)
-            tile = tk.Frame(grid, bg=CARD, cursor="pointinghand")
+            tile = tk.Frame(grid, bg=CARD, cursor="hand2")
             tile.grid(row=r, column=c, sticky="nsew",
                       padx=(0 if c == 0 else 10, 0), pady=(0 if r == 0 else 10, 0))
             inner = tk.Frame(tile, bg=CARD, padx=20, pady=18)
@@ -1080,7 +1090,7 @@ class FitnessTestUI:
             for w in (tile, inner, *inner.winfo_children()):
                 w.bind("<Button-1>", lambda _e, p=page_name: self._show_page(p))
             tile.bind("<Enter>", lambda _e, f=tile, b=inner: (
-                f.configure(bg="#f2f7ff"), b.configure(bg="#f2f7ff")))
+                f.configure(bg="#EEF2FF"), b.configure(bg="#EEF2FF")))
             tile.bind("<Leave>", lambda _e, f=tile, b=inner: (
                 f.configure(bg=CARD), b.configure(bg=CARD)))
 
@@ -1427,9 +1437,9 @@ class FitnessTestUI:
                 area, text=action_label(name, _aid), variable=self.action_var, value=name,
                 command=self._on_action_click, indicatoron=False,
                 bg=SOFT, fg=MUTED, selectcolor=SOFT,
-                activebackground="#e4eaf1", activeforeground=TEXT,
+                activebackground="#e5e7f0", activeforeground=TEXT,
                 font=F_BTN, relief="flat", bd=0, highlightthickness=0,
-                padx=16, pady=9, cursor="pointinghand")
+                padx=16, pady=9, cursor="hand2")
             btn.grid(row=r, column=c, sticky="ew",
                      padx=(0 if c == 0 else 8, 0), pady=(0 if r == 0 else 8, 0))
             self._action_buttons[name] = btn
@@ -1704,7 +1714,7 @@ class FitnessTestUI:
 
         # MediaPipe 0.10.35 启动时会尝试上传遥测，网络超时导致**卡约 61 秒**才出画面
         # （见 CLAUDE.md「mediapipe 版本坑」）。不提前说明的话很容易被当成卡死。
-        self._set_badge("●  运行中", PRIMARY, "#e6f0ff")
+        self._set_badge("●  运行中", PRIMARY, "#EEF2FF")
         self.status_var.set("启动中…首次约需 1 分钟（MediaPipe 初始化），画面出现前请稍候")
         self._append_log("[提示] MediaPipe 首次初始化约需 1 分钟 —— 它在尝试上传遥测并等网络超时。\n"
                          "       这段时间画面不会出现，**不是卡死**，请稍候。\n"
@@ -1787,9 +1797,9 @@ class FitnessTestUI:
     def _finished(self, return_code):
         self.process = None
         if return_code == 0:
-            self._set_badge("●  完成", SUCCESS, "#e8f5ec")
+            self._set_badge("●  完成", SUCCESS, "#D1FAE5")
         else:
-            self._set_badge("●  已停止", MUTED, "#eef1f5")
+            self._set_badge("●  已停止", MUTED, BG)
         set_btn_enabled(self.start_btn, True, PRIMARY)
         set_btn_enabled(self.stop_btn, False, DANGER)
         set_btn_enabled(self.reset_btn, False, WARN)
