@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 const VIDEO_BASE = { width: 1280, height: 720 } as const;
 
@@ -33,6 +35,10 @@ export function CameraPreview({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mirrored, setMirrored] = useState(true);
+  // 「设备连上了但一直没画面」：连续互通相机最常见的问题（手机锁屏/被占用/掉线）。
+  // 不检测的话用户只看到一块黑屏，完全不知道下一步该干嘛。
+  const [stalled, setStalled] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const activeIdRef = useRef<string | null>(null);
 
   // 回调放 ref 里，避免父组件每次渲染都触发重新开流
@@ -54,6 +60,11 @@ export function CameraPreview({
 
     let cancelled = false;
     let stream: MediaStream | null = null;
+    setStalled(false);
+    const stallTimer = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0) setStalled(true);
+    }, 3000);
 
     const publishDevices = async () => {
       const devices = await listCameras();
@@ -71,6 +82,10 @@ export function CameraPreview({
       if (videoRef.current) videoRef.current.srcObject = next;
       const settings = next.getVideoTracks()[0]?.getSettings?.() ?? {};
       activeIdRef.current = settings.deviceId ?? null;
+      // 设备被拔掉 / 手机休眠：轨道会 ended，画面就黑了
+      next.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (!cancelled) setStalled(true);
+      });
       // 手机后置摄像头不镜像，前置/笔记本摄像头镜像（自拍视角更自然）
       const nextMirror = settings.facingMode !== "environment";
       setMirrored(nextMirror);
@@ -118,19 +133,35 @@ export function CameraPreview({
 
     return () => {
       cancelled = true;
+      window.clearTimeout(stallTimer);
       media.removeEventListener?.("devicechange", onDeviceChange);
       stream?.getTracks().forEach((track) => track.stop());
       activeIdRef.current = null;
     };
-  }, [active, deviceId]);
+  }, [active, deviceId, attempt]);
 
   return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      muted
-      className={`h-full w-full object-cover ${mirrored ? "-scale-x-100" : ""}`}
-    />
+    <div className="relative h-full w-full">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        onLoadedData={() => setStalled(false)}
+        className={`h-full w-full object-cover ${mirrored ? "-scale-x-100" : ""}`}
+      />
+      {stalled && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center">
+          <p className="text-sm text-coral">摄像头已连接，但一直没有画面</p>
+          <p className="max-w-sm text-xs leading-relaxed text-text3">
+            如果是 iPhone 连续互通相机：确认手机亮屏、没被别的 App 占用、数据线插好；
+            也可以在左侧「摄像头」里换成 Mac 自带摄像头。
+          </p>
+          <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+            <RotateCcw size={14} /> 重新连接
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
