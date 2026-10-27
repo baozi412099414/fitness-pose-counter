@@ -10,6 +10,8 @@ export interface TrainStartConfig {
   mode: "replay" | "live";
   sample: SampleMeta;
   sets: number;
+  /** 每组目标次数（live 用它决定一组什么时候算做完；回放由样本长度决定） */
+  repsPerSet: number;
   restSeconds: number;
   /** 当前用户显示名，live 的 start 消息需要写入 data/users/<用户名> */
   userName: string;

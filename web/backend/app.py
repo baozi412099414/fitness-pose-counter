@@ -276,13 +276,23 @@ async def ws_train(ws: WebSocket) -> None:
                         })
                         await ws.close()
                         return
+                def _num(key: str, default: float) -> float:
+                    """取数字参数：0 是合法值（例如「不休息」），不能用 `or` 兜底。"""
+                    value = msg.get(key)
+                    if value is None:
+                        return default
+                    try:
+                        return float(value)
+                    except (TypeError, ValueError):
+                        return default
+
                 try:
                     session = CameraSession(
                         action_id=msg.get("action_id") or "squat",
                         user=msg.get("user") or "演示用户",
-                        sets=int(msg.get("sets") or 1),
-                        reps_per_set=int(msg.get("reps_per_set") or 10),
-                        rest_seconds=float(msg.get("rest_seconds") or 30),
+                        sets=int(_num("sets", 1)),
+                        reps_per_set=int(_num("reps_per_set", 10)),
+                        rest_seconds=_num("rest_seconds", 30),
                         model=model,
                     )
                 except Exception as exc:  # noqa: BLE001 - 配置不存在等

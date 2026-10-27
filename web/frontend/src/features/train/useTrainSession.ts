@@ -13,6 +13,8 @@ interface Options {
   mode: TrainMode;
   sample: SampleMeta;
   sets: number;
+  /** 每组目标次数：live 模式决定一组何时完成；回放由样本长度决定 */
+  repsPerSet: number;
   restSeconds: number;
   userName: string;
 }
@@ -80,6 +82,7 @@ export function useTrainSession(options: Options) {
       mode: optsRef.current.mode,
       sample: optsRef.current.sample,
       sets: optsRef.current.sets,
+      repsPerSet: optsRef.current.repsPerSet,
       restSeconds: optsRef.current.restSeconds,
       userName: optsRef.current.userName,
     });

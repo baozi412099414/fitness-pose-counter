@@ -30,7 +30,12 @@ import {
 import { useTrainSession } from "./useTrainSession";
 import type { ActionKey, TrainMode } from "./types";
 
-const REST_SECONDS = 8;
+const REST_SECONDS = 30;
+
+/** 每组次数的预设（网页端演示用，够覆盖常见组次） */
+const REPS_OPTIONS = [5, 8, 10, 12, 15, 20, 30];
+/** 组间休息预设（秒），0 = 不休息 */
+const REST_OPTIONS = [0, 10, 15, 20, 30, 45, 60, 90];
 
 /** 连续互通相机的设备名里带 iPhone / iPad / Continuity，中文系统是「iPhone 的相机」 */
 const PHONE_CAMERA = /iphone|ipad|continuity|手机/i;
@@ -53,6 +58,8 @@ export function TrainPage() {
   const [sampleId, setSampleId] = useState(DEFAULT_SAMPLE[action]);
   const [mode, setMode] = useState<TrainMode>("replay");
   const [sets, setSets] = useState(1);
+  const [repsPerSet, setRepsPerSet] = useState(10);
+  const [restSeconds, setRestSeconds] = useState(REST_SECONDS);
   const [voice, setVoice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExit, setShowExit] = useState(false);
@@ -82,7 +89,8 @@ export function TrainPage() {
     mode,
     sample,
     sets,
-    restSeconds: REST_SECONDS,
+    repsPerSet,
+    restSeconds,
     userName: currentUser?.name ?? "默认用户",
   });
   const { phase, frame, summary, error, currentSet, restLeft } = session;
@@ -356,18 +364,45 @@ export function TrainPage() {
               </label>
 
               <div className="flex flex-col gap-2 text-sm">
-                <div className="flex items-center justify-between rounded-[8px] border border-line1 bg-surface2/40 px-3 py-2">
-                  <span className="text-[11px] text-text3">每组次数</span>
-                  <span className="font-num text-text1">
-                    {sample.count} 次
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-text3">
+                    每组次数
                   </span>
-                </div>
-                <div className="flex items-center justify-between rounded-[8px] border border-line1 bg-surface2/40 px-3 py-2">
-                  <span className="text-[11px] text-text3">组间休息</span>
-                  <span className="font-num text-text1">
-                    {REST_SECONDS}s
+                  {mode === "live" ? (
+                    <Select
+                      value={String(repsPerSet)}
+                      disabled={busy}
+                      onChange={(event) => setRepsPerSet(Number(event.target.value))}
+                    >
+                      {REPS_OPTIONS.map((value) => (
+                        <option key={value} value={String(value)}>
+                          {value} 次
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <div className="flex h-10 items-center justify-between rounded-[10px] border border-line1 bg-surface2/40 px-3">
+                      <span className="text-[11px] text-text3">回放样本长度</span>
+                      <span className="font-num text-text1">{sample.count} 次</span>
+                    </div>
+                  )}
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-text3">
+                    组间休息
                   </span>
-                </div>
+                  <Select
+                    value={String(restSeconds)}
+                    disabled={busy}
+                    onChange={(event) => setRestSeconds(Number(event.target.value))}
+                  >
+                    {REST_OPTIONS.map((value) => (
+                      <option key={value} value={String(value)}>
+                        {value === 0 ? "不休息" : `${value} 秒`}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
               </div>
 
               <Button

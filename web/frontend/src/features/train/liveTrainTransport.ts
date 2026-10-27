@@ -137,7 +137,7 @@ export function createLiveTrainTransport(): TrainTransport {
               action_id: config.sample.action,
               user: config.userName,
               sets: config.sets,
-              reps_per_set: config.sample.count,
+              reps_per_set: config.repsPerSet,
               rest_seconds: config.restSeconds,
             }),
           );
