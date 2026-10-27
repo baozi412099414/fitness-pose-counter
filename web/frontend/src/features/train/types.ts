@@ -1,6 +1,6 @@
 import type { Grade } from "@/lib/types";
 
-export type ActionKey = "squat" | "pushup" | "jumping_jack";
+export type ActionKey = "squat" | "pushup" | "jumping_jack" | "bicep_curl";
 export type TrainMode = "replay" | "live";
 export type TrainPhase =
   | "idle"

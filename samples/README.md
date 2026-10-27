@@ -44,8 +44,18 @@ cd "/Users/wangwenjing/Desktop/选题 2"
 | `pushup_sag.json` | 俯卧撑 | 下压到位但腰塌了 | **3 次** | 64.3（及格） | 收紧核心，头肩髋踝保持一条直线、收紧核心，身体保持一条直线 |
 | `jack_standard.json` | 开合跳 | 手举过头、脚张开 2.2 倍肩宽 | **3 次** | 100.0（优秀） | 无 |
 | `jack_low_hands.json` | 开合跳 | 手只抬到肩高 | **3 次** | 48.0（待改进） | 左手再举高一点，举过头顶、右手再举高一点，举过头顶 |
+| `bicep_curl_standard.json` | 二头弯举 | 弯到 40°、放回 170° | **3 次** | 79.0（良好） | 无 |
+| `bicep_curl_half.json` | 二头弯举 | 只弯到 90°，半程 | **3 次** | 42.1（待改进） | 再弯一点，前臂尽量贴近上臂 |
+| `bicep_curl_swing.json` | 二头弯举 | 躯干后仰 14° 借力 | **3 次** | 66.4（及格） | 身体别后仰借力，收住核心 |
 
 **如果导入后结果和上表一致，说明判定链路是正常的。**
+
+二头弯举这一组是用 `gen_bicep_curl.py` 生成的（`motion_synth.py` 里只内置了深蹲/俯卧撑/开合跳）：
+
+```bash
+.venv/bin/python gen_bicep_curl.py          # 重新生成并打印判定结果
+.venv/bin/python gen_bicep_curl.py --check  # 只跑判定，不写文件
+```
 
 另外还有一份 `squat_minimal.json`（7 KB）—— 它**只给了 3 个关键点**（左髋/左膝/左踝），
 用来演示「最简数据格式」：只给计数信号需要的点也能跑，只是质量判定会少判几条

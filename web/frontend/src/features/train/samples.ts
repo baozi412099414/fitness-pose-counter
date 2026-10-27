@@ -27,6 +27,12 @@ export const ACTION_META: Record<
     up: "收回",
     hint: "手举过头，双脚张开约两倍肩宽",
   },
+  bicep_curl: {
+    name: "二头弯举",
+    down: "弯起",
+    up: "放下",
+    hint: "上臂夹紧身体，前臂弯到顶再慢慢放直",
+  },
 };
 
 export const SAMPLES: SampleMeta[] = [
@@ -102,12 +108,40 @@ export const SAMPLES: SampleMeta[] = [
     score: 48,
     errors: ["左手再举高一点", "右手再举高一点"],
   },
+  {
+    id: "bicep_curl_standard",
+    file: "bicep_curl_standard.json",
+    action: "bicep_curl",
+    caseLabel: "标准弯举",
+    count: 3,
+    score: 79,
+    errors: [],
+  },
+  {
+    id: "bicep_curl_half",
+    file: "bicep_curl_half.json",
+    action: "bicep_curl",
+    caseLabel: "半程弯举",
+    count: 3,
+    score: 42.1,
+    errors: ["再弯一点，前臂尽量贴近上臂"],
+  },
+  {
+    id: "bicep_curl_swing",
+    file: "bicep_curl_swing.json",
+    action: "bicep_curl",
+    caseLabel: "后仰借力",
+    count: 3,
+    score: 66.4,
+    errors: ["身体别后仰借力，收住核心"],
+  },
 ];
 
 export const DEFAULT_SAMPLE: Record<ActionKey, string> = {
   squat: "squat_standard",
   pushup: "pushup_standard",
   jumping_jack: "jack_standard",
+  bicep_curl: "bicep_curl_standard",
 };
 
 const ACTION_CHECKS: Record<
@@ -129,6 +163,11 @@ const ACTION_CHECKS: Record<
     { key: "feet", label: "双脚张开" },
     { key: "sync", label: "左右同步" },
   ],
+  bicep_curl: [
+    { key: "curl", label: "弯举到位" },
+    { key: "straight", label: "手臂伸直" },
+    { key: "swing", label: "躯干稳定" },
+  ],
 };
 
 const SAMPLE_FAILS: Record<string, string[]> = {
@@ -136,6 +175,8 @@ const SAMPLE_FAILS: Record<string, string[]> = {
   squat_knee_fwd: ["knee"],
   pushup_sag: ["core"],
   jack_low_hands: ["hands"],
+  bicep_curl_half: ["curl"],
+  bicep_curl_swing: ["swing"],
 };
 
 export function checksForSample(sample: SampleMeta): TrainCheckState[] {
@@ -154,7 +195,8 @@ export function isActionKey(value: string | undefined): value is ActionKey {
   return (
     value === "squat" ||
     value === "pushup" ||
-    value === "jumping_jack"
+    value === "jumping_jack" ||
+    value === "bicep_curl"
   );
 }
 
