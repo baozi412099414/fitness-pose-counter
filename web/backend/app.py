@@ -21,6 +21,7 @@ import mediapipe
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .actions_api import router as actions_router
 from .pose_model import ROOT, PoseModel
 from .replay import ReplaySession
 from .rest import router as rest_router
@@ -55,6 +56,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="FORM LAB 判定服务", lifespan=lifespan)
 app.include_router(rest_router)
+app.include_router(actions_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # 本地课程项目：允许 vite dev server 直连
@@ -105,24 +107,6 @@ def health() -> dict:
         "mediapipe": mediapipe.__version__,
         "project_root": str(ROOT),
     }
-
-
-@app.get("/api/actions")
-def actions() -> dict:
-    """动作列表（网页版动作库暂时走 mock，这里先给一份最小可用的）。"""
-    items = []
-    for path in sorted((ROOT / "configs").glob("*.json")):
-        try:
-            cfg = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-        items.append({
-            "id": cfg.get("id", path.stem),
-            "name": cfg.get("name", path.stem),
-            "camera_side": cfg.get("camera_side", ""),
-            "file": f"configs/{path.name}",
-        })
-    return {"items": items, "count": len(items)}
 
 
 @app.websocket("/ws/train")

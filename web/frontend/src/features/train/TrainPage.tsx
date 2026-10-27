@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Camera,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
+import { client } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useUser } from "@/providers/UserProvider";
 import { CameraPreview } from "./CameraPreview";
@@ -28,7 +30,7 @@ import {
   isActionKey,
 } from "./samples";
 import { useTrainSession } from "./useTrainSession";
-import type { ActionKey, TrainMode } from "./types";
+import type { ActionKey, SampleMeta, TrainMode } from "./types";
 
 const REST_SECONDS = 30;
 
@@ -52,11 +54,36 @@ export function TrainPage() {
   const navigate = useNavigate();
   const { currentUser } = useUser();
   const { id } = useParams();
-  const action: ActionKey = isActionKey(id) ? id : "squat";
-  const actionSamples = SAMPLES.filter((sample) => sample.action === action);
+  // 内置动作有本地元信息与回放样本；自定义动作（新建动作加进来的）只有实时模式，
+  // 名称、机位等从后端 /api/actions/{id} 取。
+  const builtinAction = isActionKey(id) ? id : null;
+  const actionId = id ?? "squat";
+  const customQ = useQuery({
+    queryKey: ["action", actionId],
+    queryFn: () => client.getAction(actionId),
+    enabled: builtinAction === null,
+    retry: false,
+  });
+  const meta = builtinAction
+    ? ACTION_META[builtinAction]
+    : {
+        name: customQ.data?.name ?? actionId,
+        down: "动作",
+        up: "还原",
+        hint: customQ.data
+          ? `自定义动作 · ${customQ.data.camera_side === "正" ? "正面" : "侧面"}机位`
+          : "正在读取动作配置…",
+      };
+  const actionSamples = builtinAction
+    ? SAMPLES.filter((item) => item.action === builtinAction)
+    : [];
 
-  const [sampleId, setSampleId] = useState(DEFAULT_SAMPLE[action]);
-  const [mode, setMode] = useState<TrainMode>("replay");
+  const [sampleId, setSampleId] = useState(
+    builtinAction ? DEFAULT_SAMPLE[builtinAction] : "",
+  );
+  const [mode, setMode] = useState<TrainMode>(
+    builtinAction ? "replay" : "live",
+  );
   const [sets, setSets] = useState(1);
   const [repsPerSet, setRepsPerSet] = useState(10);
   const [restSeconds, setRestSeconds] = useState(REST_SECONDS);
@@ -75,15 +102,28 @@ export function TrainPage() {
   });
 
   useEffect(() => {
-    setSampleId(DEFAULT_SAMPLE[action]);
-  }, [action]);
+    if (builtinAction) setSampleId(DEFAULT_SAMPLE[builtinAction]);
+  }, [builtinAction]);
 
-  const sample = useMemo(
-    () =>
-      SAMPLES.find((item) => item.id === sampleId) ??
-      SAMPLES.find((item) => item.action === action)!,
-    [sampleId, action],
-  );
+  const sample: SampleMeta = useMemo(() => {
+    if (builtinAction) {
+      return (
+        SAMPLES.find((item) => item.id === sampleId) ??
+        SAMPLES.find((item) => item.action === builtinAction)!
+      );
+    }
+    // 自定义动作没有回放样本：给一份占位元信息，实时模式只用到「动作 id」
+    return {
+      id: `${actionId}_live`,
+      file: "",
+      action: actionId as ActionKey,
+      caseLabel: "无回放样本",
+      count: 10,
+      score: 0,
+      errors: [],
+    };
+  }, [builtinAction, sampleId, actionId]);
+  const sampleChecks = builtinAction ? checksForSample(sample) : [];
 
   const session = useTrainSession({
     mode,
@@ -254,10 +294,10 @@ export function TrainPage() {
           </button>
           <div>
             <h1 className="text-2xl font-medium text-text1">
-              训练 · {ACTION_META[action].name}
+              训练 · {meta.name}
             </h1>
             <p className="mt-0.5 text-sm text-text3">
-              {ACTION_META[action].hint}
+              {meta.hint}
             </p>
           </div>
         </div>
@@ -268,7 +308,12 @@ export function TrainPage() {
               <button
                 key={item}
                 type="button"
-                disabled={busy}
+                disabled={busy || (item === "replay" && !builtinAction)}
+                title={
+                  item === "replay" && !builtinAction
+                    ? "自定义动作没有回放样本，请用实时模式"
+                    : undefined
+                }
                 onClick={() => changeMode(item)}
                 className={cn(
                   "rounded-[8px] px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40",
@@ -296,10 +341,10 @@ export function TrainPage() {
                   动作
                 </p>
                 <p className="mt-1 text-lg text-text1">
-                  {ACTION_META[action].name}
+                  {meta.name}
                 </p>
                 <p className="mt-0.5 text-xs text-text3">
-                  {ACTION_META[action].hint}
+                  {meta.hint}
                 </p>
               </div>
 
@@ -309,7 +354,7 @@ export function TrainPage() {
                 </span>
                 <Select
                   value={sample.id}
-                  disabled={busy || mode !== "replay"}
+                  disabled={busy || mode !== "replay" || actionSamples.length === 0}
                   onChange={(event) => setSampleId(event.target.value)}
                 >
                   {actionSamples.map((item) => (
@@ -463,7 +508,7 @@ export function TrainPage() {
             )}
 
             <div className="absolute left-4 top-4 flex items-center gap-2">
-              <Badge tone="accent">{ACTION_META[action].name}</Badge>
+              <Badge tone="accent">{meta.name}</Badge>
               <Badge tone="neutral">
                 {mode === "replay" ? "回放" : "实时"}
               </Badge>
@@ -548,8 +593,8 @@ export function TrainPage() {
             {phase === "running" && frame && mode === "replay" && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-line1 bg-black/55 px-4 py-1.5 text-xs text-text2 backdrop-blur">
                 {frame.stage === "down"
-                  ? ACTION_META[action].down
-                  : ACTION_META[action].up}
+                  ? meta.down
+                  : meta.up}
                 <span className="mx-2 text-line2">·</span>
                 {Math.round(frame.cycleProgress * 100)}%
               </div>
@@ -661,9 +706,7 @@ export function TrainPage() {
               subtitle={phase === "idle" ? "开始后逐项判定" : "实时判定"}
             >
               <ChecksPanel
-                checks={
-                  frame?.checks?.length ? frame.checks : checksForSample(sample)
-                }
+                checks={frame?.checks?.length ? frame.checks : sampleChecks}
                 pending={!frame || phase === "idle" || !frame.person}
               />
             </Card>

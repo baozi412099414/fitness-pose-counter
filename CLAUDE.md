@@ -207,13 +207,21 @@ cd web/frontend && npm run dev     # http://localhost:5173
 **数据页**：`web/backend/rest.py` 提供 `/api/users`、`/api/overview`、`/api/history`、
 `/api/goals/{action}`，前端 `src/lib/httpClient.ts` 直连（Vite 代理 `/api`）。
 训练记录写在 `data/users/<用户名>/history.json`，用户列表按**最近练过的排前面**。
-动作库那几个接口暂时仍走前端 mock。
+
+**动作库（新建/删除都通了）**：`web/backend/actions_api.py`
+- `GET /api/actions`、`GET /api/actions/{id}`：直接扫 `configs/*.json` 生成，校验状态实时算
+- `POST /api/actions`：界面「新建动作」→ `action_editor.build_action_config` → 静态校验 → 落盘
+- `DELETE /api/actions/{id}`：**只允许删自己新建的**，内置三个动作返回 409
+- 网页上删动作的入口：动作详情页右上角「删除动作」（带二次确认）
+- 自定义动作也能训练：`/train/{id}` 对非内置动作从后端取名字/机位，默认进实时模式
+  （没有回放样本，所以「回放」按钮是灰的）
 
 **测试**：`python -m pytest web/backend/tests -q` → 20 项（回放 8 + 接口 3 + 相机链路桩模型 9）。
 
 **已知限制**：
-- **动作库**（列表/详情/校验/新建）仍走前端 mock；总览 / 数据 / 设置已经是真数据。
-  想整站退回假数据：`web/frontend/.env.local` 写 `VITE_USE_MOCK=true`。
+- 动作库的「新建向导」目前只提供两种规则模板（幅度 / 回到起始），
+  更复杂的规则（例如「躯干稳定」）还得直接编辑 `configs/*.json`。
+- 想整站退回假数据：`web/frontend/.env.local` 写 `VITE_USE_MOCK=true`。
 - 「跳过休息」在实时模式下还没接（契约里没有 `skip_rest`）。
 - 真人摄像头的检出率依旧未验证（见下方「阈值现状」）。
 

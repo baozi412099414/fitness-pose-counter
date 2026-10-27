@@ -1,13 +1,14 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Play } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Copy, Play, Trash2 } from "lucide-react";
 import { client } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import type { ActionDetail, CounterCondition } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TipBanner } from "@/components/ui/TipBanner";
@@ -171,6 +172,25 @@ export function ActionDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => client.deleteAction(id),
+    onSuccess: (result) => {
+      setConfirmDelete(false);
+      if (!result.ok) {
+        toast.push(result.errors[0]?.message ?? "删除失败", "coral");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["actions"] });
+      toast.push(`已删除动作「${id}」`, "accent");
+      navigate("/actions");
+    },
+    onError: (error: Error) => {
+      setConfirmDelete(false);
+      toast.push(error.message, "coral");
+    },
+  });
   const jsonRef = useRef<HTMLDetailsElement>(null);
 
   const action = useQuery({
@@ -280,6 +300,16 @@ export function ActionDetailPage() {
             >
               查看 JSON
             </Button>
+            {!detail.builtin && (
+              <Button
+                variant="secondary"
+                className="text-coral"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 size={15} />
+                删除动作
+              </Button>
+            )}
             <Button
               variant="primary"
               disabled={!detail.validation.ok}
@@ -382,6 +412,32 @@ export function ActionDetailPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="删除这个动作？"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-coral text-black hover:bg-coral/90"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              {remove.isPending ? "删除中…" : "确认删除"}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-text2">
+          会删掉 <span className="font-mono text-text1">configs/{detail.id}.json</span>，
+          这个动作之后就不能再用了（内置动作不在此列）。
+        </p>
+      </Dialog>
     </div>
   );
 }

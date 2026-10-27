@@ -1,10 +1,14 @@
 import type { ApiClient } from "@/mocks/client";
-import { mockClient } from "@/mocks/client";
 import type {
+  Action,
+  ActionDetail,
+  ActionValidationResult,
   Health,
   HistoryQuery,
   HistoryResult,
+  NewActionDraft,
   Overview,
+  SaveResult,
   User,
   UserOpResult,
 } from "@/lib/types";
@@ -49,10 +53,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /**
  * 真实后端的实现。
  *
- * 目前「动作库」的几个接口仍然复用 mock —— 动作列表/详情是静态展示数据，
- * 后台还没有对应的 REST（`configs/*.json` 的展示字段需要翻译层），
- * 等那部分接好再把 getActions 系列切过来。数据类接口（用户 / 总览 / 历史 / 目标 / 健康）
- * 已经全部走真实后端，训练记录能看到、能写进 `data/users/<用户名>/`。
+ * 所有接口都走 `web/backend`：用户 / 总览 / 历史 / 目标 / 健康，
+ * 以及动作库（列表、详情、校验、新建、删除）—— 新建动作就是往 `configs/` 写一份 JSON。
  */
 export const httpClient: ApiClient = {
   getHealth: () => request<Health>("/api/health"),
@@ -60,10 +62,38 @@ export const httpClient: ApiClient = {
   getOverview: (userId, days = 14) =>
     request<Overview>(`/api/overview${qs({ user: userId, days })}`),
 
-  getActions: () => mockClient.getActions(),
-  getAction: (id) => mockClient.getAction(id),
-  validateActions: () => mockClient.validateActions(),
-  createAction: (draft) => mockClient.createAction(draft),
+  getActions: async () => {
+    const data = await request<{ items: Action[] }>("/api/actions");
+    return data.items;
+  },
+
+  getAction: async (id) => {
+    try {
+      return await request<ActionDetail>(`/api/actions/${encodeURIComponent(id)}`);
+    } catch {
+      return null; // 404 = 动作不存在，交给页面显示空态
+    }
+  },
+
+  validateActions: async () => {
+    const data = await request<{ items: ActionValidationResult[] }>(
+      "/api/actions/validate",
+      { method: "POST", body: "{}" },
+    );
+    return data.items;
+  },
+
+  createAction: (draft: NewActionDraft) =>
+    request<SaveResult>("/api/actions", {
+      method: "POST",
+      body: JSON.stringify(draft),
+    }),
+
+  deleteAction: (id: string) =>
+    request<{ ok: boolean; errors: { message: string }[] }>(
+      `/api/actions/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
 
   getUsers: () => request<User[]>("/api/users"),
 

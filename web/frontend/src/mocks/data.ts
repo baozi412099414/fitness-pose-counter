@@ -123,32 +123,6 @@ export const MOCK_ACTION_DETAILS: ActionDetail[] = [
     last_validated_at: null,
     validation: { ok: true, errors: [], warnings: [] },
   },
-  {
-    id: "bicep_curl",
-    name: "二头弯举",
-    camera_side: "侧",
-    calibrate: false,
-    builtin: false,
-    counter: {
-      signal: "angle",
-      points: [11, 13, 15],
-      lo: 95,
-      hi: 150,
-      first: "lo",
-      min_interval: 0.6,
-      enter_hold: 0.06,
-      exit_hold: 0.06,
-      min_active_duration: 0.3,
-    },
-    quality: [
-      { name: "not_curl_enough", check: "valley_max", max: 70, when: "on_rep", priority: 80, tip: "再弯一点，前臂尽量贴近上臂", ideal: 45 },
-      { name: "not_extended", check: "peak_min", min: 160, when: "on_rep", priority: 70, tip: "放下去时手臂要伸直，别只做半程", ideal: 172 },
-      { name: "body_swing", signal: "angle", points: [11, 23, 25], check: "valley_min", min: 172, when: "on_rep", priority: 60, tip: "身体别后仰借力，收住核心" },
-    ],
-    file_path: "configs/bicep_curl.json",
-    last_validated_at: null,
-    validation: { ok: true, errors: [], warnings: [] },
-  },
 ];
 
 /** 详情 → 列表摘要（单一数据源） */
@@ -171,6 +145,19 @@ function toSummary(d: ActionDetail): Action {
 }
 
 /** 摘要随 store 实时派生（新建动作后 op 到最新列表） */
+/** 删除自定义动作（mock 模式下模拟后端行为；内置动作不允许删） */
+export function deleteAction(id: string): { ok: boolean; errors: SaveError[] } {
+  const index = MOCK_ACTION_DETAILS.findIndex((d) => d.id === id);
+  if (index < 0) {
+    return { ok: false, errors: [{ message: `没有这个动作：${id}` }] };
+  }
+  if (MOCK_ACTION_DETAILS[index].builtin) {
+    return { ok: false, errors: [{ message: "内置动作不能删除" }] };
+  }
+  MOCK_ACTION_DETAILS.splice(index, 1);
+  return { ok: true, errors: [] };
+}
+
 export function getActionSummaries(): Action[] {
   return MOCK_ACTION_DETAILS.map(toSummary);
 }

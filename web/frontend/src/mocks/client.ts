@@ -16,6 +16,7 @@ import type {
 import {
   clearGoal as clearGoalFn,
   createAction as saveAction,
+  deleteAction as deleteActionFn,
   createUser as createUserFn,
   deleteUser as deleteUserFn,
   getActionSummaries,
@@ -43,6 +44,8 @@ export interface ApiClient {
   validateActions(): Promise<ActionValidationResult[]>;
   getUsers(): Promise<User[]>;
   createAction(draft: NewActionDraft): Promise<SaveResult>;
+  /** 删除自定义动作（内置动作后端会拒绝） */
+  deleteAction(id: string): Promise<{ ok: boolean; errors: SaveError[] }>;
   createUser(input: CreateUserInput): Promise<UserOpResult>;
   deleteUser(id: string): Promise<{ ok: boolean; errors: SaveError[] }>;
   getHistory(q: HistoryQuery): Promise<HistoryResult>;
@@ -59,6 +62,7 @@ export const mockClient: ApiClient = {
   validateActions: () => delay(getValidationResults()),
   getUsers: () => delay(getUsersSnapshot()),
   createAction: (draft) => delay(saveAction(draft)),
+  deleteAction: (id) => delay(deleteActionFn(id)),
   createUser: (input) => delay(createUserFn(input)),
   deleteUser: (id) => delay(deleteUserFn(id)),
   getHistory: (q) => delay(getHistoryData(q)),
