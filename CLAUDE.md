@@ -202,11 +202,16 @@ cd web/frontend && npm run dev     # http://localhost:5173
 7. **组间休息靠帧推进**：倒计时与「休息结束」都在每帧的 state 里算，所以休息阶段前端
    必须继续发帧，而且后端不能因为「画面里没人」就跳过计时 —— 否则人一转身休息就永远不结束。
 
+**数据页**：`web/backend/rest.py` 提供 `/api/users`、`/api/overview`、`/api/history`、
+`/api/goals/{action}`，前端 `src/lib/httpClient.ts` 直连（Vite 代理 `/api`）。
+训练记录写在 `data/users/<用户名>/history.json`，用户列表按**最近练过的排前面**。
+动作库那几个接口暂时仍走前端 mock。
+
 **测试**：`python -m pytest web/backend/tests -q` → 20 项（回放 8 + 接口 3 + 相机链路桩模型 9）。
 
 **已知限制**：
-- 总览 / 动作库 / 数据 / 设置页的 REST 数据仍走前端 mock（`VITE_USE_MOCK`）；
-  只有「训练」是真后端。
+- **动作库**（列表/详情/校验/新建）仍走前端 mock；总览 / 数据 / 设置已经是真数据。
+  想整站退回假数据：`web/frontend/.env.local` 写 `VITE_USE_MOCK=true`。
 - 「跳过休息」在实时模式下还没接（契约里没有 `skip_rest`）。
 - 真人摄像头的检出率依旧未验证（见下方「阈值现状」）。
 

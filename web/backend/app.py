@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .pose_model import ROOT, PoseModel
 from .replay import ReplaySession
+from .rest import router as rest_router
 from .session import CameraSession
 
 model = PoseModel()
@@ -53,6 +54,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="FORM LAB 判定服务", lifespan=lifespan)
+app.include_router(rest_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # 本地课程项目：允许 vite dev server 直连
@@ -84,8 +86,20 @@ def _decode_image(data_url: str) -> bytes | None:
 
 @app.get("/api/health")
 def health() -> dict:
+    import platform
+
     return {
         "ok": True,
+        "mode": "live",
+        "version": "0.2.0",
+        "python_version": platform.python_version(),
+        "mediapipe_version": mediapipe.__version__,
+        "model": "pose_landmarker_lite.task",
+        "device": "本机",
+        "data_dir": str(ROOT / "data"),
+        "configs_dir": str(ROOT / "configs"),
+        "backend_url": "http://127.0.0.1:8000",
+        # 兼容旧字段
         "model_loaded": model.loaded,
         "model_error": model.load_error,
         "mediapipe": mediapipe.__version__,

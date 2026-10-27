@@ -389,6 +389,10 @@ class CameraSession:
 
         try:
             store = UserStore(str(ROOT / "data" / "users"))
+            # 只跑过一次训练的用户也要在用户列表里出现（否则网页上找不到自己的记录）
+            store.create_user(self.user)
+            # 把「最近训练的人」记为当前用户：网页下次打开默认就是他
+            store.switch_user(self.user)
             history = History(store, user=self.user)
             if self.record_history and reps > 0 and self.calib_status != "sampling":
                 history.add_session(

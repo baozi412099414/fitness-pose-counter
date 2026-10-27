@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isMock } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/Badge";
 import { AboutSection } from "./AboutSection";
@@ -42,10 +43,21 @@ export function SettingsPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge tone="amber">Mock 模式</Badge>
-        <span className="text-xs text-text3">
-          Mock 模式下用户统计为演示值，真实数据隔离待后端接入。
-        </span>
+        {isMock ? (
+          <>
+            <Badge tone="amber">Mock 模式</Badge>
+            <span className="text-xs text-text3">
+              演示数据，训练记录不会落盘。想要真实数据先启动后端。
+            </span>
+          </>
+        ) : (
+          <>
+            <Badge tone="mint">已连接判定服务</Badge>
+            <span className="text-xs text-text3">
+              用户、训练记录、目标都来自本地后端（data/users/）。
+            </span>
+          </>
+        )}
       </div>
 
       {tab === "profile" && <ProfileSection />}

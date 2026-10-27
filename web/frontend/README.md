@@ -85,11 +85,13 @@ web/frontend/
 
 | 变量 | 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `VITE_USE_MOCK` | `true` / `false` | `true` | REST 数据层是否走 `src/mocks/`（`VITE_USE_MOCK !== "false"` 即 mock）；训练页的实时识别不受它影响 |
+| `VITE_USE_MOCK` | `true` / `false` | `false`（走真后端） | 设 `true` 时数据层退回 `src/mocks/`（只看界面、不启动 Python 时用）；训练页的实时识别不受它影响 |
 | `VITE_TRAIN_MODE` | `mock` / `live` / 不设 | 不设 | **强制**两种模式都走某个传输层；不设时按页面模式自动选（实时→WebSocket，回放→本地 mock） |
 
-> 当前状态：训练页的「实时」已经接真后端（抓帧 → `/ws/train` → MediaPipe → pose_logic）；
-> 总览 / 动作库 / 数据 / 设置这些页面的数据仍来自 `src/mocks/`。
+> 当前状态：训练页的「实时」接真后端（抓帧 → `/ws/train` → MediaPipe → pose_logic）；
+> 总览 / 数据 / 设置走 `/api` 读真实数据（用户、训练记录、目标都在 `data/users/` 下）。
+> **动作库**三个接口（列表/详情/校验/新建）暂时仍用 `src/mocks/` —— 判定配置的展示字段
+> 还需要一层翻译，等那部分接好再切。
 
 ## 实时训练传输层与 WebSocket 契约
 

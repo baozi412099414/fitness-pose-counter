@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { client } from "@/lib/api";
+import { client, isMock } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import type { SaveError, User } from "@/lib/types";
 import { useUser } from "@/providers/UserProvider";
@@ -217,7 +217,7 @@ export function ProfileSection() {
         <Card
           className="col-span-12 lg:col-span-7"
           title="用户列表"
-          subtitle="新建用户仅本次会话有效，刷新后回到初始用户。"
+          subtitle={isMock ? "Mock 模式下新建用户仅本次会话有效。" : "新建用户会保存到 data/users/，刷新后仍在。"}
         >
           {usersLoading ? (
             <div className="space-y-3">
@@ -323,7 +323,7 @@ export function ProfileSection() {
               />
             </Field>
           </div>
-          <p className="text-xs text-text3">新建用户仅本次会话有效，刷新页面后恢复初始用户。</p>
+          <p className="text-xs text-text3">{isMock ? "Mock 模式下仅本次会话有效，刷新后恢复初始用户。" : "保存后写入 data/users/<用户名>/，刷新不会丢。"}</p>
         </div>
       </Dialog>
 
