@@ -32,6 +32,9 @@ import type { ActionKey, TrainMode } from "./types";
 
 const REST_SECONDS = 8;
 
+/** 连续互通相机的设备名里带 iPhone / iPad / Continuity，中文系统是「iPhone 的相机」 */
+const PHONE_CAMERA = /iphone|ipad|continuity|手机/i;
+
 function Kbd({ children }: { children: string }) {
   return (
     <kbd className="rounded border border-line1 bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-text2">
@@ -53,6 +56,16 @@ export function TrainPage() {
   const [voice, setVoice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExit, setShowExit] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [cameraMirrored, setCameraMirrored] = useState(true);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [cameraId, setCameraId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("formlab.cameraId") ?? "";
+    } catch {
+      return "";
+    }
+  });
 
   useEffect(() => {
     setSampleId(DEFAULT_SAMPLE[action]);
@@ -82,10 +95,57 @@ export function TrainPage() {
     [],
   );
 
+  // 摄像头列表来自 CameraPreview（拿到权限后 label 才可读）。
+  // 第一次拿到列表时若存在 iPhone 摄像头，自动切过去——演示时不用手动挑。
+  const handleDevices = useCallback(
+    (devices: MediaDeviceInfo[], activeId: string | null) => {
+      setCameras(devices);
+      setActiveCameraId(activeId);
+      setCameraId((current) => {
+        if (current) return current;
+        const phone = devices.find((device) => PHONE_CAMERA.test(device.label));
+        return phone && phone.deviceId !== activeId ? phone.deviceId : current;
+      });
+    },
+    [],
+  );
+
+  const pickCamera = (deviceId: string) => {
+    setCameraId(deviceId);
+    try {
+      localStorage.setItem("formlab.cameraId", deviceId);
+    } catch {
+      // 隐私模式下 localStorage 可能不可写，忽略即可
+    }
+  };
+
+  const savedCameraAvailable = cameras.some(
+    (device) => device.deviceId === cameraId,
+  );
+  // 列表还没出来时先让浏览器用默认摄像头，等 enumerateDevices 回来再切到指定设备
+  const appliedCameraId =
+    cameras.length > 0 && savedCameraAvailable ? cameraId : undefined;
+  const cameraValue = savedCameraAvailable ? cameraId : (activeCameraId ?? "");
+  const phoneCamera = cameras.find((device) => PHONE_CAMERA.test(device.label));
+  const cameraHint =
+    cameras.length === 0
+      ? "打开实时并允许摄像头后，这里会列出可用设备（含 iPhone）。"
+      : phoneCamera
+        ? "已检测到 iPhone 摄像头：保持 iPhone 解锁、靠近 Mac、开启「连续互通相机」。"
+        : "没检测到 iPhone：确认 iPhone 已解锁、与 Mac 同一 Apple ID，并在设置里开启「连续互通相机」。";
+
   // live 模式：从 camera 按 12fps 抓 640px JPEG 帧发给 /ws/train。
-  // 只在 running 阶段发送；停止/切回放时自动清理。
+  // ⚠ 校准阶段也要发帧：后端的站立基线是靠这些帧采出来的，
+  //   只在 running 阶段发会死锁（不校准完就进不了 running）。
   useEffect(() => {
-    if (mode !== "live" || phase !== "running") return;
+    if (mode !== "live") return;
+    if (
+      phase !== "running" &&
+      phase !== "calibrating" &&
+      phase !== "resting"
+    ) {
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
 
@@ -252,6 +312,32 @@ export function TrainPage() {
                 </Select>
               </label>
 
+              {mode === "live" && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-text3">
+                    摄像头
+                  </span>
+                  <Select
+                    value={cameraValue}
+                    title={cameraHint}
+                    disabled={busy || cameras.length === 0}
+                    onChange={(event) => pickCamera(event.target.value)}
+                  >
+                    {cameras.length === 0 && (
+                      <option value="">未检测到摄像头</option>
+                    )}
+                    {cameras.map((device, index) => (
+                      <option key={device.deviceId || index} value={device.deviceId}>
+                        {device.label || `摄像头 ${index + 1}`}
+                      </option>
+                    ))}
+                  </Select>
+                  <span className="text-[11px] leading-relaxed text-text3">
+                    {cameraHint}
+                  </span>
+                </label>
+              )}
+
               <label className="flex flex-col gap-1">
                 <span className="text-xs uppercase tracking-[0.12em] text-text3">
                   组数
@@ -295,8 +381,8 @@ export function TrainPage() {
 
               {mode === "live" && (
                 <p className="text-xs leading-relaxed text-text3">
-                  实时模式只做相机预览与校准；真正识别需后端
-                  `/ws/train` 接入，当前请用回放模式看计数与评分。
+                  实时模式的帧会发给本地 `/ws/train`（MediaPipe + pose_logic 判定），
+                  开跑前确认后端已启动：`python -m uvicorn web.backend.app:app --port 8000`。
                 </p>
               )}
               {mode === "replay" && (
@@ -312,11 +398,26 @@ export function TrainPage() {
         <section className="order-1 col-span-12 lg:order-2 lg:col-span-7">
           <div className="relative aspect-video overflow-hidden rounded-card border border-line1 bg-[#07090c]">
             {mode === "live" ? (
-              <CameraPreview
-                active
-                onError={setCameraError}
-                onVideoReady={handleVideoReady}
-              />
+              <>
+                <CameraPreview
+                  active
+                  deviceId={appliedCameraId}
+                  onError={setCameraError}
+                  onDevices={handleDevices}
+                  onVideoReady={handleVideoReady}
+                  onMirror={setCameraMirrored}
+                />
+                {frame?.person && frame.landmarks.length > 0 && (
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-0",
+                      cameraMirrored && "-scale-x-100",
+                    )}
+                  >
+                    <SkeletonCanvas landmarks={frame.landmarks} />
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,#121722_0%,#07090c_70%)]" />
@@ -350,7 +451,7 @@ export function TrainPage() {
                 <p className="text-sm text-text2">
                   {mode === "replay"
                     ? "回放样本，复现 README 的计数与评分"
-                    : "实时预览；识别与计数待后端 /ws/train 接入"}
+                    : "实时预览；点开始后先站直 2 秒量基线，再开始做动作"}
                 </p>
                 <Button onClick={session.start}>
                   <Play size={16} /> 开始训练
@@ -365,15 +466,20 @@ export function TrainPage() {
                   <Camera size={20} />
                 </div>
                 <p className="text-sm text-text1">
-                  {mode === "replay" ? "正在准备回放…" : "正在校准…"}
+                  {mode === "replay" ? "正在准备回放…" : "正在量站立基线…"}
                 </p>
-                <p className="text-xs text-text3">
+                <p className="max-w-xs text-center text-xs leading-relaxed text-text3">
                   {mode === "replay"
                     ? "加载样本关键点…"
-                    : "请正对镜头，让全身进入画面"}
+                    : "站直、别动，让全身进画面 —— 这 2 秒在量你站着时关节的角度，后面的判定门槛会按它来定"}
                 </p>
                 <div className="h-1 w-40 overflow-hidden rounded-full bg-surface2">
-                  <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-200"
+                    style={{
+                      width: `${Math.round((frame?.calibration?.progress ?? 0.15) * 100)}%`,
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -415,8 +521,17 @@ export function TrainPage() {
             )}
 
             {mode === "live" && phase === "running" && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-amber/30 bg-amber/10 px-4 py-1.5 text-xs text-amber">
-                演示模式 · 实时识别待接入
+              <div
+                className={cn(
+                  "absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border px-4 py-1.5 text-xs backdrop-blur",
+                  frame?.person
+                    ? "border-mint/30 bg-mint/10 text-mint"
+                    : "border-amber/30 bg-amber/10 text-amber",
+                )}
+              >
+                {frame?.person
+                  ? `实时识别中 · 当前 ${frame.signal != null ? `${Math.round(frame.signal)}°` : "—"}`
+                  : "请站到画面里"}
               </div>
             )}
 
@@ -501,7 +616,7 @@ export function TrainPage() {
               />
               <p className="mt-3 text-center text-xs text-text3">
                 {mode === "live"
-                  ? "实时识别待后端接入"
+                  ? "评分在本轮动作完成时结算"
                   : "评分来自回放样本基准值"}
               </p>
             </Card>
@@ -511,12 +626,10 @@ export function TrainPage() {
               subtitle={phase === "idle" ? "开始后逐项判定" : "实时判定"}
             >
               <ChecksPanel
-                checks={frame?.checks ?? checksForSample(sample)}
-                pending={
-                  !frame ||
-                  phase === "idle" ||
-                  (mode === "live" && phase === "running")
+                checks={
+                  frame?.checks?.length ? frame.checks : checksForSample(sample)
                 }
+                pending={!frame || phase === "idle" || !frame.person}
               />
             </Card>
 

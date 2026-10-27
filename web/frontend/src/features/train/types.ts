@@ -37,10 +37,18 @@ export interface TrainFrame {
   cycleProgress: number;
   score: number | null;
   grade: Grade | null;
+  /** 主信号实测值（live 模式才有，用于显示「当前膝角 152°」） */
+  signal?: number | null;
   checks: TrainCheckState[];
   tip: string | null;
   landmarks: LandmarkPoint[];
   person: boolean;
+  /** live 模式才有：站立基线校准进度（replay / mock 为 null） */
+  calibration?: {
+    status: "idle" | "sampling" | "done" | "skipped";
+    baseline: number | null;
+    progress: number;
+  } | null;
 }
 
 export interface TrainSummary {

@@ -64,10 +64,12 @@ function mapState(s: StateMessage): TrainFrame {
     cycleProgress: s.cycle_progress,
     score: s.score,
     grade: toGrade(s.grade, s.score),
+    signal: s.signal ?? null,
     checks: mapChecks(s.checks),
     tip: s.hits?.[0]?.tip ?? (s.person ? null : "请让全身入镜"),
     landmarks: mapLandmarks(s.landmarks),
     person: s.person,
+    calibration: s.calibration ?? null,
   };
 }
 
@@ -244,6 +246,11 @@ export function createLiveTrainTransport(): TrainTransport {
         break;
       case "state":
         transport.onFrame?.(mapState(msg));
+        // 组间休息的倒计时由后端每帧算好放进来；只靠 rest_start 那一条消息
+        // 前端会停在初始秒数不动（踩过）。
+        if (msg.sets && msg.sets.rest_remaining > 0) {
+          transport.onRestTick?.(msg.sets.rest_remaining);
+        }
         break;
       case "event":
         handleEvent(msg);

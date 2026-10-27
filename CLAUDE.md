@@ -97,6 +97,11 @@
 | `camera_probe.py` | 摄像头能力探测（能否调 zoom / 视野） | 可用（备用） |
 | `setup_env.sh` | 环境一键配置脚本（已固定 `mediapipe==0.10.35`） | 已执行完 |
 | `captures/` | 参考视频（reference/）与测试报告（reports/） | 已采集 3 段参考视频 + 若干报告 |
+| `web/backend/app.py` | **网页版判定服务**：`/api/health`、`/api/actions`、`/ws/train`（FastAPI） | ✅ 20 项后端测试 |
+| `web/backend/pose_model.py` | PoseLandmarker 单例（VIDEO 模式 + 线程锁，最长边 640） | ✅ |
+| `web/backend/session.py` | 相机会话：校准 / 计数 / 判定 / 分组 / 汇总（全部复用 `pose_logic` 与 `training_manager`） | ✅ |
+| `web/backend/replay.py` | 回放会话：`samples/*.json` 走同一套判定，用于无摄像头验收 | ✅ 7 个样本数值与 README 一致 |
+| `start_web.command` | 一键起「判定后端 + 前端」 | ✅ |
 
 
 ## 文档地图
@@ -163,6 +168,44 @@ macOS 摄像头权限按**谁该为这个进程负责**算，不是按 python �
    否则推理慢于采集时帧会在缓冲区堆积，延迟越跑越大，现场演示会很难看。
 2. MediaPipe 用 `RunningMode.LIVE_STREAM` 异步回调，推理不阻塞取帧。
 3. `cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)` 压低驱动层缓冲。
+
+
+## 网页版实时链路（2026-10-27 接通）
+
+```bash
+# 判定后端（必须用能跑 mediapipe 的 python）
+python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 8000
+# 前端
+cd web/frontend && npm run dev     # http://localhost:5173
+# 或者直接双击项目根的 start_web.command（两个进程一起起）
+```
+
+**链路**：浏览器 `getUserMedia`（可选 iPhone 连续互通相机）→ 12fps 抓 640px JPEG →
+`/ws/train` → MediaPipe `RunningMode.VIDEO` → `pose_logic.Action.update()` → state 回推。
+
+**几个关键设计**（答辩可以直接讲）：
+1. **单帧泵**：服务端只保留「最新一帧」，上一个还在推理时新帧直接覆盖（`metrics.dropped=true`）。
+   否则浏览器 12fps 推进来、后端推理 30ms，队列迟早堆积成秒级延迟。
+2. **模型单例 + 线程锁**：PoseLandmarker 不是线程安全的；`asyncio.to_thread` 里推理必须串行。
+3. **BUSY**：同一时间只允许一路实时训练，第二个连接直接被告知「先结束那一路」。
+4. **回放复用同一套判定**：`web/backend/replay.py` 把 `samples/*.json` 喂给同一个
+   `Action`，7 个样本的计数/分数与 `samples/README.md` 完全一致（有测试断言），
+   这就是「网页版和桌面版同一套逻辑」的证据。
+5. **校准阶段也要发帧**：前端如果只在 `running` 阶段发帧，后端永远采不到站立基线，
+   会死锁在「校准中」—— 踩过，已修。
+6. **进入门槛用「基线 − 25°」而不是 − 15°**：15° 时站着换重心这种十几度的膝盖小晃动
+   就能穿过门槛被记一次（已用合成轨迹复现：3 次 15° 的小动作数出 3 个，判定还在报
+   「蹲得不够深」——说明数的根本不是深蹲）。25° 仍远小于真实深蹲的 60~80°，但误计数消失。
+7. **组间休息靠帧推进**：倒计时与「休息结束」都在每帧的 state 里算，所以休息阶段前端
+   必须继续发帧，而且后端不能因为「画面里没人」就跳过计时 —— 否则人一转身休息就永远不结束。
+
+**测试**：`python -m pytest web/backend/tests -q` → 20 项（回放 8 + 接口 3 + 相机链路桩模型 9）。
+
+**已知限制**：
+- 总览 / 动作库 / 数据 / 设置页的 REST 数据仍走前端 mock（`VITE_USE_MOCK`）；
+  只有「训练」是真后端。
+- 「跳过休息」在实时模式下还没接（契约里没有 `skip_rest`）。
+- 真人摄像头的检出率依旧未验证（见下方「阈值现状」）。
 
 
 ## 当前进度（2026-09-29）

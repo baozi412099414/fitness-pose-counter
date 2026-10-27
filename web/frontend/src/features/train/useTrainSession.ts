@@ -33,12 +33,13 @@ export function useTrainSession(options: Options) {
   const [restLeft, setRestLeft] = useState(0);
 
   const transportRef = useRef<TrainTransport | null>(null);
-  if (transportRef.current == null) {
-    transportRef.current = getTrainTransport();
-  }
+  const { mode } = options;
 
+  // 传输层跟着模式走：实时 = 后端 /ws/train，回放 = 本地 mock。
+  // 切换模式时重建连接，避免「实时」的画面配上「回放」的数据。
   useEffect(() => {
-    const transport = transportRef.current!;
+    const transport = getTrainTransport(mode);
+    transportRef.current = transport;
 
     transport.onPhase = (next) => {
       if (next === "idle") {
@@ -55,10 +56,19 @@ export function useTrainSession(options: Options) {
     transport.onSummary = setSummary;
     transport.onError = setError;
 
+    // 换传输层等于换一场训练：把上一场的状态清掉
+    setPhase("idle");
+    setFrame(null);
+    setSummary(null);
+    setError(null);
+    setCurrentSet(1);
+    setRestLeft(0);
+
     return () => {
       transport.dispose();
+      if (transportRef.current === transport) transportRef.current = null;
     };
-  }, []);
+  }, [mode]);
 
   const start = useCallback(() => {
     setFrame(null);
@@ -66,7 +76,7 @@ export function useTrainSession(options: Options) {
     setError(null);
     setCurrentSet(1);
     setRestLeft(0);
-    transportRef.current!.start({
+    transportRef.current?.start({
       mode: optsRef.current.mode,
       sample: optsRef.current.sample,
       sets: optsRef.current.sets,
@@ -76,20 +86,20 @@ export function useTrainSession(options: Options) {
   }, []);
 
   const sendFrame = useCallback((frameId: number, image: string) => {
-    transportRef.current!.sendFrame(frameId, image);
+    transportRef.current?.sendFrame(frameId, image);
   }, []);
 
   const stop = useCallback(() => {
-    transportRef.current!.stop();
+    transportRef.current?.stop();
   }, []);
 
   const skipRest = useCallback(() => {
-    transportRef.current!.skipRest();
+    transportRef.current?.skipRest();
   }, []);
 
   const reset = useCallback(() => {
     setError(null);
-    transportRef.current!.reset();
+    transportRef.current?.reset();
   }, []);
 
   return {

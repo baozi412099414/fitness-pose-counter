@@ -18,18 +18,26 @@
 
 ## 启动
 
-要求 Node.js 18+。
+要求 Node.js 18+。**实时训练**还要先起 Python 判定服务（`web/backend`），
+回放模式不需要。
 
 ```bash
+# 终端 1：判定服务（项目根目录）
+python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 8000
+
+# 终端 2：前端
 cd web/frontend
 npm install
 npm run dev
 ```
 
+> 两个进程都起好了以后，打开 <http://localhost:5173> 就能用「训练 → 实时」；
+> 也可以直接双击项目根目录的 `start_web.command`（macOS）。
+
 打开：
 
+- 业务首页：<http://localhost:5173>
 - 设计规范页：<http://localhost:5173/styleguide>
-- 业务首页：待开发
 
 构建与类型检查：
 
@@ -77,18 +85,19 @@ web/frontend/
 
 | 变量 | 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `VITE_USE_MOCK` | `true` / `false` | `true` | REST 数据层是否走 `src/mocks/`（`VITE_USE_MOCK !== "false"` 即 mock） |
-| `VITE_TRAIN_MODE` | `mock` / `live` | `mock` | 实时训练传输层：`mock` 本地计时 + `samples/` 回放；`live` 走 WebSocket `/ws/train` |
+| `VITE_USE_MOCK` | `true` / `false` | `true` | REST 数据层是否走 `src/mocks/`（`VITE_USE_MOCK !== "false"` 即 mock）；训练页的实时识别不受它影响 |
+| `VITE_TRAIN_MODE` | `mock` / `live` / 不设 | 不设 | **强制**两种模式都走某个传输层；不设时按页面模式自动选（实时→WebSocket，回放→本地 mock） |
 
-> 答辩前切换为真实接口：`VITE_USE_MOCK=false` + `VITE_TRAIN_MODE=live`，并保证后端 `uvicorn web.backend.app:app` 已启动。
+> 当前状态：训练页的「实时」已经接真后端（抓帧 → `/ws/train` → MediaPipe → pose_logic）；
+> 总览 / 动作库 / 数据 / 设置这些页面的数据仍来自 `src/mocks/`。
 
 ## 实时训练传输层与 WebSocket 契约
 
 `/train` 页面通过 `TrainTransport` 接口（`src/features/train/trainTransport.ts`）消费数据，
 `useTrainSession` 与页面组件不感知实现是 mock 还是 live：
 
-- `mockTrainTransport.ts`：本地计时 + `samples/*.json` 回放（默认）。
-- `liveTrainTransport.ts`：WebSocket `/ws/train` 客户端（`VITE_TRAIN_MODE=live` 时启用，经 Vite 的 `/ws` 代理到 `127.0.0.1:8000`）。
+- `mockTrainTransport.ts`：本地计时 + `samples/*.json` 回放，用于「回放」模式（不依赖后端）。
+- `liveTrainTransport.ts`：WebSocket `/ws/train` 客户端，用于「实时」模式（经 Vite 的 `/ws` 代理到 `127.0.0.1:8000`）。
   live 模式会从 `<video>` 按 12fps 抓 640px JPEG 帧，通过 `frame` 消息发送；`start.user` 取当前用户显示名。
 
 后端 `/ws/train` 的消息契约（字段以 `src/features/train/contract.ts` 为准，即 Prompt C §6 + 附录 A）：
@@ -116,8 +125,10 @@ web/frontend/
 - 传输层无自动重连与指数退避：`/ws/train` 断开后仅报错并回到 idle，需用户手动重开。
 - `skip_rest` 客户端消息尚未支持：live 模式下「跳过休息」按钮已禁用，回放模式不受影响。
 - live 的 `start.reps_per_set` 暂取样本 `sample.count`，与真后端的目标次数/组数尚未完全对齐。
-- `VITE_TRAIN_MODE` 是全局开关：设为 `live` 时，回放模式同样走 WebSocket（`start_replay`）。
-- live 抓帧（12fps / 640px JPEG）尚未与真后端联调，帧率、分辨率与消息时序以接入 C 后实测为准。
+- `VITE_TRAIN_MODE=live` 时是全局开关：回放模式也会走 WebSocket（`start_replay`），需要后端在。
+- 同一时间只支持一路实时训练；第二个连接会被后端以 `BUSY` 拒绝（MediaPipe 实例不是线程安全的）。
+- 实时页从浏览器 `getUserMedia` 取流，可选设备（含 iPhone 连续互通相机），首次拿到设备列表后会优先自动切到 iPhone；
+  iPhone 未出现在列表里时按页面提示检查「连续互通相机」，无线连接在本机容易掉线，演示建议插数据线。
 
 ## 备注
 
