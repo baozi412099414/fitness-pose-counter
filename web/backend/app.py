@@ -14,6 +14,7 @@ import asyncio
 import base64
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 
 import mediapipe
@@ -59,8 +60,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 同一时间只允许一路训练：MediaPipe 实例不是线程安全的，两路会互相踩
-BUSY: dict[str, WebSocket | None] = {"ws": None}
+# 同一时间只允许一路训练：MediaPipe 实例不是线程安全的，两路会互相踩。
+#
+# 但「只允许一路」必须配一个**僵尸回收**：浏览器标签页被直接关掉、笔记本合盖断线时，
+# 服务端这一侧的连接可能不会立刻收到断开通知，BUSY 就会一直挂着，
+# 用户会看到「已有一路训练在进行」却根本不知道自己开过训练（实测踩到）。
+BUSY: dict = {"ws": None, "since": 0.0, "last_frame": 0.0, "action": "", "user": ""}
+
+FRAME_IDLE_TIMEOUT = 20.0   # 会话内超过这么久没收到帧 → 判定为僵尸连接，自己关掉
+TAKEOVER_IDLE = 10.0        # 新训练开始时，旧连接空闲超过这么久 → 直接抢过来
 
 
 def _decode_image(data_url: str) -> bytes | None:
@@ -117,6 +125,7 @@ async def ws_train(ws: WebSocket) -> None:
     frame_event = asyncio.Event()
     processor: asyncio.Task | None = None
     replay_task: asyncio.Task | None = None
+    watchdog: asyncio.Task | None = None
     claimed = False
 
     async def run_frames() -> None:
@@ -147,6 +156,21 @@ async def ws_train(ws: WebSocket) -> None:
                 # 组数已经做满：汇总已随上一批消息发出，这里收摊
                 frame_event.clear()
                 await ws.close()
+                return
+
+    async def watch_idle() -> None:
+        """超过 FRAME_IDLE_TIMEOUT 没收到帧就把会话关掉，避免 BUSY 被僵尸连接占死。"""
+        while True:
+            await asyncio.sleep(5)
+            if BUSY["ws"] is not ws:
+                return
+            idle = time.monotonic() - BUSY["last_frame"]
+            if idle >= FRAME_IDLE_TIMEOUT:
+                print(f"[会话] {idle:.0f}s 没收到画面，自动结束这次训练", flush=True)
+                try:
+                    await ws.close()
+                except Exception:  # noqa: BLE001
+                    pass
                 return
 
     async def run_replay(replay: ReplaySession) -> None:
@@ -182,6 +206,8 @@ async def ws_train(ws: WebSocket) -> None:
             if kind == "frame":
                 if session is None:
                     continue
+                if BUSY["ws"] is ws:
+                    BUSY["last_frame"] = time.monotonic()
                 data = _decode_image(msg.get("image") or "")
                 if data is None:
                     await send({
@@ -200,13 +226,31 @@ async def ws_train(ws: WebSocket) -> None:
                 if session is not None or replay_task is not None:
                     continue
                 if BUSY["ws"] is not None:
-                    await send({
-                        "type": "error",
-                        "code": "BUSY",
-                        "message": "已有一路训练在进行，请先结束那一路（同一时间只支持一个摄像头）",
-                    })
-                    await ws.close()
-                    return
+                    idle = time.monotonic() - BUSY["last_frame"]
+                    # 空闲太久的连接判定为僵尸（页面被关掉/网络断了），直接回收
+                    if idle >= TAKEOVER_IDLE:
+                        old = BUSY["ws"]
+                        print(f"[会话] 回收僵尸会话：{idle:.0f}s 没收到帧"
+                              f"（{BUSY['user']} / {BUSY['action']}）", flush=True)
+                        try:
+                            await old.close()
+                        except Exception:  # noqa: BLE001
+                            pass
+                        BUSY.update(ws=None, since=0.0, last_frame=0.0,
+                                    action="", user="")
+                    else:
+                        who = f"{BUSY['user']} 的{BUSY['action']}" if BUSY["user"] else "另一路"
+                        await send({
+                            "type": "error",
+                            "code": "BUSY",
+                            "message": (
+                                f"已有一路训练正在进行（{who}，最近 {idle:.0f} 秒前还在传画面）。"
+                                "如果那是你之前开着的旧页面，关掉它或刷新一下即可；"
+                                "闲置超过 10 秒的连接会被自动回收。"
+                            ),
+                        })
+                        await ws.close()
+                        return
                 if not model.loaded:
                     try:
                         await asyncio.to_thread(model.load)
@@ -235,8 +279,14 @@ async def ws_train(ws: WebSocket) -> None:
                     })
                     await ws.close()
                     return
-                BUSY["ws"] = ws
+                BUSY.update(ws=ws, since=time.monotonic(),
+                            last_frame=time.monotonic(),
+                            action=session.action_name, user=session.user)
                 claimed = True
+                watchdog = asyncio.create_task(watch_idle())
+                print(f"[会话] 开始训练：{session.user} / {session.action_name}"
+                      f" · {session.setman.total_sets} 组 × {session.setman.reps_per_set} 次",
+                      flush=True)
                 await send(session.ready("camera"))
                 processor = asyncio.create_task(run_frames())
                 continue
@@ -274,8 +324,9 @@ async def ws_train(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        for task in (processor, replay_task):
+        for task in (processor, replay_task, watchdog):
             if task is not None and not task.done():
                 task.cancel()
         if claimed and BUSY["ws"] is ws:
-            BUSY["ws"] = None
+            BUSY.update(ws=None, since=0.0, last_frame=0.0, action="", user="")
+            print("[会话] 训练结束，连接已释放", flush=True)
