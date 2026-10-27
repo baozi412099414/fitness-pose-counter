@@ -245,7 +245,7 @@ function WeeklyTrend({ data }: { data?: WeeklyPoint[] }) {
         <EmptyState title="还没有训练记录" description="完成一次训练后这里会显示趋势。" />
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="rgb(var(--line-1-rgb))"

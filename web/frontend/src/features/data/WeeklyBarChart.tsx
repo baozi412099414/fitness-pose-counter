@@ -55,7 +55,7 @@ export function WeeklyBarChart({
         <ResponsiveContainer width="100%" height={240}>
           <BarChart
             data={data}
-            margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -91,7 +91,7 @@ export function WeeklyBarChart({
                 value: `均值 ${avg}`,
                 fill: "#6C7686",
                 fontSize: 11,
-                position: "insideTopRight",
+                position: "insideTopLeft",
               }}
             />
             <Bar
