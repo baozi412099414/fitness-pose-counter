@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from web.backend.app import app
@@ -17,7 +19,10 @@ def test_health():
     assert data["ok"] is True
     assert "model_loaded" in data
     assert data["mediapipe"].startswith("0.10")
-    assert data["project_root"].endswith("选题 3")
+    # 不写死文件夹名：项目复制到别处（例如交付用的「健身动作」）也该通过
+    root = Path(data["project_root"])
+    assert root.is_dir()
+    assert (root / "configs" / "squat.json").exists()
 
 
 def test_actions_list():

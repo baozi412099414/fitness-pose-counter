@@ -29,6 +29,13 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-echo "前端：http://localhost:5173"
 cd web/frontend || exit 1
+
+# 没有依赖就先装（新拷贝出来的项目第一次跑会走这里）
+if [ ! -d "node_modules" ]; then
+  echo "首次启动：安装前端依赖（npm install）…"
+  npm install || { echo "npm install 失败，检查网络后重试"; exit 1; }
+fi
+
+echo "前端：http://localhost:5173"
 npm run dev
